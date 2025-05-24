@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Setup Git Hooks for Rephrasely
-# This script installs the pre-commit hook for automatic building
+# This script installs the pre-commit hook for GitHub releases
 
 echo "🔧 Setting up Git Hooks for Rephrasely"
 echo "======================================"
@@ -33,12 +33,20 @@ else
     exit 1
 fi
 
-# Test the build script
-if [[ -x "scripts/build_for_distribution.sh" ]]; then
-    echo "✅ Build script found and executable"
+# Check GitHub release script
+if [[ -x "scripts/create_github_release.sh" ]]; then
+    echo "✅ GitHub release script found and executable"
 else
-    echo "⚠️  Making build script executable..."
-    chmod +x "scripts/build_for_distribution.sh"
+    echo "⚠️  Making GitHub release script executable..."
+    chmod +x "scripts/create_github_release.sh"
+fi
+
+# Check other scripts
+if [[ -x "scripts/manual_release.sh" ]]; then
+    echo "✅ Manual release script found and executable"
+else
+    echo "⚠️  Making manual release script executable..."
+    chmod +x "scripts/manual_release.sh"
 fi
 
 echo ""
@@ -47,12 +55,13 @@ echo "============================"
 echo ""
 echo "🔄 The pre-commit hook will now:"
 echo "   • Run automatically when you commit to main/master"
-echo "   • Build the app for distribution"
-echo "   • Add the built app to your commit"
+echo "   • Ask if you want to create GitHub releases for Python changes"
+echo "   • Use GitHub Releases for distribution (no local builds)"
 echo ""
 echo "💡 Tips:"
-echo "   • Only commits to main/master trigger builds"
-echo "   • Only commits with Python/config file changes trigger builds"
-echo "   • The build process takes 1-2 minutes"
+echo "   • Only commits to main/master trigger release prompts"
+echo "   • Only commits with Python/config file changes trigger prompts"
+echo "   • You need GitHub CLI authenticated: gh auth login"
+echo "   • Manual releases: ./scripts/manual_release.sh"
 echo ""
-echo "🚀 Ready for automated distribution builds!" 
+echo "🚀 Ready for GitHub releases system!" 
