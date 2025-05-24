@@ -65,6 +65,16 @@ def build_app():
             # Fix the Info.plist after PyInstaller creates it
             fix_info_plist(app_path)
             
+            # Re-sign the app after modifying Info.plist
+            print("🔐 Re-signing app bundle...")
+            try:
+                subprocess.run(['codesign', '--force', '--deep', '--sign', '-', app_path], 
+                             check=True, capture_output=True, text=True)
+                print("✅ App bundle re-signed successfully")
+            except subprocess.CalledProcessError as e:
+                print(f"⚠️  Code signing failed: {e}")
+                print("App may not launch via double-click")
+            
             # Make sure executable permissions are correct
             executable_path = f"{app_path}/Contents/MacOS/Rephrasely"
             if os.path.exists(executable_path):
@@ -91,7 +101,7 @@ def fix_info_plist(app_path):
     """Fix the Info.plist file after PyInstaller creates it"""
     info_plist_path = f"{app_path}/Contents/Info.plist"
     
-    # Create proper Info.plist for background app
+    # Create proper Info.plist for background app that can be double-clicked
     info_plist_content = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -115,9 +125,7 @@ def fix_info_plist(app_path):
     <key>CFBundleIconFile</key>
     <string>app_icon.icns</string>
     <key>LSUIElement</key>
-    <true/>
-    <key>LSBackgroundOnly</key>
-    <false/>
+    <string>1</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
@@ -128,13 +136,20 @@ def fix_info_plist(app_path):
     <string>Rephrasely needs access to send keystroke events for pasting processed text.</string>
     <key>NSSystemAdministrationUsageDescription</key>
     <string>Rephrasely needs system access to monitor global hotkeys.</string>
+    <key>LSEnvironment</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>.</string>
+    </dict>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
 </dict>
 </plist>"""
     
     with open(info_plist_path, 'w') as f:
         f.write(info_plist_content)
     
-    print("✅ Fixed Info.plist for background app")
+    print("✅ Fixed Info.plist for double-click launching")
 
 def create_app_bundle_from_directory(bundle_path):
     """Convert PyInstaller directory to proper .app bundle"""
@@ -173,9 +188,7 @@ def create_app_bundle_from_directory(bundle_path):
     <key>CFBundleIconFile</key>
     <string>app_icon.icns</string>
     <key>LSUIElement</key>
-    <true/>
-    <key>LSBackgroundOnly</key>
-    <false/>
+    <string>1</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
@@ -186,6 +199,13 @@ def create_app_bundle_from_directory(bundle_path):
     <string>Rephrasely needs access to send keystroke events for pasting processed text.</string>
     <key>NSSystemAdministrationUsageDescription</key>
     <string>Rephrasely needs system access to monitor global hotkeys.</string>
+    <key>LSEnvironment</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>.</string>
+    </dict>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
 </dict>
 </plist>"""
     
@@ -205,6 +225,16 @@ def create_app_bundle_from_directory(bundle_path):
     executable_path = f"{app_path}/Contents/MacOS/Rephrasely"
     if os.path.exists(executable_path):
         os.chmod(executable_path, 0o755)
+    
+    # Re-sign the app after creating the bundle
+    print("🔐 Re-signing app bundle...")
+    try:
+        subprocess.run(['codesign', '--force', '--deep', '--sign', '-', app_path], 
+                     check=True, capture_output=True, text=True)
+        print("✅ App bundle re-signed successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Code signing failed: {e}")
+        print("App may not launch via double-click")
     
     # Remove the old directory
     shutil.rmtree(bundle_path)

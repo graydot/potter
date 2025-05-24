@@ -620,6 +620,24 @@ def main():
         print("OPENAI_API_KEY=your_api_key_here")
         sys.exit(1)
     
+    # Initialize NSApplication for macOS app bundle compatibility
+    try:
+        from Foundation import NSBundle, NSApplication
+        
+        # Check if we're running as a bundled app
+        bundle = NSBundle.mainBundle()
+        if bundle and bundle.bundlePath().endswith('.app'):
+            # We're running as an app bundle, initialize NSApplication
+            app = NSApplication.sharedApplication()
+            # Make sure the app doesn't terminate when all windows are closed
+            app.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
+            logger.info("✅ NSApplication initialized for app bundle")
+    except ImportError:
+        # PyObjC not available, continue without NSApplication setup
+        pass
+    except Exception as e:
+        logger.warning(f"Failed to initialize NSApplication: {e}")
+    
     # Start the service (single instance check is done in start())
     service = RephrasleyService()
     
