@@ -1119,8 +1119,7 @@ def main():
     
     # Initialize NSApplication for macOS app bundle compatibility
     try:
-        from Foundation import NSBundle, NSApplication
-        from objc import super as objc_super
+        from Foundation import NSBundle, NSApplication, NSObject
         
         # Check if we're running as a bundled app
         bundle = NSBundle.mainBundle()
@@ -1129,62 +1128,24 @@ def main():
             app = NSApplication.sharedApplication()
             # Make sure the app doesn't terminate when all windows are closed
             app.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
-            
-            # Prevent app from terminating when all windows are closed
-            # This is crucial for menu bar apps
-            class AppDelegate:
-                def applicationShouldTerminateAfterLastWindowClosed_(self, app):
-                    """Prevent app termination when last window closes"""
-                    print("Debug - AppDelegate: applicationShouldTerminateAfterLastWindowClosed called - returning False")
+
+            class AppDelegate(NSObject):
+                """Ensures app stays alive when settings window closes"""
+
+                def applicationShouldTerminateAfterLastWindowClosed_(self, sender):
                     return False
-                
-                def applicationShouldTerminate_(self, app):
-                    """Control when the application should terminate"""
-                    print("Debug - AppDelegate: applicationShouldTerminate called - returning NSTerminateCancel")
-                    from AppKit import NSTerminateCancel
-                    return NSTerminateCancel  # Explicitly cancel termination
-                
-                def applicationWillTerminate_(self, notification):
-                    """Called when app will terminate"""
-                    print("Debug - AppDelegate: applicationWillTerminate called - this should not happen!")
-                    # Try to prevent termination even here
-                    try:
-                        from AppKit import NSApplication
-                        app = NSApplication.sharedApplication()
-                        print("Debug - Attempting to prevent termination in applicationWillTerminate")
-                        app.abortModal()
-                    except Exception as e:
-                        print(f"Debug - Could not prevent termination: {e}")
-                
-                def applicationDidFinishLaunching_(self, notification):
-                    """Called when app finishes launching"""
-                    print("Debug - AppDelegate: applicationDidFinishLaunching called")
-                
-                def applicationWillBecomeActive_(self, notification):
-                    """Called when app will become active"""
-                    print("Debug - AppDelegate: applicationWillBecomeActive called")
-                
-                def applicationDidBecomeActive_(self, notification):
-                    """Called when app became active"""
-                    print("Debug - AppDelegate: applicationDidBecomeActive called")
-            
-            # Set the delegate to prevent termination
-            delegate = AppDelegate()
-            app.setDelegate_(delegate)
-            
-            # Additional safety measures
-            print("Debug - NSApplication configuration:")
-            print(f"Debug - Activation policy: {app.activationPolicy()}")
-            print(f"Debug - Delegate set: {app.delegate() is not None}")
-            
-            logger.info("✅ NSApplication initialized for app bundle with comprehensive delegate")
+
+            # Keep a reference so it's not garbage collected
+            global _app_delegate
+            _app_delegate = AppDelegate.alloc().init()
+            app.setDelegate_(_app_delegate)
+
+            logger.info("✅ NSApplication initialized for app bundle")
     except ImportError:
         # PyObjC not available, continue without NSApplication setup
-        print("Debug - PyObjC not available, skipping NSApplication setup")
         pass
     except Exception as e:
         logger.warning(f"Failed to initialize NSApplication: {e}")
-        print(f"Debug - NSApplication setup error: {e}")
     
     # Start the service (single instance check is done in start())
     service = RephrasleyService()
