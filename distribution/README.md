@@ -34,52 +34,65 @@ No more command-line configuration needed - everything is handled through the be
 
 ## Troubleshooting
 
-### App Won't Launch (Double-Click Doesn't Work)
+### ❓ App Won't Launch (Double-click doesn't work)
+1. **Try the Launch Helper**: Run `./launch_helper.sh` from the Terminal in the same folder as Rephrasely.app
+2. **Check Gatekeeper**: Right-click Rephrasely.app → "Open" → "Open" (bypasses Gatekeeper)
+3. **Remove Quarantine**: Run `xattr -r -d com.apple.quarantine Rephrasely.app` in Terminal
 
-If double-clicking doesn't work, try these solutions:
+### 🔑 Testing API Key Paste (NEW FIX)
+To verify the paste functionality works correctly:
+1. Open Rephrasely settings (click menu bar icon → Preferences)
+2. Copy your API key from OpenAI dashboard (Cmd+C)
+3. Click in the "OpenAI API Key" field
+4. Press **Cmd+V** to paste - this should now work!
+5. Other keyboard shortcuts that should work:
+   - **Cmd+A**: Select all text in field
+   - **Cmd+C**: Copy selected text
+   - **Cmd+X**: Cut selected text
 
-#### Solution 1: Use the Launch Helper
-1. Open Terminal
-2. Navigate to the folder containing `Rephrasely.app`
-3. Run: `./launch_helper.sh`
+### 💾 Testing Settings Save (NEW FIX)
+To verify the save dialog closes properly:
+1. Make any change in settings (like toggling a checkbox)
+2. Click "Save" button
+3. **Dialog should close immediately** after successful save
+4. Check terminal output for detailed debug messages
+5. Reopen settings to verify changes were saved
 
-#### Solution 2: Remove Quarantine Manually
+### 🚀 First Launch Experience
+On first launch, Rephrasely will:
+1. Show a welcome dialog
+2. Prompt you to configure your OpenAI API key
+3. Open the settings window automatically
+4. Guide you through the setup process
+
+### ⌨️ Hotkey Not Working
+1. Check hotkey conflicts in Settings → General
+2. Try resetting to default: Cmd+Shift+R
+3. Make sure no other app is using the same combination
+4. Restart Rephrasely after changing hotkey
+
+### 🤖 AI Processing Issues
+1. **Verify API Key**: Check that your OpenAI API key is correctly entered in Settings
+2. **Check Internet**: Ensure you have a stable internet connection
+3. **Select Text First**: Highlight text before pressing the hotkey
+4. **Watch Menu Bar**: Look for the processing spinner in the menu bar icon
+
+### 📋 Clipboard Issues
+1. **Text Not Copied**: Make sure text is selected before pressing hotkey
+2. **Paste Failed**: Processed text is still in clipboard - manually press Cmd+V
+3. **Original Text Lost**: Rephrasely preserves original clipboard when possible
+
+### 🔧 Debug Mode
+For detailed troubleshooting, check the log file:
 ```bash
-# In Terminal, navigate to the folder with Rephrasely.app
-xattr -r -d com.apple.quarantine Rephrasely.app
-open Rephrasely.app
+tail -f ~/rephrasely.log
 ```
 
-#### Solution 3: Right-Click Method
-1. Right-click on `Rephrasely.app`
-2. Select "Open" from the context menu
-3. Click "Open" in the security dialog
-
-#### Solution 4: System Preferences Override
-1. Open System Preferences → Security & Privacy
-2. Go to the "General" tab
-3. If you see a message about Rephrasely being blocked, click "Open Anyway"
-
-### Security Warnings
-
-Since this app is not signed with an Apple Developer certificate, macOS will show security warnings. This is normal and safe - the app is open source and doesn't contain any malicious code.
-
-**What you might see:**
-- "Rephrasely can't be opened because it is from an unidentified developer"
-- "macOS cannot verify that this app is free from malware"
-
-**These are safe to override** by using the right-click → Open method.
-
-### App Appears to Not Be Running
-
-Rephrasely runs as a **menu bar application**. After launching:
-
-1. Look for the Rephrasely icon in your menu bar (top of screen)
-2. The app may take a few seconds to fully initialize
-3. If you don't see the icon, check if the process is running:
-   ```bash
-   ps aux | grep Rephrasely
-   ```
+### 🆘 Still Having Issues?
+1. Try the launch helper script: `./launch_helper.sh`
+2. Check Console app for error messages
+3. Make sure you're running macOS 10.15 or later
+4. Try restarting your Mac if keyboard detection isn't working
 
 ## Features
 

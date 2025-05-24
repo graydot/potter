@@ -236,6 +236,127 @@ class HotkeyField(NSTextField):
             self.window().makeFirstResponder_(None)  # End editing
 
 
+class PasteableTextField(NSTextField):
+    """NSTextField that explicitly supports paste operations"""
+    
+    def initWithFrame_(self, frame):
+        self = objc.super(PasteableTextField, self).initWithFrame_(frame)
+        if self is None:
+            return None
+        
+        # Configure for paste support
+        self.setBezeled_(True)
+        self.setBezelStyle_(NSTextFieldSquareBezel)
+        self.setEditable_(True)
+        self.setSelectable_(True)
+        
+        return self
+    
+    def performKeyEquivalent_(self, event):
+        """Handle key equivalents like Cmd+V"""
+        # Check for Cmd+V (paste)
+        if (event.modifierFlags() & NSEventModifierFlagCommand and 
+            event.charactersIgnoringModifiers().lower() == 'v'):
+            self.paste_(None)
+            return True
+        
+        # Check for Cmd+C (copy)
+        if (event.modifierFlags() & NSEventModifierFlagCommand and 
+            event.charactersIgnoringModifiers().lower() == 'c'):
+            self.copy_(None)
+            return True
+        
+        # Check for Cmd+X (cut)
+        if (event.modifierFlags() & NSEventModifierFlagCommand and 
+            event.charactersIgnoringModifiers().lower() == 'x'):
+            self.cut_(None)
+            return True
+        
+        # Check for Cmd+A (select all)
+        if (event.modifierFlags() & NSEventModifierFlagCommand and 
+            event.charactersIgnoringModifiers().lower() == 'a'):
+            self.selectAll_(None)
+            return True
+        
+        return objc.super(PasteableTextField, self).performKeyEquivalent_(event)
+    
+    def paste_(self, sender):
+        """Handle paste operation"""
+        try:
+            pasteboard = NSPasteboard.generalPasteboard()
+            string = pasteboard.stringForType_(NSPasteboardTypeString)
+            if string:
+                # Get current selection or cursor position
+                field_editor = self.currentEditor()
+                if field_editor:
+                    field_editor.insertText_(string)
+                else:
+                    # Fallback: replace entire content
+                    self.setStringValue_(string)
+                print(f"Debug - Pasted text: {len(string)} characters")
+                return True
+        except Exception as e:
+            print(f"Debug - Paste error: {e}")
+        return False
+    
+    def copy_(self, sender):
+        """Handle copy operation"""
+        try:
+            # Get selected text or all text
+            field_editor = self.currentEditor()
+            if field_editor and field_editor.selectedRange().length > 0:
+                selected_text = field_editor.string().substringWithRange_(field_editor.selectedRange())
+            else:
+                selected_text = self.stringValue()
+            
+            if selected_text:
+                pasteboard = NSPasteboard.generalPasteboard()
+                pasteboard.clearContents()
+                pasteboard.setString_forType_(selected_text, NSPasteboardTypeString)
+                print(f"Debug - Copied text: {len(selected_text)} characters")
+                return True
+        except Exception as e:
+            print(f"Debug - Copy error: {e}")
+        return False
+    
+    def cut_(self, sender):
+        """Handle cut operation"""
+        try:
+            if self.copy_(sender):
+                # Get selected text range or select all
+                field_editor = self.currentEditor()
+                if field_editor:
+                    if field_editor.selectedRange().length > 0:
+                        field_editor.insertText_("")
+                    else:
+                        self.setStringValue_("")
+                else:
+                    self.setStringValue_("")
+                print("Debug - Cut operation completed")
+                return True
+        except Exception as e:
+            print(f"Debug - Cut error: {e}")
+        return False
+    
+    def selectAll_(self, sender):
+        """Handle select all operation"""
+        try:
+            field_editor = self.currentEditor()
+            if field_editor:
+                field_editor.selectAll_(sender)
+            else:
+                # Make this field first responder and then select all
+                self.window().makeFirstResponder_(self)
+                field_editor = self.currentEditor()
+                if field_editor:
+                    field_editor.selectAll_(sender)
+            print("Debug - Select all completed")
+            return True
+        except Exception as e:
+            print(f"Debug - Select all error: {e}")
+        return False
+
+
 class PromptDialog(NSWindowController):
     """Dialog for adding/editing prompts"""
     
@@ -574,13 +695,10 @@ class SettingsWindow(NSWindowController):
         api_key_label.setEditable_(False)
         view.addSubview_(api_key_label)
         
-        # Use regular NSTextField instead of NSSecureTextField to allow paste operations
-        self.api_key_field = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
+        # Use custom PasteableTextField to explicitly support paste operations
+        self.api_key_field = PasteableTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
         self.api_key_field.setStringValue_(self.settings_manager.get("openai_api_key", ""))
         self.api_key_field.setPlaceholderString_("sk-...")
-        # Make it look like a secure field but allow paste
-        self.api_key_field.cell().setUsesSingleLineMode_(True)
-        self.api_key_field.cell().setScrollable_(True)
         view.addSubview_(self.api_key_field)
         
         # API key help text
@@ -923,14 +1041,17 @@ class SettingsWindow(NSWindowController):
     
     def save_(self, sender):
         """Save settings"""
+        print("Debug - Save button clicked")
+        
         try:
             settings = self.settings_manager.settings.copy()
+            print("Debug - Copied existing settings")
             
             # General settings with validation
             if hasattr(self, 'api_key_field') and self.api_key_field:
                 api_key = str(self.api_key_field.stringValue()).strip()
                 settings["openai_api_key"] = api_key
-                print(f"Debug - API key saved: {'sk-...' if api_key.startswith('sk-') else 'Invalid format'}")
+                print(f"Debug - API key saved: {'sk-...' if api_key.startswith('sk-') else f'Invalid format: {api_key[:10]}...'}")
             
             if hasattr(self, 'hotkey_field') and self.hotkey_field:
                 hotkey = str(self.hotkey_field.stringValue()).strip()
@@ -940,12 +1061,15 @@ class SettingsWindow(NSWindowController):
             
             if hasattr(self, 'auto_paste_checkbox') and self.auto_paste_checkbox:
                 settings["auto_paste"] = bool(self.auto_paste_checkbox.state())
+                print(f"Debug - Auto paste: {settings['auto_paste']}")
             
             if hasattr(self, 'notifications_checkbox') and self.notifications_checkbox:
                 settings["show_notifications"] = bool(self.notifications_checkbox.state())
+                print(f"Debug - Notifications: {settings['show_notifications']}")
             
             if hasattr(self, 'startup_checkbox') and self.startup_checkbox:
                 settings["launch_at_startup"] = bool(self.startup_checkbox.state())
+                print(f"Debug - Launch at startup: {settings['launch_at_startup']}")
             
             # Prompts - get from table data
             if hasattr(self, 'prompts_data') and self.prompts_data:
@@ -957,12 +1081,14 @@ class SettingsWindow(NSWindowController):
                 model = str(self.model_popup.titleOfSelectedItem())
                 if model:  # Only save if not empty
                     settings["model"] = model
+                    print(f"Debug - Model saved: {model}")
             
             if hasattr(self, 'tokens_field') and self.tokens_field:
                 try:
                     tokens = int(self.tokens_field.stringValue())
                     if tokens > 0:  # Validate positive number
                         settings["max_tokens"] = tokens
+                        print(f"Debug - Max tokens: {tokens}")
                 except (ValueError, TypeError):
                     settings["max_tokens"] = 1000  # Default fallback
                     print("Debug - Invalid max_tokens, using default 1000")
@@ -972,6 +1098,7 @@ class SettingsWindow(NSWindowController):
                     temp = float(self.temp_field.stringValue())
                     if 0.0 <= temp <= 2.0:  # Validate range
                         settings["temperature"] = temp
+                        print(f"Debug - Temperature: {temp}")
                 except (ValueError, TypeError):
                     settings["temperature"] = 0.7  # Default fallback
                     print("Debug - Invalid temperature, using default 0.7")
@@ -979,38 +1106,63 @@ class SettingsWindow(NSWindowController):
             # Attempt to save
             print("Debug - Attempting to save settings...")
             save_success = self.settings_manager.save_settings(settings)
+            print(f"Debug - Save result: {save_success}")
             
             if save_success:
                 print("Debug - Settings saved successfully")
+                
                 # Call callback if provided
+                callback_success = True
                 if hasattr(self, 'on_settings_changed') and self.on_settings_changed:
                     try:
                         self.on_settings_changed(settings)
-                        print("Debug - Settings change callback executed")
+                        print("Debug - Settings change callback executed successfully")
                     except Exception as e:
-                        print(f"Debug - Callback error: {e}")
+                        print(f"Debug - Callback error (non-critical): {e}")
+                        callback_success = False
                 
-                # Close the window
-                print("Debug - Closing settings window...")
-                self.window().close()
-                print("Debug - Settings window closed")
+                # Close the window - force close regardless of callback success
+                try:
+                    print("Debug - Attempting to close settings window...")
+                    window = self.window()
+                    if window:
+                        print("Debug - Window exists, closing...")
+                        window.close()
+                        print("Debug - Window.close() called successfully")
+                    else:
+                        print("Debug - Warning: Window is None")
+                except Exception as e:
+                    print(f"Debug - Error closing window: {e}")
+                    # Force close by attempting alternative methods
+                    try:
+                        if hasattr(self, 'window'):
+                            self.close()
+                        print("Debug - Alternative close method attempted")
+                    except Exception as e2:
+                        print(f"Debug - Alternative close failed: {e2}")
+                
+                print("Debug - Save process completed")
             else:
-                print("Debug - Failed to save settings")
-                self.show_save_error("Failed to save settings to file.")
+                print("Debug - Save failed, showing error dialog")
+                self.show_save_error("Failed to save settings to file. Please check file permissions.")
                 
         except Exception as e:
-            print(f"Debug - Save error: {e}")
+            print(f"Debug - Critical save error: {e}")
             import traceback
             traceback.print_exc()
-            self.show_save_error(f"Error saving settings: {str(e)}")
+            self.show_save_error(f"Unexpected error saving settings: {str(e)}")
     
     def show_save_error(self, message):
         """Show save error dialog"""
-        alert = NSAlert.alloc().init()
-        alert.setMessageText_("Save Failed")
-        alert.setInformativeText_(message)
-        alert.setAlertStyle_(NSAlertStyleCritical)
-        alert.runModal()
+        print(f"Debug - Showing save error: {message}")
+        try:
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Save Failed")
+            alert.setInformativeText_(message)
+            alert.setAlertStyle_(NSAlertStyleCritical)
+            alert.runModal()
+        except Exception as e:
+            print(f"Debug - Error showing alert: {e}")
     
     def cancel_(self, sender):
         """Cancel changes"""
