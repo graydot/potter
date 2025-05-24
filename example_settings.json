@@ -1,0 +1,18 @@
+{
+  "prompts": {
+    "rephrase": "Please rephrase the following text to make it clearer and more professional:",
+    "summarize": "Please provide a concise summary of the following text:",
+    "expand": "Please expand on the following text with more detail and examples:",
+    "casual": "Please rewrite the following text in a more casual, friendly tone:",
+    "formal": "Please rewrite the following text in a more formal, professional tone:",
+    "email": "Please rewrite this text as a professional email:",
+    "creative": "Please rewrite this text in a more creative and engaging way:",
+    "technical": "Please rewrite this text with more technical precision and clarity:"
+  },
+  "hotkey": "cmd+shift+r",
+  "model": "gpt-3.5-turbo",
+  "max_tokens": 1000,
+  "temperature": 0.7,
+  "auto_paste": true,
+  "show_notifications": true
+} 
