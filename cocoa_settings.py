@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple Native macOS Settings UI for Rephrasely using PyObjC/Cocoa
-Starting fresh with minimal complexity
+Native macOS Settings UI for Rephrasely using PyObjC/Cocoa
+Built from scratch for reliability
 """
 
 import json
@@ -67,24 +67,95 @@ class SettingsManager:
         return self.settings.get(key, default)
 
 
-class SimpleSettingsWindow(NSWindowController):
-    """Simple settings window controller"""
+class HotkeyField(NSTextField):
+    """Simple hotkey input field"""
+    
+    def initWithFrame_manager_(self, frame, settings_manager):
+        self = objc.super(HotkeyField, self).initWithFrame_(frame)
+        if self is None:
+            return None
+        
+        self.settings_manager = settings_manager
+        self.original_value = ""
+        self.reset_callback = None
+        
+        # Configure appearance
+        self.setBezeled_(True)
+        self.setBezelStyle_(NSTextFieldSquareBezel)
+        
+        return self
+    
+    def becomeFirstResponder(self):
+        """Clear field when focused"""
+        self.original_value = str(self.stringValue())
+        self.setStringValue_("")
+        self.setPlaceholderString_("Press hotkey combination...")
+        return objc.super(HotkeyField, self).becomeFirstResponder()
+    
+    def resignFirstResponder(self):
+        """Restore original if empty"""
+        if not self.stringValue():
+            self.setStringValue_(self.original_value)
+        self.setPlaceholderString_("")
+        
+        # Trigger reset button update
+        if self.reset_callback:
+            self.reset_callback()
+        
+        return objc.super(HotkeyField, self).resignFirstResponder()
+    
+    def keyDown_(self, event):
+        """Capture hotkey combinations"""
+        if not self.currentEditor():
+            return
+        
+        # Get modifiers
+        modifiers = []
+        flags = event.modifierFlags()
+        
+        if flags & NSEventModifierFlagCommand:
+            modifiers.append("cmd")
+        if flags & NSEventModifierFlagOption:
+            modifiers.append("alt")
+        if flags & NSEventModifierFlagControl:
+            modifiers.append("ctrl")
+        if flags & NSEventModifierFlagShift:
+            modifiers.append("shift")
+        
+        # Get key
+        key = event.charactersIgnoringModifiers().lower()
+        
+        # Build hotkey string
+        if modifiers and key and key.isalnum():
+            hotkey = "+".join(modifiers + [key])
+            self.setStringValue_(hotkey)
+            self.window().makeFirstResponder_(None)  # End editing
+
+
+class SettingsWindow(NSWindowController):
+    """Main settings window"""
     
     def initWithSettingsManager_(self, settings_manager):
-        self = objc.super(SimpleSettingsWindow, self).init()
+        self = objc.super(SettingsWindow, self).init()
         if self is None:
             return None
         
         self.settings_manager = settings_manager
         self.on_settings_changed = None
+        self.current_section = 0
+        
+        # UI elements
+        self.hotkey_field = None
+        self.reset_button = None
+        self.conflict_label = None
+        self.content_views = []
         self.text_views = {}
         
-        # Create window
         self.createWindow()
         return self
     
     def createWindow(self):
-        """Create a simple settings window with three tabs"""
+        """Create the main window"""
         # Create window
         frame = NSMakeRect(100, 100, 700, 600)
         window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
@@ -96,242 +167,320 @@ class SimpleSettingsWindow(NSWindowController):
         
         window.setTitle_("Rephrasely Settings")
         window.setLevel_(NSNormalWindowLevel)
-        
-        # Create main content view
         content_view = window.contentView()
         
-        # Create tab view
-        tab_view = NSTabView.alloc().initWithFrame_(NSMakeRect(20, 60, 660, 520))
+        # Navigation buttons at top
+        general_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 550, 100, 30))
+        general_btn.setTitle_("General")
+        general_btn.setTag_(0)
+        general_btn.setTarget_(self)
+        general_btn.setAction_("switchSection:")
+        content_view.addSubview_(general_btn)
         
-        # Create the three tabs
-        self.createGeneralTab_(tab_view)
-        self.createPromptsTab_(tab_view)
-        self.createAdvancedTab_(tab_view)
+        prompts_btn = NSButton.alloc().initWithFrame_(NSMakeRect(130, 550, 100, 30))
+        prompts_btn.setTitle_("Prompts") 
+        prompts_btn.setTag_(1)
+        prompts_btn.setTarget_(self)
+        prompts_btn.setAction_("switchSection:")
+        content_view.addSubview_(prompts_btn)
         
-        content_view.addSubview_(tab_view)
+        advanced_btn = NSButton.alloc().initWithFrame_(NSMakeRect(240, 550, 100, 30))
+        advanced_btn.setTitle_("Advanced")
+        advanced_btn.setTag_(2)
+        advanced_btn.setTarget_(self)
+        advanced_btn.setAction_("switchSection:")
+        content_view.addSubview_(advanced_btn)
         
-        # Bottom buttons (outside tabs)
+        # Content area
+        self.content_container = NSView.alloc().initWithFrame_(NSMakeRect(20, 80, 660, 460))
+        content_view.addSubview_(self.content_container)
+        
+        # Create content views
+        self.content_views = [
+            self.createGeneralView(),
+            self.createPromptsView(),
+            self.createAdvancedView()
+        ]
+        
+        # Show general view initially
+        self.showSection_(0)
+        
+        # Bottom buttons
         cancel_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 20, 80, 30))
         cancel_btn.setTitle_("Cancel")
         cancel_btn.setTarget_(self)
         cancel_btn.setAction_("cancel:")
-        cancel_btn.setKeyEquivalent_("\x1b")  # ESC key
+        cancel_btn.setKeyEquivalent_("\x1b")
         content_view.addSubview_(cancel_btn)
         
         save_btn = NSButton.alloc().initWithFrame_(NSMakeRect(600, 20, 80, 30))
         save_btn.setTitle_("Save")
         save_btn.setTarget_(self)
         save_btn.setAction_("save:")
-        save_btn.setKeyEquivalent_("\r")  # Return key
+        save_btn.setKeyEquivalent_("\r")
         content_view.addSubview_(save_btn)
         
-        # Set as default button
         window.setDefaultButtonCell_(save_btn.cell())
-        
         self.setWindow_(window)
     
-    def createGeneralTab_(self, tab_view):
-        """Create the General tab"""
-        tab_item = NSTabViewItem.alloc().initWithIdentifier_("general")
-        tab_item.setLabel_("General")
+    def switchSection_(self, sender):
+        """Switch to a different section"""
+        section = sender.tag()
+        self.showSection_(section)
+    
+    def showSection_(self, section):
+        """Show the specified section"""
+        if section < 0 or section >= len(self.content_views):
+            return
         
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 640, 480))
+        # Remove current content
+        for subview in self.content_container.subviews():
+            subview.removeFromSuperview()
+        
+        # Add new content
+        view = self.content_views[section]
+        view.setFrame_(NSMakeRect(0, 0, 660, 460))
+        self.content_container.addSubview_(view)
+        
+        self.current_section = section
+    
+    def createGeneralView(self):
+        """Create General settings view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
         
         # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 440, 600, 25))
+        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
         title.setStringValue_("General Settings")
-        title.setFont_(NSFont.boldSystemFontOfSize_(16))
+        title.setFont_(NSFont.boldSystemFontOfSize_(18))
         title.setBezeled_(False)
         title.setDrawsBackground_(False)
         title.setEditable_(False)
+        title.setAlignment_(NSTextAlignmentCenter)
         view.addSubview_(title)
         
-        # Hotkey setting
-        hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 390, 120, 25))
+        # Hotkey section
+        hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 370, 120, 25))
         hotkey_label.setStringValue_("Global Hotkey:")
         hotkey_label.setBezeled_(False)
         hotkey_label.setDrawsBackground_(False)
         hotkey_label.setEditable_(False)
         view.addSubview_(hotkey_label)
         
-        self.hotkey_field = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 390, 200, 25))
+        # Hotkey field
+        self.hotkey_field = HotkeyField.alloc().initWithFrame_manager_(
+            NSMakeRect(150, 370, 200, 25), self.settings_manager
+        )
         self.hotkey_field.setStringValue_(self.settings_manager.get("hotkey", "cmd+shift+r"))
+        self.hotkey_field.reset_callback = self.updateResetButton
         view.addSubview_(self.hotkey_field)
         
-        # Auto-paste checkbox
-        self.auto_paste_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 340, 400, 25))
+        # Reset button
+        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(360, 370, 60, 25))
+        self.reset_button.setTitle_("Reset")
+        self.reset_button.setTarget_(self)
+        self.reset_button.setAction_("resetHotkey:")
+        view.addSubview_(self.reset_button)
+        
+        # Conflict warning
+        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 345, 400, 20))
+        self.conflict_label.setBezeled_(False)
+        self.conflict_label.setDrawsBackground_(False)
+        self.conflict_label.setEditable_(False)
+        self.conflict_label.setTextColor_(NSColor.systemRedColor())
+        self.conflict_label.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.conflict_label)
+        
+        # Options
+        self.auto_paste_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 300, 400, 25))
         self.auto_paste_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.auto_paste_checkbox.setTitle_("Automatically paste processed text")
         self.auto_paste_checkbox.setState_(1 if self.settings_manager.get("auto_paste", True) else 0)
         view.addSubview_(self.auto_paste_checkbox)
         
-        # Notifications checkbox
-        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 310, 400, 25))
+        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 270, 400, 25))
         self.notifications_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.notifications_checkbox.setTitle_("Show success/error notifications")
         self.notifications_checkbox.setState_(1 if self.settings_manager.get("show_notifications", True) else 0)
         view.addSubview_(self.notifications_checkbox)
         
-        # Startup checkbox
-        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 280, 400, 25))
+        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 240, 400, 25))
         self.startup_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.startup_checkbox.setTitle_("Launch Rephrasely at startup")
         self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
         view.addSubview_(self.startup_checkbox)
         
-        tab_item.setView_(view)
-        tab_view.addTabViewItem_(tab_item)
-    
-    def createPromptsTab_(self, tab_view):
-        """Create the Prompts tab"""
-        tab_item = NSTabViewItem.alloc().initWithIdentifier_("prompts")
-        tab_item.setLabel_("Prompts")
+        # Update UI
+        self.updateResetButton()
+        self.checkConflicts()
         
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 640, 480))
+        return view
+    
+    def createPromptsView(self):
+        """Create Prompts view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
         
         # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 440, 600, 25))
+        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
         title.setStringValue_("AI Prompts")
-        title.setFont_(NSFont.boldSystemFontOfSize_(16))
+        title.setFont_(NSFont.boldSystemFontOfSize_(18))
         title.setBezeled_(False)
         title.setDrawsBackground_(False)
         title.setEditable_(False)
+        title.setAlignment_(NSTextAlignmentCenter)
         view.addSubview_(title)
         
-        # Create prompt editors for each mode
+        # Prompt editors
         prompts = self.settings_manager.get("prompts", {})
-        y_pos = 400
+        y_pos = 380
         
         for mode in ['rephrase', 'summarize', 'expand', 'casual', 'formal']:
-            # Mode label
-            mode_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, y_pos, 600, 20))
-            mode_label.setStringValue_(f"{mode.title()} Mode:")
-            mode_label.setFont_(NSFont.boldSystemFontOfSize_(13))
-            mode_label.setBezeled_(False)
-            mode_label.setDrawsBackground_(False)
-            mode_label.setEditable_(False)
-            view.addSubview_(mode_label)
+            # Label
+            label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, y_pos, 620, 20))
+            label.setStringValue_(f"{mode.title()} Mode:")
+            label.setFont_(NSFont.boldSystemFontOfSize_(13))
+            label.setBezeled_(False)
+            label.setDrawsBackground_(False)
+            label.setEditable_(False)
+            view.addSubview_(label)
             
-            # Text view for this prompt
-            scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, y_pos - 60, 600, 50))
-            scroll_view.setHasVerticalScroller_(True)
-            scroll_view.setAutohidesScrollers_(True)
+            # Text field
+            text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(20, y_pos - 25, 620, 25))
+            text_field.setStringValue_(prompts.get(mode, ''))
+            view.addSubview_(text_field)
             
-            text_view = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, 580, 50))
-            prompt_text = prompts.get(mode, '')
-            text_view.setString_(prompt_text)
-            text_view.setFont_(NSFont.systemFontOfSize_(11))
-            
-            scroll_view.setDocumentView_(text_view)
-            view.addSubview_(scroll_view)
-            
-            self.text_views[mode] = text_view
-            
-            y_pos -= 80
+            self.text_views[mode] = text_field
+            y_pos -= 60
         
-        tab_item.setView_(view)
-        tab_view.addTabViewItem_(tab_item)
+        return view
     
-    def createAdvancedTab_(self, tab_view):
-        """Create the Advanced tab"""
-        tab_item = NSTabViewItem.alloc().initWithIdentifier_("advanced")
-        tab_item.setLabel_("Advanced")
-        
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 640, 480))
+    def createAdvancedView(self):
+        """Create Advanced view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
         
         # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 440, 600, 25))
+        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
         title.setStringValue_("Advanced Settings")
-        title.setFont_(NSFont.boldSystemFontOfSize_(16))
+        title.setFont_(NSFont.boldSystemFontOfSize_(18))
         title.setBezeled_(False)
         title.setDrawsBackground_(False)
         title.setEditable_(False)
+        title.setAlignment_(NSTextAlignmentCenter)
         view.addSubview_(title)
         
-        # Model setting
-        model_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 390, 100, 25))
+        # AI Model
+        model_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 370, 100, 25))
         model_label.setStringValue_("AI Model:")
         model_label.setBezeled_(False)
         model_label.setDrawsBackground_(False)
         model_label.setEditable_(False)
         view.addSubview_(model_label)
         
-        self.model_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(130, 390, 200, 25))
+        self.model_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(130, 370, 200, 25))
         self.model_popup.addItemsWithTitles_(["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"])
         current_model = self.settings_manager.get("model", "gpt-3.5-turbo")
         self.model_popup.selectItemWithTitle_(current_model)
         view.addSubview_(self.model_popup)
         
-        # Max tokens
-        tokens_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 350, 100, 25))
+        # Max Tokens
+        tokens_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 330, 100, 25))
         tokens_label.setStringValue_("Max Tokens:")
         tokens_label.setBezeled_(False)
         tokens_label.setDrawsBackground_(False)
         tokens_label.setEditable_(False)
         view.addSubview_(tokens_label)
         
-        self.tokens_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 350, 100, 25))
+        self.tokens_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 330, 100, 25))
         self.tokens_field.setStringValue_(str(self.settings_manager.get("max_tokens", 1000)))
         view.addSubview_(self.tokens_field)
         
         # Temperature
-        temp_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 310, 100, 25))
+        temp_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 290, 100, 25))
         temp_label.setStringValue_("Temperature:")
         temp_label.setBezeled_(False)
         temp_label.setDrawsBackground_(False)
         temp_label.setEditable_(False)
         view.addSubview_(temp_label)
         
-        self.temp_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 310, 100, 25))
+        self.temp_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 290, 100, 25))
         self.temp_field.setStringValue_(str(self.settings_manager.get("temperature", 0.7)))
         view.addSubview_(self.temp_field)
         
-        tab_item.setView_(view)
-        tab_view.addTabViewItem_(tab_item)
+        return view
     
-    def collectSettings(self):
-        """Collect settings from UI"""
-        settings = self.settings_manager.settings.copy()
+    def updateResetButton(self):
+        """Update reset button visibility"""
+        if not self.hotkey_field or not self.reset_button:
+            return
         
-        # Update basic settings from General tab
-        settings["hotkey"] = str(self.hotkey_field.stringValue())
-        settings["auto_paste"] = bool(self.auto_paste_checkbox.state())
-        settings["show_notifications"] = bool(self.notifications_checkbox.state())
-        settings["launch_at_startup"] = bool(self.startup_checkbox.state())
+        current = str(self.hotkey_field.stringValue())
+        default = self.settings_manager.default_settings["hotkey"]
+        self.reset_button.setHidden_(current == default)
+    
+    def checkConflicts(self):
+        """Check for hotkey conflicts"""
+        if not self.hotkey_field or not self.conflict_label:
+            return
         
-        # Update prompts from Prompts tab
-        prompts = settings.get("prompts", {})
-        for mode, text_view in self.text_views.items():
-            prompts[mode] = str(text_view.string())
-        settings["prompts"] = prompts
+        hotkey = str(self.hotkey_field.stringValue()).lower()
+        conflicts = {
+            "cmd+space": "Spotlight",
+            "cmd+tab": "App switching",
+            "cmd+shift+3": "Screenshot",
+            "cmd+shift+4": "Screenshot selection"
+        }
         
-        # Update advanced settings from Advanced tab
-        settings["model"] = str(self.model_popup.titleOfSelectedItem())
-        
-        try:
-            settings["max_tokens"] = int(self.tokens_field.stringValue())
-        except ValueError:
-            settings["max_tokens"] = 1000  # Default fallback
-        
-        try:
-            settings["temperature"] = float(self.temp_field.stringValue())
-        except ValueError:
-            settings["temperature"] = 0.7  # Default fallback
-        
-        return settings
+        if hotkey in conflicts:
+            self.conflict_label.setStringValue_(f"⚠️ Conflicts with {conflicts[hotkey]}")
+        else:
+            self.conflict_label.setStringValue_("")
+    
+    def resetHotkey_(self, sender):
+        """Reset hotkey to default"""
+        default = self.settings_manager.default_settings["hotkey"]
+        self.hotkey_field.setStringValue_(default)
+        self.updateResetButton()
+        self.checkConflicts()
     
     def save_(self, sender):
         """Save settings"""
-        settings = self.collectSettings()
+        settings = self.settings_manager.settings.copy()
         
+        # General settings
+        if self.hotkey_field:
+            settings["hotkey"] = str(self.hotkey_field.stringValue())
+        if self.auto_paste_checkbox:
+            settings["auto_paste"] = bool(self.auto_paste_checkbox.state())
+        if self.notifications_checkbox:
+            settings["show_notifications"] = bool(self.notifications_checkbox.state())
+        if self.startup_checkbox:
+            settings["launch_at_startup"] = bool(self.startup_checkbox.state())
+        
+        # Prompts
+        prompts = settings.get("prompts", {})
+        for mode, field in self.text_views.items():
+            prompts[mode] = str(field.stringValue())
+        settings["prompts"] = prompts
+        
+        # Advanced
+        if hasattr(self, 'model_popup'):
+            settings["model"] = str(self.model_popup.titleOfSelectedItem())
+        if hasattr(self, 'tokens_field'):
+            try:
+                settings["max_tokens"] = int(self.tokens_field.stringValue())
+            except ValueError:
+                settings["max_tokens"] = 1000
+        if hasattr(self, 'temp_field'):
+            try:
+                settings["temperature"] = float(self.temp_field.stringValue())
+            except ValueError:
+                settings["temperature"] = 0.7
+        
+        # Save
         if self.settings_manager.save_settings(settings):
             if self.on_settings_changed:
                 self.on_settings_changed(settings)
-            
-            # Close window immediately without success dialog
             self.window().close()
         else:
-            # Only show error alert
             alert = NSAlert.alloc().init()
             alert.setMessageText_("Save Failed")
             alert.setInformativeText_("Failed to save settings.")
@@ -339,16 +488,15 @@ class SimpleSettingsWindow(NSWindowController):
             alert.runModal()
     
     def cancel_(self, sender):
-        """Cancel and close"""
+        """Cancel changes"""
         self.window().close()
 
 
 def show_settings(settings_manager, on_settings_changed=None):
-    """Show the simple settings window"""
-    controller = SimpleSettingsWindow.alloc().initWithSettingsManager_(settings_manager)
+    """Show settings window"""
+    controller = SettingsWindow.alloc().initWithSettingsManager_(settings_manager)
     controller.on_settings_changed = on_settings_changed
     
-    # Show window
     controller.showWindow_(None)
     controller.window().makeKeyAndOrderFront_(None)
     
