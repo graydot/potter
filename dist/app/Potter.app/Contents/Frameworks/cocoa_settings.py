@@ -1,0 +1,1 @@
+../Resources/cocoa_settings.py

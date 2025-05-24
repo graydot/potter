@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>Potter</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.rephrasely.app</string>
+    <key>CFBundleName</key>
+    <string>Potter</string>
+    <key>CFBundleDisplayName</key>
+    <string>Potter</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>app_icon.icns</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.14</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Potter needs access to send keystroke events for pasting processed text.</string>
+    <key>NSSystemAdministrationUsageDescription</key>
+    <string>Rephrasely needs system access to monitor global hotkeys.</string>
+    <key>LSEnvironment</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>.</string>
+    </dict>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+</dict>
+</plist>
