@@ -1,243 +1,227 @@
-# 📦 Rephrasely Distribution System
+# Rephrasely Distribution System
 
-This document explains the automated distribution system for building and releasing the Rephrasely macOS app.
+This document describes how Rephrasely handles building and distributing releases via GitHub Releases.
 
-## 🏗️ Overview
+## Overview
 
-The distribution system consists of:
+Rephrasely now uses **GitHub Releases** for distribution instead of local build files. This provides:
 
-1. **Build Script** (`scripts/build_for_distribution.sh`) - Creates the macOS app bundle
-2. **Pre-commit Hook** (`.githooks/pre-commit`) - Automatically builds on main branch commits  
-3. **GitHub Actions** (`.github/workflows/release.yml`) - Creates releases automatically
-4. **Distribution Folder** (`distribution/`) - Contains ready-to-download app files
+- ✅ **Centralized Distribution**: All releases available on GitHub
+- ✅ **Version Management**: Automatic tagging and release notes
+- ✅ **Download Analytics**: Track download statistics
+- ✅ **Release Notes**: Detailed changelog for each version
+- ✅ **Multiple Formats**: ZIP and TAR.GZ for different preferences
 
-## 🚀 Quick Setup
+## Quick Start
 
-1. **Install the git hooks:**
-   ```bash
-   ./scripts/setup_hooks.sh
-   ```
+### For Users (Downloading)
+1. Go to [GitHub Releases](https://github.com/YOUR_USERNAME/rephrasely/releases)
+2. Download `Rephrasely.app.zip` from the latest release
+3. Extract and drag to Applications folder
+4. Follow installation instructions included in the release
 
-2. **Test the build system:**
-   ```bash
-   ./scripts/build_for_distribution.sh
-   ```
+### For Developers (Creating Releases)
 
-3. **Commit to main/master to trigger automatic build and release**
+#### Option 1: Automatic (via Pre-commit Hook)
+```bash
+# Make changes to Python files
+git add .
+git commit -m "Add new feature"  # Pre-commit hook will ask about creating release
+```
 
-## 📋 How It Works
+#### Option 2: Manual Release
+```bash
+# Create a release manually anytime
+./scripts/manual_release.sh
+```
 
-### 1. Pre-commit Hook Trigger
+#### Option 3: Direct Script
+```bash
+# Use the release script directly
+./scripts/create_github_release.sh
+```
 
-When you commit to `main` or `master` branch with changes to:
-- `.py` files (Python source code)
-- `requirements.txt` (dependencies)
-- `build_app.py` (build configuration)
-- `assets/` folder (app resources)
+## Requirements
 
-The pre-commit hook automatically:
-1. Builds the app using PyInstaller
-2. Creates a ZIP archive
-3. Adds the distribution files to your commit
+### For Release Creation
+- **GitHub CLI**: `brew install gh`
+- **Authentication**: `gh auth login`
+- **Virtual Environment**: `.venv` with dependencies installed
+- **Clean Git State**: No uncommitted changes
 
-### 2. GitHub Actions Release
+### For Users
+- **macOS 10.14+**
+- **OpenAI API Key**
+- **Internet Connection**
 
-When distribution files are pushed to GitHub:
-1. GitHub Actions detects changes in `distribution/`
-2. Creates a new release with auto-generated version tag
-3. Uploads the ZIP file as a release asset
-4. Generates comprehensive release notes
+## Release Process
 
-### 3. Version Management
+### Automated (Pre-commit Hook)
 
-Versions are automatically generated using:
-- Git tags (if available): `v1.2.3`
-- Date + commit: `v2024.01.15-abc123f`
+The pre-commit hook will automatically:
 
-## 🔨 Build Process Details
+1. **Detect Changes**: Check for Python, config, or documentation changes
+2. **Ask Permission**: Prompt whether to create a release (for Python changes)
+3. **Build App**: Use PyInstaller to create the macOS app bundle
+4. **Create Archives**: Generate both ZIP and TAR.GZ formats
+5. **Upload to GitHub**: Create release with files and auto-generated notes
+6. **Generate Docs**: Include installation instructions with each release
 
-The build script (`scripts/build_for_distribution.sh`) performs:
+### Manual Process
 
-1. **Environment Setup**
-   - Activates virtual environment
-   - Installs/updates dependencies
-   - Installs PyInstaller
+```bash
+# 1. Ensure you're on main/master branch
+git checkout main
 
-2. **Version Detection**
-   - Extracts version from git tags
-   - Records build date and commit hash
-   - Creates build info metadata
+# 2. Commit all changes
+git add .
+git commit -m "Prepare for release"
 
-3. **App Building**
-   - Uses PyInstaller with optimized settings
-   - Includes all necessary hidden imports
-   - Embeds app icon and metadata
+# 3. Create release
+./scripts/manual_release.sh
 
-4. **Bundle Configuration**
-   - Updates Info.plist with version info
-   - Sets LSUIElement for menu bar app
-   - Adds privacy usage descriptions
-   - Sets proper executable permissions
+# 4. Follow prompts for version and release notes
+```
 
-5. **Code Signing** (if available)
-   - Detects Developer ID certificates
-   - Signs the app bundle for distribution
-   - Falls back gracefully if no certificate
+## File Structure
 
-6. **Packaging**
-   - Copies to distribution folder
-   - Creates ZIP archive for download
-   - Generates size reports and metadata
-
-## 📁 File Structure
-
+### Generated Files
 ```
 distribution/
-├── README.md              # User installation guide
-├── BUILD_INFO.md          # Latest build information
-├── Rephrasely.app/        # Complete macOS app bundle
-└── Rephrasely.app.zip     # Compressed app for download
-
-scripts/
-├── build_for_distribution.sh  # Main build script
-└── setup_hooks.sh             # Git hooks installer
-
-.githooks/
-└── pre-commit            # Pre-commit hook for auto-building
-
-.github/workflows/
-└── release.yml           # GitHub Actions for releases
+├── Rephrasely.app/          # macOS app bundle
+├── Rephrasely.app.zip       # Compressed app (recommended)
+├── Rephrasely.app.tar.gz    # Alternative compression
+└── INSTALLATION.md          # User installation guide
 ```
 
-## ⚙️ Configuration
+### Release Assets
+Each GitHub release includes:
+- `Rephrasely.app.zip` (recommended download)
+- `Rephrasely.app.tar.gz` (alternative format)
+- `INSTALLATION.md` (setup instructions)
 
-### Customizing the Build
+## Version Management
 
-Edit `scripts/build_for_distribution.sh` to:
-- Add additional PyInstaller options
-- Include extra files or resources
-- Modify code signing behavior
-- Change app bundle configuration
+### Automatic Versioning
+- Uses Git tags for version numbers
+- Format: `v1.0.0`, `v1.0.1`, `v2.0.0-beta`, etc.
+- Follows semantic versioning
 
-### Pre-commit Hook Behavior
-
-The hook only triggers when:
-- Committing to `main` or `master` branch
-- Changes include Python files or configuration
-- All files pass pre-commit checks
-
-To disable temporarily:
+### Creating New Versions
 ```bash
-git commit --no-verify -m "Skip pre-commit hook"
+# The release script will prompt for version if no tags exist
+# Or manually create tags:
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
 ```
 
-### GitHub Actions
+## Configuration
 
-The workflow triggers on:
-- Pushes to main/master with distribution changes
-- Manual workflow dispatch from GitHub UI
+### App Bundle Settings
+The build process automatically configures:
+- **Bundle Identifier**: Set in Info.plist
+- **Version Numbers**: From Git tags
+- **Menu Bar App**: LSUIElement = true
+- **Permission Descriptions**: For accessibility access
+- **Code Signing**: Adhoc signature for distribution
 
-## 🔧 Troubleshooting
+### Release Notes
+Auto-generated release notes include:
+- Features and requirements
+- Installation instructions
+- Build information
+- Download options
+- Troubleshooting tips
 
-### Build Fails
-1. Check virtual environment is activated
-2. Ensure all dependencies are installed
-3. Verify PyInstaller is compatible with your Python version
-4. Check for missing hidden imports
+## Troubleshooting
 
-### Code Signing Issues
-- Install Apple Developer certificates
-- Or remove code signing section from build script
-- Users will need to right-click → "Open" on first launch
+### Common Issues
 
-### Pre-commit Hook Not Running
+#### "GitHub CLI not found"
 ```bash
-# Re-install hooks
-./scripts/setup_hooks.sh
-
-# Check hook is executable
-ls -la .git/hooks/pre-commit
-
-# Test manually
-.git/hooks/pre-commit
+brew install gh
+gh auth login
 ```
 
-### GitHub Actions Failing
-- Check repository has write permissions for Actions
-- Ensure GITHUB_TOKEN has release permissions
-- Verify distribution files exist and are valid
+#### "Not in a git repository"
+Ensure you're in the project root directory.
 
-## 📊 Release Management
-
-### Manual Release
+#### "Uncommitted changes"
 ```bash
-# Build locally
-./scripts/build_for_distribution.sh
-
-# Commit and push
-git add distribution/
-git commit -m "Update distribution build"
-git push origin main
+git add .
+git commit -m "Prepare for release"
 ```
 
-### Version Tags
+#### "Release already exists"
+The script will offer to delete and recreate the release.
+
+#### Build Failures
+- Check virtual environment is activated
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- Check for Python syntax errors
+
+### Manual Recovery
+
+If automatic releases fail:
+
 ```bash
-# Create a version tag
-git tag v1.2.3
-git push origin v1.2.3
+# 1. Clean build directories
+rm -rf build/ dist/ distribution/
 
-# This will be used for the next release
+# 2. Activate virtual environment
+source .venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Run manual release
+./scripts/manual_release.sh
 ```
 
-### Pre-release Testing
-```bash
-# Test build without committing
-./scripts/build_for_distribution.sh
+## Migration from Old System
 
-# Test the app manually
-open distribution/Rephrasely.app
-```
+If you were using the old local distribution system:
 
-## 🎯 Best Practices
+1. **Remove old hooks**: The new pre-commit hook replaces the old one
+2. **Install GitHub CLI**: `brew install gh && gh auth login`
+3. **Clean old files**: `rm -rf distribution/` (will be regenerated)
+4. **Test release**: Run `./scripts/manual_release.sh` to verify setup
 
-1. **Test Before Committing**
-   - Always test the app locally before committing
-   - Verify all features work in the built version
+## Best Practices
 
-2. **Version Management**
-   - Use semantic versioning for releases
-   - Tag important versions explicitly
+### For Release Creators
+- ✅ Test the app locally before releasing
+- ✅ Write descriptive commit messages
+- ✅ Update documentation with new features
+- ✅ Create releases from main/master branch only
+- ✅ Include meaningful release notes
 
-3. **Build Optimization**
-   - Keep dependencies minimal
-   - Regularly update PyInstaller
-   - Test on different macOS versions
+### For Users
+- ✅ Download from official GitHub Releases only
+- ✅ Verify file integrity (check file sizes)
+- ✅ Read installation instructions for each release
+- ✅ Report issues on the GitHub repository
 
-4. **User Experience**
-   - Include clear installation instructions
-   - Provide troubleshooting guidance
-   - Maintain backward compatibility
+## Scripts Reference
 
-## 🚦 Development Workflow
+### `scripts/create_github_release.sh`
+Main release creation script. Handles:
+- Version management
+- App building
+- File compression
+- GitHub release creation
+- Release notes generation
 
-1. **Feature Development**
-   ```bash
-   git checkout -b feature/new-feature
-   # ... develop and test ...
-   git commit -m "Add new feature"
-   git push origin feature/new-feature
-   ```
+### `scripts/manual_release.sh`
+Simple wrapper for manual release creation.
 
-2. **Merge to Main** (triggers build)
-   ```bash
-   git checkout main
-   git merge feature/new-feature
-   git push origin main  # → Triggers build and release
-   ```
+### `.githooks/pre-commit`
+Pre-commit hook that triggers releases for significant changes.
 
-3. **Release Published**
-   - GitHub automatically creates release
-   - Users can download from Releases page
-   - Distribution folder updated with latest build
+## Support
 
-This system ensures every change to the main branch results in a tested, signed, and ready-to-distribute macOS application! 🎉 
+For distribution-related issues:
+- Check this documentation
+- Review GitHub Actions logs (if applicable)
+- Create an issue on the GitHub repository
+- Include build logs and error messages 

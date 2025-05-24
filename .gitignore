@@ -109,9 +109,9 @@ Temporary Items
 settings.json
 build_info.json
 
-# Build artifacts (but keep distribution folder)
-# distribution/ is tracked for GitHub releases
-# Individual build files in distribution/ may be ignored if too large
+# Build artifacts - generated locally, not tracked in git
+# Use GitHub Releases for distribution instead
+distribution/
 
 # Temporary files
 .pytest_cache/
