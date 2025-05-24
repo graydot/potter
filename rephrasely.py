@@ -400,7 +400,11 @@ class RephrasleyService:
         
         try:
             # Store original clipboard content
-            original_clipboard = pyperclip.paste()
+            try:
+                original_clipboard = pyperclip.paste()
+            except Exception as e:
+                logger.warning(f"Could not access clipboard: {e}")
+                original_clipboard = ""
             
             # Copy selected text
             if not self.copy_selected_text():
@@ -410,7 +414,13 @@ class RephrasleyService:
                 return
             
             # Get text from clipboard
-            new_clipboard = pyperclip.paste()
+            try:
+                new_clipboard = pyperclip.paste()
+            except Exception as e:
+                error_msg = f"Failed to read clipboard: {e}"
+                logger.error(error_msg)
+                self.show_notification("Clipboard Error", error_msg, is_error=True)
+                return
             
             # Check if clipboard actually changed (indicating text was selected and copied)
             if new_clipboard == original_clipboard:
@@ -426,37 +436,58 @@ class RephrasleyService:
             logger.info(f"Processing text ({len(new_clipboard)} chars): {new_clipboard[:50]}...")
             
             # Process with ChatGPT
-            processed_text = self.process_text_with_chatgpt(new_clipboard)
-            if not processed_text:
-                error_msg = "Failed to process text with AI"
+            try:
+                processed_text = self.process_text_with_chatgpt(new_clipboard)
+                if not processed_text:
+                    error_msg = "Failed to process text with AI"
+                    logger.error(error_msg)
+                    self.show_notification("AI Processing Failed", error_msg, is_error=True)
+                    return
+            except Exception as e:
+                error_msg = f"AI processing error: {str(e)}"
                 logger.error(error_msg)
-                self.show_notification("AI Processing Failed", error_msg, is_error=True)
+                self.show_notification("AI Error", error_msg, is_error=True)
                 return
             
             logger.info(f"Processed text ({len(processed_text)} chars): {processed_text[:50]}...")
             
             # Put processed text in clipboard
-            pyperclip.copy(processed_text)
-            
-            # Verify clipboard was updated
-            time.sleep(0.1)
-            clipboard_check = pyperclip.paste()
-            if clipboard_check != processed_text:
-                error_msg = "Failed to update clipboard with processed text"
+            try:
+                pyperclip.copy(processed_text)
+            except Exception as e:
+                error_msg = f"Failed to copy processed text to clipboard: {e}"
                 logger.error(error_msg)
                 self.show_notification("Clipboard Error", error_msg, is_error=True)
                 return
+            
+            # Verify clipboard was updated
+            try:
+                time.sleep(0.1)
+                clipboard_check = pyperclip.paste()
+                if clipboard_check != processed_text:
+                    error_msg = "Failed to update clipboard with processed text"
+                    logger.error(error_msg)
+                    self.show_notification("Clipboard Error", error_msg, is_error=True)
+                    return
+            except Exception as e:
+                logger.warning(f"Could not verify clipboard update: {e}")
+                # Continue anyway
             
             logger.info("Clipboard updated with processed text, attempting to paste...")
             
             # Paste the processed text if auto-paste is enabled
             if self.auto_paste:
-                if self.paste_text():
-                    success_msg = f"Text {self.current_prompt}d successfully"
-                    logger.info("Text processing completed successfully")
-                    self.show_notification("Success", success_msg, is_error=False)
-                else:
-                    warning_msg = "Paste failed - processed text is in clipboard (Cmd+V to paste manually)"
+                try:
+                    if self.paste_text():
+                        success_msg = f"Text {self.current_prompt}d successfully"
+                        logger.info("Text processing completed successfully")
+                        self.show_notification("Success", success_msg, is_error=False)
+                    else:
+                        warning_msg = "Paste failed - processed text is in clipboard (Cmd+V to paste manually)"
+                        logger.error(warning_msg)
+                        self.show_notification("Paste Failed", warning_msg, is_error=True)
+                except Exception as e:
+                    warning_msg = f"Paste error: {e} - processed text is in clipboard (Cmd+V to paste manually)"
                     logger.error(warning_msg)
                     self.show_notification("Paste Failed", warning_msg, is_error=True)
             else:
@@ -465,9 +496,11 @@ class RephrasleyService:
                 self.show_notification("Success", success_msg, is_error=False)
             
         except Exception as e:
-            error_msg = f"Error in process_selection: {str(e)}"
+            error_msg = f"Unexpected error in process_selection: {str(e)}"
             logger.error(error_msg)
-            self.show_notification("Processing Error", error_msg, is_error=True)
+            import traceback
+            traceback.print_exc()
+            self.show_notification("Processing Error", "An unexpected error occurred. Check logs for details.", is_error=True)
         finally:
             # Stop spinner and reset flag
             self.set_processing_state(False)

@@ -574,9 +574,13 @@ class SettingsWindow(NSWindowController):
         api_key_label.setEditable_(False)
         view.addSubview_(api_key_label)
         
-        self.api_key_field = NSSecureTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
+        # Use regular NSTextField instead of NSSecureTextField to allow paste operations
+        self.api_key_field = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
         self.api_key_field.setStringValue_(self.settings_manager.get("openai_api_key", ""))
         self.api_key_field.setPlaceholderString_("sk-...")
+        # Make it look like a secure field but allow paste
+        self.api_key_field.cell().setUsesSingleLineMode_(True)
+        self.api_key_field.cell().setScrollable_(True)
         view.addSubview_(self.api_key_field)
         
         # API key help text
@@ -919,49 +923,94 @@ class SettingsWindow(NSWindowController):
     
     def save_(self, sender):
         """Save settings"""
-        settings = self.settings_manager.settings.copy()
-        
-        # General settings
-        if hasattr(self, 'api_key_field'):
-            settings["openai_api_key"] = str(self.api_key_field.stringValue())
-        if self.hotkey_field:
-            settings["hotkey"] = str(self.hotkey_field.stringValue())
-        if self.auto_paste_checkbox:
-            settings["auto_paste"] = bool(self.auto_paste_checkbox.state())
-        if self.notifications_checkbox:
-            settings["show_notifications"] = bool(self.notifications_checkbox.state())
-        if self.startup_checkbox:
-            settings["launch_at_startup"] = bool(self.startup_checkbox.state())
-        
-        # Prompts - get from table data
-        if hasattr(self, 'prompts_data') and self.prompts_data:
-            settings["prompts"] = self.prompts_data
-        
-        # Advanced
-        if hasattr(self, 'model_popup'):
-            settings["model"] = str(self.model_popup.titleOfSelectedItem())
-        if hasattr(self, 'tokens_field'):
-            try:
-                settings["max_tokens"] = int(self.tokens_field.stringValue())
-            except ValueError:
-                settings["max_tokens"] = 1000
-        if hasattr(self, 'temp_field'):
-            try:
-                settings["temperature"] = float(self.temp_field.stringValue())
-            except ValueError:
-                settings["temperature"] = 0.7
-        
-        # Save
-        if self.settings_manager.save_settings(settings):
-            if self.on_settings_changed:
-                self.on_settings_changed(settings)
-            self.window().close()
-        else:
-            alert = NSAlert.alloc().init()
-            alert.setMessageText_("Save Failed")
-            alert.setInformativeText_("Failed to save settings.")
-            alert.setAlertStyle_(NSAlertStyleCritical)
-            alert.runModal()
+        try:
+            settings = self.settings_manager.settings.copy()
+            
+            # General settings with validation
+            if hasattr(self, 'api_key_field') and self.api_key_field:
+                api_key = str(self.api_key_field.stringValue()).strip()
+                settings["openai_api_key"] = api_key
+                print(f"Debug - API key saved: {'sk-...' if api_key.startswith('sk-') else 'Invalid format'}")
+            
+            if hasattr(self, 'hotkey_field') and self.hotkey_field:
+                hotkey = str(self.hotkey_field.stringValue()).strip()
+                if hotkey:  # Only save if not empty
+                    settings["hotkey"] = hotkey
+                    print(f"Debug - Hotkey saved: {hotkey}")
+            
+            if hasattr(self, 'auto_paste_checkbox') and self.auto_paste_checkbox:
+                settings["auto_paste"] = bool(self.auto_paste_checkbox.state())
+            
+            if hasattr(self, 'notifications_checkbox') and self.notifications_checkbox:
+                settings["show_notifications"] = bool(self.notifications_checkbox.state())
+            
+            if hasattr(self, 'startup_checkbox') and self.startup_checkbox:
+                settings["launch_at_startup"] = bool(self.startup_checkbox.state())
+            
+            # Prompts - get from table data
+            if hasattr(self, 'prompts_data') and self.prompts_data:
+                settings["prompts"] = self.prompts_data
+                print(f"Debug - Prompts saved: {len(self.prompts_data)} items")
+            
+            # Advanced settings with validation
+            if hasattr(self, 'model_popup') and self.model_popup:
+                model = str(self.model_popup.titleOfSelectedItem())
+                if model:  # Only save if not empty
+                    settings["model"] = model
+            
+            if hasattr(self, 'tokens_field') and self.tokens_field:
+                try:
+                    tokens = int(self.tokens_field.stringValue())
+                    if tokens > 0:  # Validate positive number
+                        settings["max_tokens"] = tokens
+                except (ValueError, TypeError):
+                    settings["max_tokens"] = 1000  # Default fallback
+                    print("Debug - Invalid max_tokens, using default 1000")
+            
+            if hasattr(self, 'temp_field') and self.temp_field:
+                try:
+                    temp = float(self.temp_field.stringValue())
+                    if 0.0 <= temp <= 2.0:  # Validate range
+                        settings["temperature"] = temp
+                except (ValueError, TypeError):
+                    settings["temperature"] = 0.7  # Default fallback
+                    print("Debug - Invalid temperature, using default 0.7")
+            
+            # Attempt to save
+            print("Debug - Attempting to save settings...")
+            save_success = self.settings_manager.save_settings(settings)
+            
+            if save_success:
+                print("Debug - Settings saved successfully")
+                # Call callback if provided
+                if hasattr(self, 'on_settings_changed') and self.on_settings_changed:
+                    try:
+                        self.on_settings_changed(settings)
+                        print("Debug - Settings change callback executed")
+                    except Exception as e:
+                        print(f"Debug - Callback error: {e}")
+                
+                # Close the window
+                print("Debug - Closing settings window...")
+                self.window().close()
+                print("Debug - Settings window closed")
+            else:
+                print("Debug - Failed to save settings")
+                self.show_save_error("Failed to save settings to file.")
+                
+        except Exception as e:
+            print(f"Debug - Save error: {e}")
+            import traceback
+            traceback.print_exc()
+            self.show_save_error(f"Error saving settings: {str(e)}")
+    
+    def show_save_error(self, message):
+        """Show save error dialog"""
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Save Failed")
+        alert.setInformativeText_(message)
+        alert.setAlertStyle_(NSAlertStyleCritical)
+        alert.runModal()
     
     def cancel_(self, sender):
         """Cancel changes"""
