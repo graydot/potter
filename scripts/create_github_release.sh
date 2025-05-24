@@ -515,4 +515,76 @@ fi
 rm -f "$RELEASE_NOTES_FILE"
 rm -f build_info.json
 
-echo "✨ GitHub release creation complete!" 
+echo "✨ GitHub release creation complete!"
+
+# Create release in Potter repository (releases-only repo)
+echo ""
+echo "🎯 Creating release in Potter repository..."
+
+# Check if Potter directory exists
+POTTER_DIR="../Potter"
+if [[ -d "$POTTER_DIR" ]]; then
+    # Save current directory
+    ORIGINAL_DIR=$(pwd)
+    
+    # Change to Potter directory
+    cd "$POTTER_DIR"
+    
+    # Check if this is a git repository
+    if git rev-parse --git-dir > /dev/null 2>&1; then
+        # Create tag in Potter repo (rename DMG to Potter-VERSION.dmg)
+        POTTER_DMG_NAME="Potter-${VERSION#v}.dmg"
+        
+        echo "🏷️  Creating tag $VERSION in Potter repository..."
+        git tag "$VERSION" 2>/dev/null || echo "   Tag $VERSION already exists"
+        
+        # Push tag to Potter repo
+        echo "📤 Pushing tag to Potter repository..."
+        git push origin "$VERSION" 2>/dev/null || echo "   Tag already pushed or no remote configured"
+        
+        # Copy and rename DMG for Potter release
+        echo "📋 Preparing Potter DMG..."
+        cp "$ORIGINAL_DIR/dist/dmg/$DMG_NAME" "/tmp/$POTTER_DMG_NAME"
+        
+        # Create release in Potter repo with renamed DMG
+        echo "🚀 Creating Potter release with DMG..."
+        gh release create "$VERSION" \
+            "/tmp/$POTTER_DMG_NAME" \
+            --title "Potter $VERSION" \
+            --notes "Potter $VERSION - AI-powered text rephrasing tool for macOS
+
+## 📦 Installation
+1. Download \`$POTTER_DMG_NAME\`
+2. Double-click the DMG file to open it
+3. Drag \`Potter.app\` to the Applications folder
+4. Launch Potter from Applications
+
+## 🔧 Requirements
+- macOS 10.14+
+- OpenAI API key
+- Internet connection
+
+Built from commit $COMMIT_HASH on $BUILD_DATE."
+        
+        if [[ $? -eq 0 ]]; then
+            echo "✅ Potter release created successfully!"
+            echo "🔗 Potter Release: https://github.com/$(gh repo view --json owner,name -q '.owner.login + "/" + .name')/releases/tag/$VERSION"
+        else
+            echo "⚠️  Failed to create Potter release (this is optional)"
+        fi
+        
+        # Clean up temporary DMG
+        rm -f "/tmp/$POTTER_DMG_NAME"
+    else
+        echo "⚠️  Potter directory is not a git repository"
+    fi
+    
+    # Return to original directory
+    cd "$ORIGINAL_DIR"
+else
+    echo "⚠️  Potter directory not found at $POTTER_DIR"
+    echo "   Skipping Potter release creation"
+fi
+
+echo ""
+echo "🎉 All releases completed!" 

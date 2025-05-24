@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Rephrasely App Builder with Code Signing Support
+Enhanced Potter App Builder with Code Signing Support
 Supports both GitHub releases and App Store distribution
 """
 
@@ -15,8 +15,8 @@ import argparse
 from pathlib import Path
 
 # Build configuration
-BUNDLE_ID = "com.rephrasely.app"
-APP_NAME = "Rephrasely"
+BUNDLE_ID = "com.potter.app"
+APP_NAME = "Potter"
 
 def get_signing_config():
     """Get code signing configuration from environment"""
@@ -208,80 +208,39 @@ def notarize_app(app_path, config):
             app_path, zip_path
         ], check=True)
         
-        # Submit for notarization
+        # Submit for notarization using notarytool
         cmd = [
-            'xcrun', 'altool', '--notarize-app',
-            '--primary-bundle-id', BUNDLE_ID,
-            '--username', config['apple_id'],
+            'xcrun', 'notarytool', 'submit',
+            zip_path,
+            '--apple-id', config['apple_id'],
             '--password', config['app_password'],
-            '--file', zip_path
+            '--team-id', config.get('team_id', ''),
+            '--wait'
         ]
         
-        if config.get('asc_provider'):
-            cmd.extend(['--asc-provider', config['asc_provider']])
-        
+        print("🕐 Submitting for notarization (this may take several minutes)...")
         result = subprocess.run(cmd, capture_output=True, text=True)
         
-        if result.returncode != 0:
-            print(f"❌ Notarization submission failed: {result.stderr}")
-            return False
-        
-        # Extract RequestUUID
-        output_lines = result.stdout.split('\n')
-        request_uuid = None
-        for line in output_lines:
-            if 'RequestUUID' in line:
-                request_uuid = line.split('=')[1].strip()
-                break
-        
-        if not request_uuid:
-            print("❌ Failed to get RequestUUID")
-            return False
-        
-        print(f"🕐 Notarization submitted. RequestUUID: {request_uuid}")
-        print("   Waiting for notarization to complete...")
-        
-        # Wait for notarization to complete
-        max_attempts = 30  # 30 minutes max
-        for attempt in range(max_attempts):
-            time.sleep(60)  # Wait 1 minute between checks
+        if result.returncode == 0:
+            print("✅ Notarization successful!")
             
-            check_cmd = [
-                'xcrun', 'altool', '--notarization-info', request_uuid,
-                '--username', config['apple_id'],
-                '--password', config['app_password']
-            ]
+            # Staple the ticket
+            staple_cmd = ['xcrun', 'stapler', 'staple', app_path]
+            staple_result = subprocess.run(staple_cmd, capture_output=True, text=True)
             
-            check_result = subprocess.run(check_cmd, capture_output=True, text=True)
-            
-            if 'Status: success' in check_result.stdout:
-                print("✅ Notarization successful!")
-                
-                # Staple the ticket
-                staple_cmd = ['xcrun', 'stapler', 'staple', app_path]
-                staple_result = subprocess.run(staple_cmd, capture_output=True, text=True)
-                
-                if staple_result.returncode == 0:
-                    print("✅ Notarization ticket stapled")
-                else:
-                    print("⚠️  Failed to staple ticket, but notarization was successful")
-                
-                # Clean up zip file
-                os.remove(zip_path)
-                return True
-            
-            elif 'Status: in progress' in check_result.stdout:
-                print(f"⏳ Still in progress... (attempt {attempt + 1}/{max_attempts})")
-                continue
-            
+            if staple_result.returncode == 0:
+                print("✅ Notarization ticket stapled")
             else:
-                print(f"❌ Notarization failed: {check_result.stdout}")
-                os.remove(zip_path)
-                return False
-        
-        print("❌ Notarization timed out")
-        os.remove(zip_path)
-        return False
+                print("⚠️  Failed to staple ticket, but notarization was successful")
+            
+            # Clean up zip file
+            os.remove(zip_path)
+            return True
+        else:
+            print(f"❌ Notarization failed: {result.stderr}")
+            print(f"Output: {result.stdout}")
+            os.remove(zip_path)
+            return False
         
     except Exception as e:
         print(f"❌ Notarization error: {e}")
@@ -397,7 +356,7 @@ def modify_info_plist_for_target(app_path, target):
 
 def build_app(target='github', skip_signing=False, skip_notarization=False):
     """Main build function with signing support"""
-    print(f"🔄 Enhanced Rephrasely App Builder ({target} target)")
+    print(f"🔄 Enhanced Potter App Builder ({target} target)")
     print("=" * 60)
     
     # Check signing requirements
@@ -424,7 +383,7 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
     else:
         print("⚠️  Using default icon")
     
-    print(f"🔨 Building Rephrasely.app ({target} target)...")
+    print(f"🔨 Building Potter.app ({target} target)...")
     print("=" * 60)
     
     # Clean previous builds
@@ -442,7 +401,7 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
         '--workpath=build',
         '--onedir',
         '--windowed',
-        '--name=Rephrasely',
+        '--name=Potter',
         '--icon=app_icon.icns',
         '--osx-bundle-identifier=' + BUNDLE_ID,
         '--add-data=src/cocoa_settings.py:.',
@@ -456,7 +415,7 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
         '--hidden-import=ApplicationServices',
         '--hidden-import=Quartz',
         '--clean',
-        'src/rephrasely.py'
+        'src/potter.py'
     ]
     
     print("📦 Creating app bundle...")
@@ -469,7 +428,7 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
     print("✅ App bundle created successfully!")
     print(f"Build output: {result.stdout if result.stdout else 'No output'}")
     
-    app_path = "dist/app/Rephrasely.app"
+    app_path = "dist/app/Potter.app"
     
     # Fix Info.plist for double-click launching
     if fix_info_plist(app_path):
@@ -516,7 +475,7 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
         if os.path.exists(entitlements_file):
             os.remove(entitlements_file)
     
-    print("✅ Rephrasely.app created at:", os.path.abspath(app_path))
+    print("✅ Potter.app created at:", os.path.abspath(app_path))
     
     return True
 
@@ -665,13 +624,13 @@ def fix_info_plist(app_path):
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>Rephrasely</string>
+    <string>Potter</string>
     <key>CFBundleIdentifier</key>
-    <string>com.rephrasely.app</string>
+    <string>com.potter.app</string>
     <key>CFBundleName</key>
-    <string>Rephrasely</string>
+    <string>Potter</string>
     <key>CFBundleDisplayName</key>
-    <string>Rephrasely</string>
+    <string>Potter</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -689,9 +648,9 @@ def fix_info_plist(app_path):
     <key>LSMinimumSystemVersion</key>
     <string>10.14</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Rephrasely needs access to send keystroke events for pasting processed text.</string>
+    <string>Potter needs access to send keystroke events for pasting processed text.</string>
     <key>NSSystemAdministrationUsageDescription</key>
-    <string>Rephrasely needs system access to monitor global hotkeys.</string>
+    <string>Potter needs system access to monitor global hotkeys.</string>
     <key>LSEnvironment</key>
     <dict>
         <key>PYTHONPATH</key>
@@ -709,7 +668,7 @@ def fix_info_plist(app_path):
 
 def main():
     """Main build process with CLI support"""
-    parser = argparse.ArgumentParser(description='Enhanced Rephrasely App Builder')
+    parser = argparse.ArgumentParser(description='Enhanced Potter App Builder')
     parser.add_argument('--target', choices=['github', 'appstore'], default='github',
                        help='Build target: github (for GitHub releases) or appstore (for App Store)')
     parser.add_argument('--skip-signing', action='store_true',
@@ -757,7 +716,7 @@ def main():
         print("\n🎉 Build completed successfully!")
         if args.target == 'github':
             print("📋 Next steps for GitHub release:")
-            print("  1. Test the signed app: open dist/app/Rephrasely.app")
+            print("  1. Test the signed app: open dist/app/Potter.app")
             print("  2. Create DMG: ./scripts/test_dmg_creation.sh")
             print("  3. Upload to GitHub releases")
         elif args.target == 'appstore':

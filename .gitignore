@@ -128,5 +128,33 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+<<<<<<< HEAD
 .hypothesis/ 
 >>>>>>> e7e28f9 (Added pre commit instructions)
+=======
+.hypothesis/
+
+# Build artifacts
+*.app
+*.pkg
+*.zip
+app_icon.png
+app_icon.iconset/
+entitlements_*.plist
+
+# Logs
+logs/
+
+# Configuration (contains sensitive data)
+config/settings.json
+.potter_signing.env
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# PyInstaller
+*.manifest
+*.spec.bak 
+>>>>>>> db2f5bf (build to potter repo)

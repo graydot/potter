@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Potter Releases
 
 This repository contains only release builds of Potter.
@@ -16,202 +17,56 @@ The source code is maintained in a separate private repository.
 Potter - A powerful text rephrasing tool for macOS. 
 =======
 # 🔄 Rephrasely - AI-Powered Text Enhancement for macOS
+=======
+# 🎭 Potter
+>>>>>>> db2f5bf (build to potter repo)
 
-**Secure, standalone macOS app that transforms your text with AI using global hotkeys**
+A powerful text processing and rephraseing tool for macOS with AI capabilities.
 
-## ✨ New Features
+## 📦 Download
 
-### 🎛️ **Customizable Settings UI**
-- **Visual preferences window** with tabbed interface
-- **Custom prompts** for each processing mode
-- **Hotkey customization** 
-- **AI model selection** (GPT-3.5, GPT-4, GPT-4-turbo)
-- **Export/Import settings** for easy backup and sharing
-- **Real-time settings application** without restart
+### Latest Release
+Download the latest version from the [Releases](https://github.com/jebasingh/potter/releases) page.
 
-### 🎯 **Enhanced Processing Modes**
-- **Rephrase**: Make text clearer and more professional
-- **Summarize**: Create concise summaries
-- **Expand**: Add detail and examples
-- **Casual**: Convert to friendly, casual tone
-- **Formal**: Make text more professional
-- **Custom modes**: Add your own with custom prompts
+### Installation
+1. Download the `Potter-1.0.0.dmg` file
+2. Double-click to mount the DMG
+3. Drag Potter to your Applications folder
+4. Launch Potter from Applications
 
-## 🚀 Features
+## ✨ Features
 
-- **🔥 Global Hotkey**: Works in any app (default: `Cmd+Shift+R`)
-- **🤖 AI-Powered**: Uses OpenAI GPT models for text processing
-- **🎨 Native macOS UI**: Beautiful settings interface with proper macOS styling
-- **🔒 Secure**: Standalone app requiring minimal permissions
-- **⚡ Fast**: Instant text processing and replacement
-- **🎯 Multiple Modes**: Switch between different processing styles
-- **📱 System Tray**: Easy mode switching via menu bar icon
-- **⚙️ Highly Customizable**: Edit prompts, hotkeys, and AI parameters
+- **AI-Powered Text Processing** - Advanced text rephrasing and improvement
+- **Global Hotkeys** - Quick access from anywhere on your system
+- **Native macOS Integration** - Fully signed and notarized
+- **Privacy Focused** - All processing respects your privacy settings
 
-## 📦 Installation
+## 🚀 Quick Start
 
-### Option 1: Download from GitHub Releases (Recommended)
-1. Visit the [Releases page](https://github.com/yourusername/rephrasely/releases)
-2. Download the latest `Rephrasely-X.X.X.dmg` file
-3. Double-click the DMG file to open it
-4. Drag `Rephrasely.app` to the Applications folder in the window
-5. Eject the DMG and launch Rephrasely from Applications
-6. Right-click the app and select "Open" on first launch (security requirement)
-7. Configure your OpenAI API key in the app settings
+1. **Install Potter** from the DMG
+2. **Launch the app** from Applications
+3. **Configure your preferences** in the Potter settings
+4. **Set up global hotkeys** for quick access
+5. **Start processing text** with AI assistance
 
-### Option 2: Build from Source
-For development or customization:
+## 🔧 System Requirements
 
-1. **Download or clone** this repository
-2. **Build the standalone app**:
-   ```bash
-   python scripts/build_app.py
-   ```
-3. **Install the app**:
-   ```bash
-   cp -r dist/app/Rephrasely.app /Applications/
-   ```
-4. **Configure API key**: Launch the app and set your OpenAI API key in settings
-
-### 🚀 **For Developers**
-Set up the automated build system:
-```bash
-# Install git hooks for automatic building
-./scripts/setup_hooks.sh
-
-# Build the app
-./scripts/build_app.py
-
-# Test the build system  
-./scripts/test_build.sh
-```
-
-See **[📖 Documentation](#-documentation)** below for detailed guides.
-
-### First Launch
-1. **Open Rephrasely.app** from Applications
-2. **Grant accessibility permissions** when prompted
-3. **Look for the blue "R"** in your menu bar
-4. **Test with any text**: Select text and press `Cmd+Shift+R`
-
-## 📖 Documentation
-
-### 📚 **Complete Guides**
-- **[📦 Distribution & Releases](docs/DISTRIBUTION.md)** - Build system and GitHub releases
-- **[🔧 Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions  
-- **[🎨 UI Guide](docs/UI_GUIDE.md)** - Settings interface and customization
-- **[🔐 Code Signing Setup](docs/CODE_SIGNING_SETUP.md)** - Professional distribution with Apple certificates
-- **[🗑️ Uninstall Guide](docs/UNINSTALL.md)** - Complete removal instructions
-- **[⚙️ GitHub Releases Setup](docs/SETUP_GITHUB_RELEASES.md)** - Automated release configuration
-
-### 🛠️ **Developer Resources**
-- **[🔨 Build Scripts](scripts/)** - All build and setup automation
-- **[🧪 Test Scripts](test_scripts/)** - Testing and debugging tools
-
-## ⚙️ Customization
-
-### Opening Preferences
-- **Right-click** the menu bar icon → "Preferences..."
-- **Or** while the app is focused, use `Cmd+,`
-
-### Settings Tabs
-
-#### 📝 **Prompts Tab**
-- **Edit any processing mode prompt**
-- **Add context and specific instructions**
-- **Reset to defaults** with one click
-- **Real-time preview** of your changes
-
-Example custom prompts:
-```
-Rephrase: "Please rewrite this text to be more persuasive and compelling:"
-Summarize: "Create a bullet-point summary highlighting key actions:"
-Technical: "Rewrite this with precise technical terminology and clarity:"
-```
-
-#### ⚡ **General Tab**
-- **Global Hotkey**: Change from default `Cmd+Shift+R`
-- **Auto-paste**: Toggle automatic text replacement
-- **Notifications**: Show/hide success messages
-
-#### 🤖 **Advanced Tab**
-- **AI Model**: Choose between GPT-3.5-turbo, GPT-4, GPT-4-turbo
-- **Max Tokens**: Control response length (100-4000)
-- **Temperature**: Adjust creativity (0.0-1.0)
-- **Export/Import**: Save and share your configurations
-
-### Example Custom Settings
-```json
-{
-  "prompts": {
-    "rephrase": "Make this text more engaging and persuasive:",
-    "email": "Convert this to a professional email format:",
-    "creative": "Rewrite this with more creativity and flair:",
-    "technical": "Make this more technically precise and detailed:"
-  },
-  "hotkey": "cmd+alt+r",
-  "model": "gpt-4",
-  "temperature": 0.8,
-  "auto_paste": true
-}
-```
-
-## 🎯 Usage
-
-### Basic Operation
-1. **Select any text** in any application
-2. **Press your hotkey** (default: `Cmd+Shift+R`)
-3. **Watch the magic**: Text is automatically enhanced and replaced
-
-### Mode Switching
-- **Menu bar icon**: Right-click → Select mode
-- **Quick switch**: Choose from Rephrase, Summarize, Expand, Casual, Formal
-- **Custom modes**: Add your own via settings
-
-### Hotkey Examples
-- `Cmd+Shift+R` - Default
-- `Cmd+Alt+T` - Alternative
-- `Ctrl+Shift+A` - Windows-style
-- `Cmd+Opt+Space` - Spacebar trigger
-
-## 🔧 Advanced Features
-
-### Settings Management
-- **Export settings**: Share configurations with team members
-- **Import settings**: Load pre-configured setups
-- **Reset options**: Return to defaults for any setting
-- **Live reload**: Changes apply immediately
-
-### Custom Prompt Ideas
-```
-Business: "Rewrite this for a C-suite executive audience:"
-Social: "Make this suitable for social media posting:"
-Academic: "Convert to academic writing style with citations:"
-Marketing: "Transform this into compelling marketing copy:"
-Support: "Rewrite as a helpful customer support response:"
-```
-
-### AI Model Comparison
-- **GPT-3.5-turbo**: Fast, cost-effective, great for basic tasks
-- **GPT-4**: Higher quality, better reasoning, more expensive
-- **GPT-4-turbo**: Latest model, best performance, fastest
+- **macOS 10.14** or later
+- **Apple Silicon** or Intel Mac
+- **Internet connection** for AI features
 
 ## 🛡️ Security & Privacy
 
-### Secure Installation
-- ✅ **Standalone app**: No Terminal permissions needed
-- ✅ **Minimal access**: Only requires accessibility for Rephrasely.app
-- ✅ **No system modification**: Safe, reversible installation
-- ✅ **Local processing**: Settings stored locally
+Potter is:
+- ✅ **Code signed** with Apple Developer ID
+- ✅ **Notarized** by Apple for security
+- ✅ **Privacy compliant** - no data collection without permission
 
-### Permission Management
-1. **System Preferences** → **Security & Privacy** → **Privacy**
-2. **Select "Accessibility"**
-3. **Only enable "Rephrasely.app"** (not Terminal or other tools)
-4. **Easily revokable** if needed
+## 📝 License
 
-## 📁 Project Structure
+This software is provided as-is for personal and commercial use.
 
+<<<<<<< HEAD
 ```
 rephrasely/
 <<<<<<< HEAD
@@ -358,3 +213,18 @@ MIT License - feel free to modify and distribute!
 └── README.md                  # 📚 Project documentation
 ```
 >>>>>>> f68e635 (trying out signing)
+=======
+## 🐛 Support
+
+For issues, feature requests, or questions:
+- **Create an issue** in this repository
+- **Check existing issues** for solutions
+
+## 🔄 Updates
+
+Potter automatically checks for updates and will notify you when new versions are available.
+
+---
+
+**Potter** - Making text processing magical ✨
+>>>>>>> db2f5bf (build to potter repo)
