@@ -98,7 +98,7 @@ class HotkeyField(NSTextField):
             self.setStringValue_(self.original_value)
         self.setPlaceholderString_("")
         
-        # Trigger reset button update
+        # Trigger reset button update and conflict check
         if self.reset_callback:
             self.reset_callback()
         
@@ -129,6 +129,11 @@ class HotkeyField(NSTextField):
         if modifiers and key and key.isalnum():
             hotkey = "+".join(modifiers + [key])
             self.setStringValue_(hotkey)
+            
+            # Trigger updates
+            if self.reset_callback:
+                self.reset_callback()
+            
             self.window().makeFirstResponder_(None)  # End editing
 
 
@@ -274,11 +279,12 @@ class SettingsWindow(NSWindowController):
         self.hotkey_field.reset_callback = self.updateResetButton
         view.addSubview_(self.hotkey_field)
         
-        # Reset button
+        # Reset button - always create it, visibility controlled by updateResetButton
         self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(360, 370, 60, 25))
         self.reset_button.setTitle_("Reset")
         self.reset_button.setTarget_(self)
         self.reset_button.setAction_("resetHotkey:")
+        self.reset_button.setButtonType_(NSButtonTypeMomentaryPushIn)
         view.addSubview_(self.reset_button)
         
         # Conflict warning
@@ -309,9 +315,8 @@ class SettingsWindow(NSWindowController):
         self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
         view.addSubview_(self.startup_checkbox)
         
-        # Update UI
+        # Update UI - this will set initial reset button visibility and check conflicts
         self.updateResetButton()
-        self.checkConflicts()
         
         return view
     
@@ -408,13 +413,18 @@ class SettingsWindow(NSWindowController):
         return view
     
     def updateResetButton(self):
-        """Update reset button visibility"""
+        """Update reset button visibility and check conflicts"""
         if not self.hotkey_field or not self.reset_button:
             return
         
         current = str(self.hotkey_field.stringValue())
         default = self.settings_manager.default_settings["hotkey"]
+        
+        # Show reset button if different from default
         self.reset_button.setHidden_(current == default)
+        
+        # Also check for conflicts
+        self.checkConflicts()
     
     def checkConflicts(self):
         """Check for hotkey conflicts"""
@@ -424,9 +434,21 @@ class SettingsWindow(NSWindowController):
         hotkey = str(self.hotkey_field.stringValue()).lower()
         conflicts = {
             "cmd+space": "Spotlight",
-            "cmd+tab": "App switching",
+            "cmd+tab": "App switching", 
             "cmd+shift+3": "Screenshot",
-            "cmd+shift+4": "Screenshot selection"
+            "cmd+shift+4": "Screenshot selection",
+            "cmd+shift+5": "Screenshot options",
+            "cmd+ctrl+space": "Character viewer",
+            "cmd+shift+a": "Applications folder",
+            "cmd+shift+g": "Go to folder",
+            "cmd+shift+h": "Home folder",
+            "cmd+shift+u": "Utilities folder",
+            "cmd+shift+n": "New folder",
+            "cmd+shift+delete": "Empty trash",
+            "cmd+alt+esc": "Force quit",
+            "cmd+ctrl+q": "Lock screen",
+            "cmd+shift+q": "Log out",
+            "cmd+alt+d": "Show/hide dock"
         }
         
         if hotkey in conflicts:
@@ -439,7 +461,6 @@ class SettingsWindow(NSWindowController):
         default = self.settings_manager.default_settings["hotkey"]
         self.hotkey_field.setStringValue_(default)
         self.updateResetButton()
-        self.checkConflicts()
     
     def save_(self, sender):
         """Save settings"""
