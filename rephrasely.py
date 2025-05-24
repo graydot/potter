@@ -158,13 +158,38 @@ class RephrasleyService:
     def load_settings(self):
         """Load settings from settings manager or use defaults"""
         if self.settings_manager:
-            self.prompts = self.settings_manager.get("prompts", {
-                'rephrase': 'Please rephrase the following text to make it clearer and more professional:',
-                'summarize': 'Please provide a concise summary of the following text:',
-                'expand': 'Please expand on the following text with more detail and examples:',
-                'casual': 'Please rewrite the following text in a more casual, friendly tone:',
-                'formal': 'Please rewrite the following text in a more formal, professional tone:'
-            })
+            prompts_list = self.settings_manager.get("prompts", [
+                {
+                    "name": "rephrase",
+                    "text": "Please rephrase the following text to make it clearer and more professional:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "summarize", 
+                    "text": "Please provide a concise summary of the following text:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "expand",
+                    "text": "Please expand on the following text with more detail and examples:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "casual",
+                    "text": "Please rewrite the following text in a more casual, friendly tone:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "formal",
+                    "text": "Please rewrite the following text in a more formal, professional tone:",
+                    "output_format": "text"
+                }
+            ])
+            
+            # Convert list to dictionary for backwards compatibility
+            self.prompts = {}
+            for prompt in prompts_list:
+                self.prompts[prompt["name"]] = prompt["text"]
             
             # Parse hotkey
             hotkey_str = self.settings_manager.get("hotkey", "cmd+shift+r")

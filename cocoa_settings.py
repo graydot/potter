@@ -20,13 +20,33 @@ class SettingsManager:
     def __init__(self, settings_file="settings.json"):
         self.settings_file = settings_file
         self.default_settings = {
-            "prompts": {
-                'rephrase': 'Please rephrase the following text to make it clearer and more professional:',
-                'summarize': 'Please provide a concise summary of the following text:',
-                'expand': 'Please expand on the following text with more detail and examples:',
-                'casual': 'Please rewrite the following text in a more casual, friendly tone:',
-                'formal': 'Please rewrite the following text in a more formal, professional tone:'
-            },
+            "prompts": [
+                {
+                    "name": "rephrase",
+                    "text": "Please rephrase the following text to make it clearer and more professional:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "summarize", 
+                    "text": "Please provide a concise summary of the following text:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "expand",
+                    "text": "Please expand on the following text with more detail and examples:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "casual",
+                    "text": "Please rewrite the following text in a more casual, friendly tone:",
+                    "output_format": "text"
+                },
+                {
+                    "name": "formal",
+                    "text": "Please rewrite the following text in a more formal, professional tone:",
+                    "output_format": "text"
+                }
+            ],
             "hotkey": "cmd+shift+r",
             "model": "gpt-3.5-turbo",
             "max_tokens": 1000,
@@ -44,7 +64,41 @@ class SettingsManager:
                 with open(self.settings_file, 'r') as f:
                     loaded = json.load(f)
                     settings = self.default_settings.copy()
-                    settings.update(loaded)
+                    
+                    # Handle prompts separately to ensure proper structure
+                    if "prompts" in loaded:
+                        if isinstance(loaded["prompts"], dict):
+                            # Migrate old format
+                            print("🔄 Migrating prompts from old format to new format...")
+                            old_prompts = loaded["prompts"]
+                            new_prompts = []
+                            
+                            for name, text in old_prompts.items():
+                                new_prompts.append({
+                                    "name": name,
+                                    "text": text,
+                                    "output_format": "text"
+                                })
+                            
+                            settings["prompts"] = new_prompts
+                            print("✅ Successfully migrated prompts to new format")
+                        elif isinstance(loaded["prompts"], list):
+                            # Check if it's the correct new format
+                            if loaded["prompts"] and isinstance(loaded["prompts"][0], dict):
+                                settings["prompts"] = loaded["prompts"]
+                            else:
+                                # It's a list of strings or wrong format, use defaults
+                                print("⚠️ Invalid prompts format, using defaults")
+                                settings["prompts"] = self.default_settings["prompts"]
+                        else:
+                            # Unknown format, use defaults
+                            settings["prompts"] = self.default_settings["prompts"]
+                    
+                    # Update other settings normally
+                    for key, value in loaded.items():
+                        if key != "prompts":  # We handled prompts above
+                            settings[key] = value
+                    
                     return settings
             else:
                 return self.default_settings.copy()
@@ -166,6 +220,190 @@ class HotkeyField(NSTextField):
             self.window().makeFirstResponder_(None)  # End editing
 
 
+class PromptDialog(NSWindowController):
+    """Dialog for adding/editing prompts"""
+    
+    def initWithPrompt_isEdit_(self, prompt=None, is_edit=False):
+        self = objc.super(PromptDialog, self).init()
+        if self is None:
+            return None
+        
+        self.prompt = prompt or {"name": "", "text": "", "output_format": "text"}
+        self.is_edit = is_edit
+        self.result = None
+        self.callback = None
+        
+        self.createDialog()
+        return self
+    
+    def createDialog(self):
+        """Create the dialog window"""
+        # Create window
+        frame = NSMakeRect(100, 100, 500, 300)
+        window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+            frame,
+            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable,
+            NSBackingStoreBuffered,
+            False
+        )
+        
+        title = "Edit Prompt" if self.is_edit else "Add New Prompt"
+        window.setTitle_(title)
+        window.setLevel_(NSModalPanelWindowLevel)
+        content_view = window.contentView()
+        
+        # Name field (max 10 chars)
+        name_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 240, 100, 20))
+        name_label.setStringValue_("Name (max 10):")
+        name_label.setBezeled_(False)
+        name_label.setDrawsBackground_(False)
+        name_label.setEditable_(False)
+        content_view.addSubview_(name_label)
+        
+        self.name_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 240, 200, 25))
+        self.name_field.setStringValue_(self.prompt.get("name", ""))
+        self.name_field.setTarget_(self)
+        self.name_field.setAction_("validateName:")
+        content_view.addSubview_(self.name_field)
+        
+        # Character count label
+        self.char_count_label = NSTextField.alloc().initWithFrame_(NSMakeRect(340, 240, 100, 20))
+        self.char_count_label.setBezeled_(False)
+        self.char_count_label.setDrawsBackground_(False)
+        self.char_count_label.setEditable_(False)
+        self.char_count_label.setFont_(NSFont.systemFontOfSize_(10))
+        self.char_count_label.setTextColor_(NSColor.secondaryLabelColor())
+        content_view.addSubview_(self.char_count_label)
+        
+        # Prompt text field
+        prompt_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 200, 100, 20))
+        prompt_label.setStringValue_("Prompt Text:")
+        prompt_label.setBezeled_(False)
+        prompt_label.setDrawsBackground_(False)
+        prompt_label.setEditable_(False)
+        content_view.addSubview_(prompt_label)
+        
+        # Scrollable text view for prompt
+        scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, 100, 460, 90))
+        scroll_view.setHasVerticalScroller_(True)
+        scroll_view.setHasHorizontalScroller_(False)
+        scroll_view.setBorderType_(NSBezelBorder)
+        
+        self.prompt_text_view = NSTextView.alloc().initWithFrame_(scroll_view.contentView().bounds())
+        self.prompt_text_view.setString_(self.prompt.get("text", ""))
+        self.prompt_text_view.setFont_(NSFont.systemFontOfSize_(12))
+        scroll_view.setDocumentView_(self.prompt_text_view)
+        content_view.addSubview_(scroll_view)
+        
+        # Output format dropdown
+        format_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 60, 100, 20))
+        format_label.setStringValue_("Output Format:")
+        format_label.setBezeled_(False)
+        format_label.setDrawsBackground_(False)
+        format_label.setEditable_(False)
+        content_view.addSubview_(format_label)
+        
+        self.format_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(130, 60, 150, 25))
+        self.format_popup.addItemsWithTitles_(["text", "images", "pdf"])
+        current_format = self.prompt.get("output_format", "text")
+        self.format_popup.selectItemWithTitle_(current_format)
+        content_view.addSubview_(self.format_popup)
+        
+        # Buttons
+        cancel_btn = NSButton.alloc().initWithFrame_(NSMakeRect(320, 20, 80, 30))
+        cancel_btn.setTitle_("Cancel")
+        cancel_btn.setTarget_(self)
+        cancel_btn.setAction_("cancel:")
+        cancel_btn.setKeyEquivalent_("\x1b")
+        content_view.addSubview_(cancel_btn)
+        
+        save_btn = NSButton.alloc().initWithFrame_(NSMakeRect(410, 20, 80, 30))
+        save_btn.setTitle_("Save")
+        save_btn.setTarget_(self)
+        save_btn.setAction_("save:")
+        save_btn.setKeyEquivalent_("\r")
+        content_view.addSubview_(save_btn)
+        
+        window.setDefaultButtonCell_(save_btn.cell())
+        self.setWindow_(window)
+        
+        # Update character count
+        self.updateCharCount()
+    
+    def validateName_(self, sender):
+        """Validate name length as user types"""
+        name = str(self.name_field.stringValue())
+        if len(name) > 10:
+            # Truncate to 10 characters
+            truncated = name[:10]
+            self.name_field.setStringValue_(truncated)
+        self.updateCharCount()
+    
+    def updateCharCount(self):
+        """Update character count label"""
+        name = str(self.name_field.stringValue())
+        count = len(name)
+        self.char_count_label.setStringValue_(f"{count}/10")
+        
+        if count > 8:
+            self.char_count_label.setTextColor_(NSColor.systemRedColor())
+        elif count > 6:
+            self.char_count_label.setTextColor_(NSColor.systemOrangeColor())
+        else:
+            self.char_count_label.setTextColor_(NSColor.secondaryLabelColor())
+    
+    def save_(self, sender):
+        """Save the prompt"""
+        name = str(self.name_field.stringValue()).strip()
+        text = str(self.prompt_text_view.string()).strip()
+        output_format = str(self.format_popup.titleOfSelectedItem())
+        
+        # Validation
+        if not name:
+            self.showAlert_("Name Required", "Please enter a name for this prompt.")
+            return
+        
+        if len(name) > 10:
+            self.showAlert_("Name Too Long", "Name must be 10 characters or less.")
+            return
+        
+        if not text:
+            self.showAlert_("Prompt Required", "Please enter the prompt text.")
+            return
+        
+        # Create result
+        self.result = {
+            "name": name,
+            "text": text,
+            "output_format": output_format
+        }
+        
+        # Call callback if set
+        if self.callback:
+            self.callback(self.result)
+        
+        self.window().close()
+    
+    def cancel_(self, sender):
+        """Cancel the dialog"""
+        self.result = None
+        if self.callback:
+            self.callback(None)
+        self.window().close()
+    
+    def showAlert_(self, title, message):
+        """Show an alert dialog"""
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(title)
+        alert.setInformativeText_(message)
+        alert.setAlertStyle_(NSAlertStyleWarning)
+        alert.runModal()
+    
+    def runModal(self):
+        """Run the dialog modally"""
+        return NSApp.runModalForWindow_(self.window())
+
+
 class SettingsWindow(NSWindowController):
     """Main settings window"""
     
@@ -183,7 +421,7 @@ class SettingsWindow(NSWindowController):
         self.reset_button = None
         self.conflict_label = None
         self.content_views = []
-        self.text_views = {}
+        self.prompts_data = []  # Initialize prompts data
         
         self.createWindow()
         return self
@@ -370,7 +608,7 @@ class SettingsWindow(NSWindowController):
         return view
     
     def createPromptsView(self):
-        """Create Prompts view"""
+        """Create Prompts view with dynamic table"""
         view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
         
         # Title
@@ -383,27 +621,95 @@ class SettingsWindow(NSWindowController):
         title.setAlignment_(NSTextAlignmentCenter)
         view.addSubview_(title)
         
-        # Prompt editors
-        prompts = self.settings_manager.get("prompts", {})
-        y_pos = 380
+        # Instructions
+        instructions = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 390, 620, 20))
+        instructions.setStringValue_("Customize your AI prompts and output formats:")
+        instructions.setFont_(NSFont.systemFontOfSize_(12))
+        instructions.setBezeled_(False)
+        instructions.setDrawsBackground_(False)
+        instructions.setEditable_(False)
+        instructions.setTextColor_(NSColor.secondaryLabelColor())
+        view.addSubview_(instructions)
         
-        for mode in ['rephrase', 'summarize', 'expand', 'casual', 'formal']:
-            # Label
-            label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, y_pos, 620, 20))
-            label.setStringValue_(f"{mode.title()} Mode:")
-            label.setFont_(NSFont.boldSystemFontOfSize_(13))
-            label.setBezeled_(False)
-            label.setDrawsBackground_(False)
-            label.setEditable_(False)
-            view.addSubview_(label)
-            
-            # Text field
-            text_field = NSTextField.alloc().initWithFrame_(NSMakeRect(20, y_pos - 25, 620, 25))
-            text_field.setStringValue_(prompts.get(mode, ''))
-            view.addSubview_(text_field)
-            
-            self.text_views[mode] = text_field
-            y_pos -= 60
+        # Create scroll view for table
+        scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, 80, 620, 300))
+        scroll_view.setHasVerticalScroller_(True)
+        scroll_view.setHasHorizontalScroller_(False)
+        scroll_view.setBorderType_(NSBezelBorder)
+        
+        # Create table view
+        self.prompts_table = NSTableView.alloc().initWithFrame_(scroll_view.contentView().bounds())
+        self.prompts_table.setUsesAlternatingRowBackgroundColors_(True)
+        self.prompts_table.setRowSizeStyle_(NSTableViewRowSizeStyleMedium)
+        self.prompts_table.setGridStyleMask_(NSTableViewSolidHorizontalGridLineMask)
+        
+        # Create columns
+        # Name column
+        name_column = NSTableColumn.alloc().initWithIdentifier_("name")
+        name_column.headerCell().setStringValue_("Name")
+        name_column.setWidth_(120)
+        name_column.setMinWidth_(80)
+        name_column.setMaxWidth_(150)
+        name_column.setEditable_(True)
+        self.prompts_table.addTableColumn_(name_column)
+        
+        # Prompt text column
+        text_column = NSTableColumn.alloc().initWithIdentifier_("text")
+        text_column.headerCell().setStringValue_("Prompt Text")
+        text_column.setWidth_(380)
+        text_column.setMinWidth_(200)
+        text_column.setEditable_(True)
+        self.prompts_table.addTableColumn_(text_column)
+        
+        # Output format column
+        format_column = NSTableColumn.alloc().initWithIdentifier_("format")
+        format_column.headerCell().setStringValue_("Format")
+        format_column.setWidth_(100)
+        format_column.setMinWidth_(80)
+        format_column.setMaxWidth_(120)
+        format_column.setEditable_(True)
+        self.prompts_table.addTableColumn_(format_column)
+        
+        # Get prompts and ensure correct format
+        prompts = self.settings_manager.get("prompts", [])
+        print(f"Debug - prompts in table: {prompts}")
+        
+        # Store prompts data - make a copy to avoid reference issues
+        self.prompts_data = list(prompts) if prompts else []
+        
+        # Set up table data source
+        self.prompts_table.setDataSource_(self)
+        self.prompts_table.setDelegate_(self)
+        
+        # Force reload to show data
+        self.prompts_table.reloadData()
+        
+        scroll_view.setDocumentView_(self.prompts_table)
+        view.addSubview_(scroll_view)
+        
+        # Add button
+        add_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 40, 80, 30))
+        add_btn.setTitle_("Add")
+        add_btn.setTarget_(self)
+        add_btn.setAction_("addPrompt:")
+        add_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(add_btn)
+        
+        # Remove button
+        remove_btn = NSButton.alloc().initWithFrame_(NSMakeRect(110, 40, 80, 30))
+        remove_btn.setTitle_("Remove")
+        remove_btn.setTarget_(self)
+        remove_btn.setAction_("removePrompt:")
+        remove_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(remove_btn)
+        
+        # Edit button
+        edit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(200, 40, 80, 30))
+        edit_btn.setTitle_("Edit")
+        edit_btn.setTarget_(self)
+        edit_btn.setAction_("editPrompt:")
+        edit_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(edit_btn)
         
         return view
     
@@ -511,6 +817,67 @@ class SettingsWindow(NSWindowController):
         self.hotkey_field.setStringValue_(default)
         self.updateResetButton()
     
+    # NSTableViewDataSource methods for prompts table
+    def numberOfRowsInTableView_(self, table_view):
+        """Return number of rows"""
+        if hasattr(self, 'prompts_table') and table_view == self.prompts_table:
+            count = len(self.prompts_data) if hasattr(self, 'prompts_data') and self.prompts_data else 0
+            print(f"Debug - numberOfRows returning: {count}")
+            return count
+        return 0
+    
+    def tableView_objectValueForTableColumn_row_(self, table_view, column, row):
+        """Return value for cell"""
+        if not hasattr(self, 'prompts_table') or table_view != self.prompts_table:
+            return ""
+        
+        if not hasattr(self, 'prompts_data') or not self.prompts_data:
+            return ""
+        
+        if row >= len(self.prompts_data):
+            print(f"Debug - row {row} >= len {len(self.prompts_data)}")
+            return ""
+        
+        prompt = self.prompts_data[row]
+        identifier = str(column.identifier())
+        
+        print(f"Debug - getting value for row {row}, col {identifier}, prompt: {prompt}")
+        
+        if identifier == "name":
+            return prompt.get("name", "")
+        elif identifier == "text":
+            return prompt.get("text", "")
+        elif identifier == "format":
+            return prompt.get("output_format", "text")
+        
+        return ""
+    
+    def tableView_setObjectValue_forTableColumn_row_(self, table_view, value, column, row):
+        """Set value for cell"""
+        if not hasattr(self, 'prompts_table') or table_view != self.prompts_table:
+            return
+        
+        if not hasattr(self, 'prompts_data') or not self.prompts_data:
+            return
+        
+        if row >= len(self.prompts_data):
+            return
+        
+        prompt = self.prompts_data[row]
+        identifier = str(column.identifier())
+        
+        print(f"Debug - setting value for row {row}, col {identifier}, value: {value}")
+        
+        if identifier == "name":
+            prompt["name"] = str(value)
+        elif identifier == "text":
+            prompt["text"] = str(value)
+        elif identifier == "format":
+            # Validate format
+            format_val = str(value)
+            if format_val in ["text", "images", "pdf"]:  # video disabled
+                prompt["output_format"] = format_val
+    
     def save_(self, sender):
         """Save settings"""
         settings = self.settings_manager.settings.copy()
@@ -525,11 +892,9 @@ class SettingsWindow(NSWindowController):
         if self.startup_checkbox:
             settings["launch_at_startup"] = bool(self.startup_checkbox.state())
         
-        # Prompts
-        prompts = settings.get("prompts", {})
-        for mode, field in self.text_views.items():
-            prompts[mode] = str(field.stringValue())
-        settings["prompts"] = prompts
+        # Prompts - get from table data
+        if hasattr(self, 'prompts_data') and self.prompts_data:
+            settings["prompts"] = self.prompts_data
         
         # Advanced
         if hasattr(self, 'model_popup'):
@@ -560,6 +925,112 @@ class SettingsWindow(NSWindowController):
     def cancel_(self, sender):
         """Cancel changes"""
         self.window().close()
+
+    def addPrompt_(self, sender):
+        """Add a new prompt using dialog"""
+        def on_result(result):
+            if result:  # User didn't cancel
+                # Check for duplicate names
+                existing_names = [p.get("name", "") for p in self.prompts_data]
+                if result["name"] in existing_names:
+                    alert = NSAlert.alloc().init()
+                    alert.setMessageText_("Duplicate Name")
+                    alert.setInformativeText_(f"A prompt named '{result['name']}' already exists.")
+                    alert.setAlertStyle_(NSAlertStyleWarning)
+                    alert.runModal()
+                    return
+                
+                # Add the new prompt
+                self.prompts_data.append(result)
+                self.prompts_table.reloadData()
+                
+                # Select the new row
+                new_index = len(self.prompts_data) - 1
+                self.prompts_table.selectRowIndexes_byExtendingSelection_(
+                    NSIndexSet.indexSetWithIndex_(new_index), False
+                )
+                self.prompts_table.scrollRowToVisible_(new_index)
+        
+        # Create and show dialog
+        dialog = PromptDialog.alloc().initWithPrompt_isEdit_(None, False)
+        dialog.callback = on_result
+        dialog.showWindow_(self)
+    
+    def removePrompt_(self, sender):
+        """Remove selected prompt"""
+        if not hasattr(self, 'prompts_data') or not self.prompts_data:
+            return
+        
+        selected_row = self.prompts_table.selectedRow()
+        if selected_row < 0:
+            # No selection, show alert
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("No Selection")
+            alert.setInformativeText_("Please select a prompt to remove.")
+            alert.setAlertStyle_(NSAlertStyleInformational)
+            alert.runModal()
+            return
+        
+        # Get prompt name for confirmation
+        prompt_name = self.prompts_data[selected_row].get("name", "this prompt")
+        
+        # Confirm deletion
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Delete Prompt")
+        alert.setInformativeText_(f"Are you sure you want to delete '{prompt_name}'?")
+        alert.setAlertStyle_(NSAlertStyleWarning)
+        alert.addButtonWithTitle_("Delete")
+        alert.addButtonWithTitle_("Cancel")
+        
+        response = alert.runModal()
+        if response == NSAlertFirstButtonReturn:  # Delete
+            self.prompts_data.pop(selected_row)
+            self.prompts_table.reloadData()
+    
+    def editPrompt_(self, sender):
+        """Edit selected prompt using dialog"""
+        if not hasattr(self, 'prompts_data') or not self.prompts_data:
+            return
+        
+        selected_row = self.prompts_table.selectedRow()
+        if selected_row < 0:
+            # No selection, show alert
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("No Selection")
+            alert.setInformativeText_("Please select a prompt to edit.")
+            alert.setAlertStyle_(NSAlertStyleInformational)
+            alert.runModal()
+            return
+        
+        # Get current prompt
+        current_prompt = self.prompts_data[selected_row]
+        original_name = current_prompt["name"]
+        
+        def on_result(result):
+            if result:  # User didn't cancel
+                # Check for duplicate names (excluding current name)
+                existing_names = [p.get("name", "") for i, p in enumerate(self.prompts_data) if i != selected_row]
+                if result["name"] in existing_names:
+                    alert = NSAlert.alloc().init()
+                    alert.setMessageText_("Duplicate Name")
+                    alert.setInformativeText_(f"A prompt named '{result['name']}' already exists.")
+                    alert.setAlertStyle_(NSAlertStyleWarning)
+                    alert.runModal()
+                    return
+                
+                # Update the prompt
+                self.prompts_data[selected_row] = result
+                self.prompts_table.reloadData()
+                
+                # Keep selection
+                self.prompts_table.selectRowIndexes_byExtendingSelection_(
+                    NSIndexSet.indexSetWithIndex_(selected_row), False
+                )
+        
+        # Create and show dialog
+        dialog = PromptDialog.alloc().initWithPrompt_isEdit_(current_prompt, True)
+        dialog.callback = on_result
+        dialog.showWindow_(self)
 
 
 def show_settings(settings_manager, on_settings_changed=None):
