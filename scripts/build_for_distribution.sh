@@ -121,13 +121,66 @@ if security find-identity -v -p codesigning | grep -q "Developer ID"; then
     codesign --force --deep --sign "Developer ID Application" "dist/Rephrasely.app"
     echo "✅ App signed successfully"
 else
-    echo "⚠️  No code signing certificate found - app will not be signed"
-    echo "   Users may need to right-click and select 'Open' on first launch"
+    echo "⚠️  No code signing certificate found - using adhoc signature"
+    echo "   Re-signing with adhoc signature after Info.plist modifications..."
+    codesign --force --deep --sign - "dist/Rephrasely.app"
+    echo "✅ App re-signed with adhoc signature"
 fi
 
 # Copy to distribution folder
 echo "📁 Copying to distribution folder..."
 cp -R "dist/Rephrasely.app" "distribution/"
+
+# Copy launch helper if it exists
+if [[ -f "distribution/launch_helper.sh" ]]; then
+    echo "📋 Launch helper already exists in distribution folder"
+else
+    echo "📋 Creating launch helper script..."
+    cat > "distribution/launch_helper.sh" << 'EOF'
+#!/bin/bash
+
+# Rephrasely Launch Helper
+# This script helps launch Rephrasely if you're having issues with double-clicking
+
+echo "🚀 Rephrasely Launch Helper"
+echo "=========================="
+
+# Check if the app exists
+if [[ ! -d "Rephrasely.app" ]]; then
+    echo "❌ Rephrasely.app not found in current directory"
+    echo "   Please run this script from the folder containing Rephrasely.app"
+    exit 1
+fi
+
+echo "📱 Found Rephrasely.app"
+
+# Remove quarantine attribute if present
+echo "🔓 Removing quarantine attribute..."
+xattr -r -d com.apple.quarantine Rephrasely.app 2>/dev/null || echo "   No quarantine attribute found"
+
+# Launch the app
+echo "🚀 Launching Rephrasely..."
+open Rephrasely.app
+
+# Check if it's running
+sleep 2
+if pgrep -f "Rephrasely" > /dev/null; then
+    echo "✅ Rephrasely is now running!"
+    echo "   Look for the Rephrasely icon in your menu bar"
+else
+    echo "⚠️  Rephrasely may not have started properly"
+    echo "   If you see security warnings, click 'Open' to allow the app"
+    echo "   You can also try right-clicking the app and selecting 'Open'"
+fi
+
+echo ""
+echo "💡 Tips:"
+echo "   • Rephrasely runs in the background with a menu bar icon"
+echo "   • If you don't see it, check your menu bar (top of screen)"
+echo "   • The app may need a few seconds to fully start"
+EOF
+    chmod +x "distribution/launch_helper.sh"
+fi
 
 # Create ZIP for distribution (optional)
 echo "🗜️  Creating ZIP archive..."
