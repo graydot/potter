@@ -23,6 +23,17 @@ from pynput.keyboard import Key, Listener
 from PIL import Image, ImageDraw
 from dotenv import load_dotenv
 
+# macOS permission checking
+try:
+    from Foundation import NSBundle, NSApplication
+    from AppKit import NSWorkspace, NSBundle
+    from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
+    from ApplicationServices import AXIsProcessTrusted
+    MACOS_PERMISSIONS_AVAILABLE = True
+except ImportError:
+    MACOS_PERMISSIONS_AVAILABLE = False
+    print("⚠️  macOS permission checking not available")
+
 # Import our settings UI
 try:
     from cocoa_settings import SettingsManager, show_settings
@@ -38,7 +49,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Enable debug logging temporarily
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('rephrasely.log'),
@@ -247,30 +258,105 @@ class RephrasleyService:
     def on_settings_changed(self, new_settings):
         """Handle settings changes"""
         logger.info("Settings changed, reloading...")
+        print("Debug - on_settings_changed called")
+        
+        # Store old hotkey to see if it changed
+        old_hotkey = getattr(self, 'hotkey_combo', None)
         
         # Update settings manager
         if self.settings_manager:
             self.settings_manager.settings = new_settings
+            print("Debug - Settings manager updated")
         
         # Reload all settings
+        print("Debug - Reloading settings...")
         self.load_settings()
+        print("Debug - Settings reloaded")
         
-        # Restart keyboard listener with new hotkey
-        if self.listener:
-            self.listener.stop()
-            self.listener = Listener(
-                on_press=self.on_key_press,
-                on_release=self.on_key_release
-            )
-            self.listener.start()
+        # Reinitialize OpenAI client in case API key changed
+        print("Debug - Reinitializing OpenAI client...")
+        self.setup_openai()
+        print("Debug - OpenAI client reinitialized")
         
-        # Update tray icon menu
+        # Only restart keyboard listener if hotkey actually changed
+        print("Debug - Checking if hotkey changed...")
+        if old_hotkey != self.hotkey_combo:
+            print("Debug - Hotkey changed, restarting keyboard listener...")
+            if self.listener:
+                print("Debug - Stopping existing listener...")
+                try:
+                    self.listener.stop()
+                    print("Debug - Existing listener stopped")
+                except Exception as e:
+                    print(f"Debug - Error stopping listener: {e}")
+            
+            try:
+                self.listener = Listener(
+                    on_press=self.on_key_press,
+                    on_release=self.on_key_release
+                )
+                self.listener.start()
+                print("Debug - New keyboard listener started")
+            except Exception as e:
+                print(f"Debug - Error starting new listener: {e}")
+        else:
+            print("Debug - Hotkey unchanged, keeping existing listener")
+        
+        # DO NOT restart tray icon - just update the menu in place
+        print("Debug - Updating tray icon menu...")
         if self.tray_icon:
-            self.tray_icon.stop()
-            self.create_tray_icon()
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+            try:
+                # Create new menu structure
+                print("Debug - Creating new menu structure...")
+                old_icon = self.tray_icon
+                
+                # Get current permission status  
+                permissions = self.get_permission_status()
+                
+                # Create menu items
+                menu_items = [
+                    pystray.MenuItem(f"Mode: {self.current_prompt.title()}", lambda: None, enabled=False),
+                    pystray.Menu.SEPARATOR,
+                ]
+                
+                # Add permission status indicators
+                accessibility_status = "✅" if permissions.get("accessibility", False) else "❌"
+                
+                menu_items.extend([
+                    pystray.MenuItem(f"Accessibility (Copy/Type) {accessibility_status}", lambda: None, enabled=False),
+                    pystray.Menu.SEPARATOR,
+                ])
+                
+                # Add mode switching options
+                for mode in self.prompts.keys():
+                    menu_items.append(
+                        pystray.MenuItem(
+                            mode.title(), 
+                            lambda m=mode: self.change_mode(m),
+                            checked=lambda m=mode: self.current_prompt == m
+                        )
+                    )
+                
+                menu_items.extend([
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem("Preferences...", self.show_preferences),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem("Quit", self.quit_app)
+                ])
+                
+                new_menu = pystray.Menu(*menu_items)
+                
+                # Update the existing icon's menu
+                old_icon.menu = new_menu
+                print("Debug - Tray icon menu updated successfully")
+                
+            except Exception as e:
+                print(f"Debug - Error updating tray icon menu: {e}")
+        else:
+            print("Debug - No tray icon to update")
         
         logger.info("Settings applied successfully")
+        print("Debug - on_settings_changed completed successfully")
     
     def setup_openai(self):
         """Initialize OpenAI client"""
@@ -293,6 +379,101 @@ class RephrasleyService:
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
             self.openai_client = None
+    
+    def check_accessibility_permissions(self):
+        """Check if the app has accessibility permissions"""
+        if not MACOS_PERMISSIONS_AVAILABLE:
+            return False
+        
+        try:
+            # Use the proper accessibility API to check permissions
+            from ApplicationServices import AXIsProcessTrusted
+            is_trusted = AXIsProcessTrusted()
+            logger.info(f"Accessibility permission check: {is_trusted}")
+            return is_trusted
+        except ImportError:
+            logger.warning("ApplicationServices not available, falling back to window list check")
+            try:
+                # Fallback method - try to get window list
+                window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+                return window_list and len(window_list) > 0
+            except Exception as e:
+                logger.warning(f"Window list check failed: {e}")
+                return False
+        except Exception as e:
+            logger.warning(f"Accessibility permission check failed: {e}")
+            return False
+    
+    def check_screen_recording_permissions(self):
+        """Check if the app has screen recording permissions (needed for some keyboard monitoring)"""
+        if not MACOS_PERMISSIONS_AVAILABLE:
+            return False
+        
+        try:
+            # Try to capture screen content
+            from Quartz import CGWindowListCreateImage, CGRectNull, kCGWindowListOptionOnScreenOnly
+            image = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionOnScreenOnly, kCGNullWindowID, 0)
+            return image is not None
+        except Exception as e:
+            logger.warning(f"Screen recording permission check failed: {e}")
+            return False
+    
+    def get_permission_status(self):
+        """Get current permission status"""
+        return {
+            "accessibility": self.check_accessibility_permissions(),
+            "screen_recording": self.check_screen_recording_permissions(),
+            "macos_available": MACOS_PERMISSIONS_AVAILABLE
+        }
+    
+    def open_system_preferences_security(self):
+        """Open System Preferences to Security & Privacy"""
+        try:
+            # For macOS 13+ (Ventura and later), it's System Settings
+            subprocess.run(['open', 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'], check=False)
+        except Exception as e:
+            logger.error(f"Failed to open System Preferences: {e}")
+            # Fallback to general System Preferences
+            try:
+                subprocess.run(['open', '/System/Applications/System Preferences.app'], check=False)
+            except Exception as e2:
+                logger.error(f"Failed to open System Preferences fallback: {e2}")
+    
+    def request_permissions(self):
+        """Request necessary permissions from the user"""
+        logger.info("Checking permissions...")
+        
+        permissions = self.get_permission_status()
+        
+        if not permissions["accessibility"]:
+            logger.warning("Accessibility permission not granted")
+            if SETTINGS_UI_AVAILABLE:
+                try:
+                    from AppKit import NSAlert, NSAlertStyleWarning
+                    
+                    alert = NSAlert.alloc().init()
+                    alert.setMessageText_("Accessibility Permission Required")
+                    alert.setInformativeText_("Rephrasely needs accessibility permission to:\n\n• Monitor your global hotkey (Cmd+Shift+R)\n• Copy text from any app (simulates Cmd+C)\n• Paste processed text into any app (simulates Cmd+V)\n\nPlease grant permission in System Settings.")
+                    alert.setAlertStyle_(NSAlertStyleWarning)
+                    alert.addButtonWithTitle_("Open System Settings")
+                    alert.addButtonWithTitle_("Continue Anyway")
+                    
+                    response = alert.runModal()
+                    if response == 1000:  # First button
+                        self.open_system_preferences_security()
+                        return False  # Don't continue startup yet
+                    # else continue anyway
+                        
+                except Exception as e:
+                    logger.error(f"Failed to show permission dialog: {e}")
+            else:
+                print("⚠️  Accessibility permission required!")
+                print("   Needed for: global hotkey monitoring, copying from apps, pasting into apps")
+                print("   Please grant permission in System Settings > Privacy & Security > Accessibility")
+                print("   Then restart Rephrasely")
+                return False
+        
+        return True
     
     def copy_selected_text(self):
         """Copy currently selected text to clipboard"""
@@ -392,16 +573,25 @@ class RephrasleyService:
     def process_selection(self):
         """Main function to process selected text"""
         if self.hotkey_pressed:
+            logger.warning("⚠️  Hotkey already being processed, ignoring...")
             return  # Prevent multiple simultaneous executions
         
         self.hotkey_pressed = True
         self.set_processing_state(True)  # Start spinner
-        logger.info("Processing text selection...")
+        logger.info("🔄 Processing text selection...")
         
         try:
+            # Check if OpenAI client is available first
+            if not self.openai_client:
+                error_msg = "OpenAI API key not configured. Please check Settings."
+                logger.error(f"❌ {error_msg}")
+                self.show_notification("Configuration Error", error_msg, is_error=True)
+                return
+            
             # Store original clipboard content
             try:
                 original_clipboard = pyperclip.paste()
+                logger.debug(f"Original clipboard: {original_clipboard[:50] if original_clipboard else 'empty'}...")
             except Exception as e:
                 logger.warning(f"Could not access clipboard: {e}")
                 original_clipboard = ""
@@ -511,8 +701,16 @@ class RephrasleyService:
         """Handle key press events"""
         self.current_keys.add(key)
         
+        # Debug logging for hotkey detection
+        if len(self.current_keys) >= 2:  # Only log when we have multiple keys
+            keys_str = ", ".join([str(k) for k in self.current_keys])
+            logger.debug(f"Current keys pressed: {keys_str}")
+        
         # Check if our hotkey combination is pressed
         if self.hotkey_combo.issubset(self.current_keys):
+            logger.info("🎯 HOTKEY DETECTED! Processing selection...")
+            # Show immediate feedback that hotkey was detected
+            self.show_notification("Hotkey Detected", "Processing selected text...", is_error=False)
             # Run processing in a separate thread to avoid blocking
             threading.Thread(target=self.process_selection, daemon=True).start()
     
@@ -538,11 +736,22 @@ class RephrasleyService:
         # Create the normal icon
         image = self.create_normal_icon()
         
+        # Get current permission status
+        permissions = self.get_permission_status()
+        
         # Create menu
         menu_items = [
             pystray.MenuItem(f"Mode: {self.current_prompt.title()}", lambda: None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
+        
+        # Add permission status indicators
+        accessibility_status = "✅" if permissions.get("accessibility", False) else "❌"
+        
+        menu_items.extend([
+            pystray.MenuItem(f"Accessibility (Copy/Type) {accessibility_status}", lambda: None, enabled=False),
+            pystray.Menu.SEPARATOR,
+        ])
         
         # Add mode switching options
         for mode in self.prompts.keys():
@@ -597,42 +806,49 @@ class RephrasleyService:
         # Check for single instance before starting
         self.check_single_instance()
         
+        # Check permissions first
+        logger.info("Checking macOS permissions...")
+        permissions = self.get_permission_status()
+        logger.info(f"Permission status: accessibility={permissions['accessibility']}")
+        
+        if not permissions["accessibility"]:
+            logger.warning("❌ Accessibility permission NOT granted")
+            logger.warning("   This will cause 'This process is not trusted!' errors")
+            if not self.request_permissions():
+                logger.warning("Required permissions not granted, exiting...")
+                self.instance_checker.cleanup()
+                sys.exit(1)
+        else:
+            logger.info("✅ Accessibility permission granted")
+        
         # Check if this is the first launch and show settings if needed
         if SETTINGS_UI_AVAILABLE and self.settings_manager and self.settings_manager.is_first_launch():
             logger.info("First launch detected - showing settings dialog")
-            self.show_first_launch_settings()
-            return  # Exit after showing settings - user will restart the app
+            settings_shown = self.show_first_launch_settings()
+            if settings_shown:
+                # Settings window is open, don't start service components yet
+                # They will be started when settings are saved (in on_settings_saved callback)
+                logger.info("Waiting for first-launch settings to be configured...")
+                
+                # Create a minimal tray icon to show the app is running
+                self.create_tray_icon()
+                self.tray_icon.run()  # This will keep the app alive
+                return
         
         if not self.openai_client:
             logger.error("Cannot start service: OpenAI client not initialized")
             if SETTINGS_UI_AVAILABLE:
                 logger.info("Opening settings to configure API key...")
                 self.show_preferences()
+                # Create a minimal tray icon to show the app is running
+                self.create_tray_icon()
+                self.tray_icon.run()  # This will keep the app alive
                 return
             else:
                 sys.exit(1)
         
-        logger.info("Starting Rephrasely service...")
-        logger.info(f"Hotkey: {self.format_hotkey()}")
-        logger.info(f"Current mode: {self.current_prompt}")
-        logger.info(f"Model: {self.model}")
-        
-        self.is_running = True
-        
-        # Start keyboard listener
-        self.listener = Listener(
-            on_press=self.on_key_press,
-            on_release=self.on_key_release
-        )
-        self.listener.start()
-        
-        # Create and start tray icon
-        self.create_tray_icon()
-        
-        try:
-            self.tray_icon.run()
-        except KeyboardInterrupt:
-            self.quit_app()
+        # Normal startup - start all service components
+        self.start_service_components()
     
     def format_hotkey(self):
         """Format hotkey combination for display"""
@@ -642,12 +858,23 @@ class RephrasleyService:
 
     def show_notification(self, title, message, is_error=False):
         """Show notification if enabled"""
-        if self.settings_manager and self.settings_manager.get("show_notifications", False):
+        # Always log notifications for debugging
+        logger.info(f"📢 Notification: {title} - {message}")
+        
+        # Try to show native notification if settings allow it
+        if self.settings_manager and self.settings_manager.get("show_notifications", True):
             if hasattr(self.settings_manager, 'show_notification'):
                 self.settings_manager.show_notification(title, message, is_error)
-            else:
-                # Fallback notification method
-                logger.info(f"Notification: {title} - {message}")
+        
+        # Also try to show macOS notification as fallback
+        try:
+            # Simple macOS notification using osascript
+            script = f'''
+            display notification "{message}" with title "{title}"
+            '''
+            subprocess.run(['osascript', '-e', script], check=False, capture_output=True)
+        except Exception as e:
+            logger.debug(f"Could not show native notification: {e}")
     
     def set_processing_state(self, processing):
         """Set processing state and update icon"""
@@ -817,8 +1044,16 @@ class RephrasleyService:
         
         def on_settings_saved(new_settings):
             logger.info("First-time settings saved successfully")
-            # Restart the app to use the new settings
-            self.restart_app()
+            # Instead of restarting, just reload settings and continue
+            self.on_settings_changed(new_settings)
+            logger.info("Settings applied, continuing with app startup...")
+            
+            # Now that settings are configured, continue with normal startup
+            if self.openai_client:
+                logger.info("✅ Settings configured successfully, starting service...")
+                self.start_service_components()
+            else:
+                logger.warning("❌ OpenAI client still not configured after settings")
         
         try:
             from cocoa_settings import show_settings
@@ -834,10 +1069,11 @@ class RephrasleyService:
             
             response = alert.runModal()
             if response == 1000:  # First button (Open Settings)
-                # Show settings window
+                # Show settings window (non-modal)
                 controller = show_settings(self.settings_manager, on_settings_saved)
-                if controller:
-                    NSApp.run()
+                logger.info("First-launch settings window shown")
+                # Don't call NSApp.run() here - let the normal app flow continue
+                return True  # Indicate settings window was shown
             else:
                 # User chose to quit
                 sys.exit(0)
@@ -845,36 +1081,36 @@ class RephrasleyService:
         except Exception as e:
             logger.error(f"Failed to show first-launch settings: {e}")
             sys.exit(1)
+        
+        return False
     
-    def restart_app(self):
-        """Restart the application"""
+    def start_service_components(self):
+        """Start the main service components (keyboard listener, tray icon)"""
+        logger.info("Starting service components...")
+        logger.info(f"Hotkey: {self.format_hotkey()}")
+        logger.info(f"Current mode: {self.current_prompt}")
+        logger.info(f"Model: {self.model}")
+        
+        # Log permission status
+        permissions = self.get_permission_status()
+        logger.info(f"Accessibility permission: {'✅' if permissions['accessibility'] else '❌'}")
+        
+        self.is_running = True
+        
+        # Start keyboard listener
+        self.listener = Listener(
+            on_press=self.on_key_press,
+            on_release=self.on_key_release
+        )
+        self.listener.start()
+        
+        # Create and start tray icon
+        self.create_tray_icon()
+        
         try:
-            import subprocess
-            import sys
-            
-            # Get the current executable path
-            if getattr(sys, 'frozen', False):
-                # Running as PyInstaller bundle
-                executable = sys.executable
-            else:
-                # Running as script
-                executable = [sys.executable, __file__]
-            
-            # Cleanup current instance
-            self.instance_checker.cleanup()
-            
-            # Start new instance
-            if isinstance(executable, str):
-                subprocess.Popen([executable])
-            else:
-                subprocess.Popen(executable)
-            
-            # Exit current instance
-            sys.exit(0)
-            
-        except Exception as e:
-            logger.error(f"Failed to restart app: {e}")
-            sys.exit(1)
+            self.tray_icon.run()
+        except KeyboardInterrupt:
+            self.quit_app()
 
 def main():
     """Main entry point"""
@@ -884,6 +1120,7 @@ def main():
     # Initialize NSApplication for macOS app bundle compatibility
     try:
         from Foundation import NSBundle, NSApplication
+        from objc import super as objc_super
         
         # Check if we're running as a bundled app
         bundle = NSBundle.mainBundle()
@@ -892,12 +1129,62 @@ def main():
             app = NSApplication.sharedApplication()
             # Make sure the app doesn't terminate when all windows are closed
             app.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
-            logger.info("✅ NSApplication initialized for app bundle")
+            
+            # Prevent app from terminating when all windows are closed
+            # This is crucial for menu bar apps
+            class AppDelegate:
+                def applicationShouldTerminateAfterLastWindowClosed_(self, app):
+                    """Prevent app termination when last window closes"""
+                    print("Debug - AppDelegate: applicationShouldTerminateAfterLastWindowClosed called - returning False")
+                    return False
+                
+                def applicationShouldTerminate_(self, app):
+                    """Control when the application should terminate"""
+                    print("Debug - AppDelegate: applicationShouldTerminate called - returning NSTerminateCancel")
+                    from AppKit import NSTerminateCancel
+                    return NSTerminateCancel  # Explicitly cancel termination
+                
+                def applicationWillTerminate_(self, notification):
+                    """Called when app will terminate"""
+                    print("Debug - AppDelegate: applicationWillTerminate called - this should not happen!")
+                    # Try to prevent termination even here
+                    try:
+                        from AppKit import NSApplication
+                        app = NSApplication.sharedApplication()
+                        print("Debug - Attempting to prevent termination in applicationWillTerminate")
+                        app.abortModal()
+                    except Exception as e:
+                        print(f"Debug - Could not prevent termination: {e}")
+                
+                def applicationDidFinishLaunching_(self, notification):
+                    """Called when app finishes launching"""
+                    print("Debug - AppDelegate: applicationDidFinishLaunching called")
+                
+                def applicationWillBecomeActive_(self, notification):
+                    """Called when app will become active"""
+                    print("Debug - AppDelegate: applicationWillBecomeActive called")
+                
+                def applicationDidBecomeActive_(self, notification):
+                    """Called when app became active"""
+                    print("Debug - AppDelegate: applicationDidBecomeActive called")
+            
+            # Set the delegate to prevent termination
+            delegate = AppDelegate()
+            app.setDelegate_(delegate)
+            
+            # Additional safety measures
+            print("Debug - NSApplication configuration:")
+            print(f"Debug - Activation policy: {app.activationPolicy()}")
+            print(f"Debug - Delegate set: {app.delegate() is not None}")
+            
+            logger.info("✅ NSApplication initialized for app bundle with comprehensive delegate")
     except ImportError:
         # PyObjC not available, continue without NSApplication setup
+        print("Debug - PyObjC not available, skipping NSApplication setup")
         pass
     except Exception as e:
         logger.warning(f"Failed to initialize NSApplication: {e}")
+        print(f"Debug - NSApplication setup error: {e}")
     
     # Start the service (single instance check is done in start())
     service = RephrasleyService()

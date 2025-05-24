@@ -9,9 +9,9 @@ Rephrasely now features **automatic first-launch detection**! When you run the a
 1. **Welcome you** with a friendly setup dialog
 2. **Guide you** to configure your OpenAI API key
 3. **Let you customize** all preferences in the native macOS settings interface
-4. **Automatically restart** with your settings applied
+4. **Continue seamlessly** without restart - your settings are applied immediately
 
-No more command-line configuration needed - everything is handled through the beautiful native UI!
+No more command-line configuration or app restarts needed - everything is handled through the beautiful native UI!
 
 ## Installation
 
@@ -32,12 +32,84 @@ No more command-line configuration needed - everything is handled through the be
 3. Drag `Rephrasely.app` to your `/Applications` folder
 4. Right-click and select "Open" on first launch
 
+## Recent Fixes ✅
+
+**New in this version:**
+- ✅ **Fixed first-launch restart issues** - No more restart failures during setup
+- ✅ **Added ESC key support** - Press ESC to close settings dialog
+- ✅ **Improved API key field focus** - Field automatically gets focus for easy pasting
+- ✅ **Enhanced paste functionality** - Cmd+V now works reliably in all text fields
+- ✅ **Better settings save behavior** - Dialog closes immediately after successful save
+- ✅ **Fixed six.moves dependency errors** - Resolved PyInstaller dependency issues
+- ✅ **Added permission checking** - App now properly requests and checks macOS permissions
+- ✅ **Permission status display** - View current permission status in settings
+- ✅ **Smart permission prompts** - Automatic guidance for granting required permissions
+- ✅ **Menu bar permission indicators** - Live permission status in dropdown menu (✅/❌)
+
+## System Permissions 🔐
+
+Rephrasely now includes intelligent permission management:
+
+### Required Permissions
+- **Accessibility**: Required for global hotkey monitoring, copying from any app, and pasting into any app
+- **Screen Recording**: Not needed for text processing (only shown for completeness)
+
+### What Accessibility Permission Enables
+- **Global Hotkey Monitoring**: Detect when you press Cmd+Shift+R (or your custom hotkey)
+- **Copy from Any App**: Simulate Cmd+C to copy your selected text
+- **Paste into Any App**: Simulate Cmd+V to paste the processed text
+
+### Permission Features
+- **Automatic detection**: App checks permissions on startup
+- **Smart prompts**: Guided permission granting with direct links to System Settings
+- **Status display**: View current permission status in Settings → General
+- **Menu bar status**: Live permission indicators in the menu bar dropdown (✅/❌)
+- **One-click access**: "Open System Settings" button takes you directly to the right place
+- **Refresh status**: Update permission status without restarting
+
+### Quick Status Check
+Click the Rephrasely menu bar icon to instantly see:
+- **Accessibility (Copy/Type) ✅** (or ❌ if missing)
+- **Screen Recording (Optional) ⚠️** (not needed for text processing)
+
+The menu bar indicators update automatically when permissions change!
+
 ## Troubleshooting
 
-### ❓ App Won't Launch (Double-click doesn't work)
-1. **Try the Launch Helper**: Run `./launch_helper.sh` from the Terminal in the same folder as Rephrasely.app
-2. **Check Gatekeeper**: Right-click Rephrasely.app → "Open" → "Open" (bypasses Gatekeeper)
-3. **Remove Quarantine**: Run `xattr -r -d com.apple.quarantine Rephrasely.app` in Terminal
+### 🔐 Permission Issues (NEW SOLUTION!)
+The app now automatically checks and guides you through permission setup:
+
+1. **On first launch**: App will detect missing accessibility permission and show a dialog
+2. **Permission dialog**: Click "Open System Settings" to go directly to the right place
+3. **What you need**: Only Accessibility permission (for hotkey monitoring and copy/paste)
+4. **Settings status**: View live permission status in Settings → General → System Permissions
+5. **Refresh button**: Update status after granting permissions without restarting
+6. **No more silent failures**: App clearly indicates if accessibility permission is missing
+
+**Why Accessibility Permission is Needed:**
+- Monitor global hotkey (Cmd+Shift+R) across all apps
+- Copy text from any app by simulating Cmd+C
+- Paste processed text into any app by simulating Cmd+V
+
+### 🔑 Testing API Key Input (FIXED!)
+The API key field now works perfectly:
+1. Open Rephrasely settings (click menu bar icon → Preferences)
+2. The **API key field automatically gets focus**
+3. Copy your API key from OpenAI dashboard (Cmd+C)
+4. **Paste directly with Cmd+V** - no clicking needed!
+5. All keyboard shortcuts work:
+   - **Cmd+V**: Paste
+   - **Cmd+A**: Select all text
+   - **Cmd+C**: Copy selected text
+   - **Cmd+X**: Cut selected text
+
+### 💾 Testing Settings Save (FIXED!)
+Settings now save and close properly:
+1. Make any change in settings
+2. Click "Save" button
+3. **Dialog closes immediately** after successful save
+4. **No restart required** - settings applied instantly
+5. Press **ESC anytime** to cancel and close dialog
 
 ### 🔑 Testing API Key Paste (NEW FIX)
 To verify the paste functionality works correctly:
@@ -58,12 +130,17 @@ To verify the save dialog closes properly:
 4. Check terminal output for detailed debug messages
 5. Reopen settings to verify changes were saved
 
+### ❓ App Won't Launch (Double-click doesn't work)
+1. **Try the Launch Helper**: Run `./launch_helper.sh` from the Terminal in the same folder as Rephrasely.app
+2. **Check Gatekeeper**: Right-click Rephrasely.app → "Open" → "Open" (bypasses Gatekeeper)
+3. **Remove Quarantine**: Run `xattr -r -d com.apple.quarantine Rephrasely.app` in Terminal
+
 ### 🚀 First Launch Experience
 On first launch, Rephrasely will:
 1. Show a welcome dialog
 2. Prompt you to configure your OpenAI API key
 3. Open the settings window automatically
-4. Guide you through the setup process
+4. Continue seamlessly with your settings applied
 
 ### ⌨️ Hotkey Not Working
 1. Check hotkey conflicts in Settings → General

@@ -38,6 +38,17 @@ def build_app():
         '--add-data=cocoa_settings.py:.',  # Include Cocoa settings UI module
         '--hidden-import=six.moves',  # Explicitly include six.moves
         '--hidden-import=six.moves.urllib',
+        '--hidden-import=six',
+        '--hidden-import=six.moves.http_client',
+        '--hidden-import=six.moves.http_cookiejar',
+        '--hidden-import=six.moves.http_cookies',
+        '--hidden-import=six.moves.html_parser',
+        '--hidden-import=six.moves.queue',
+        '--hidden-import=six.moves.socketserver',
+        '--hidden-import=six.moves.tkinter',
+        '--hidden-import=six.moves.urllib_parse',
+        '--hidden-import=six.moves.urllib_error',
+        '--collect-all=six',          # Include all six modules
         '--hidden-import=pynput.keyboard',
         '--hidden-import=pynput.mouse',
         '--hidden-import=pyobjc-framework-Cocoa',
@@ -45,8 +56,9 @@ def build_app():
         '--hidden-import=pyobjc-framework-Foundation',
         '--hidden-import=pyobjc-framework-AppKit',
         '--hidden-import=pyobjc-framework-ApplicationServices',
-        '--collect-all=pynput',       # Include all pynput modules
+        '--collect-all=pynput',       # Include all pynput modules (needs six.moves.queue)
         '--collect-all=pyobjc',       # Include all pyobjc modules
+        '--collect-all=pystray',      # Include all pystray modules (needs six.moves.queue)
         '--paths=/System/Library/Frameworks/Tk.framework/Versions/8.5/Resources/Scripts',  # macOS tkinter path
         '--paths=/usr/local/lib/python3.13/site-packages',  # Python packages path
         'rephrasely.py'

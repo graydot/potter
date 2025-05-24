@@ -175,14 +175,27 @@ class HotkeyField(NSTextField):
             return None
         
         self.settings_manager = settings_manager
-        self.original_value = ""
         self.reset_callback = None
         
-        # Configure appearance
+        # Configure appearance and behavior
         self.setBezeled_(True)
-        self.setBezelStyle_(NSTextFieldSquareBezel)
+        self.setBezelStyle_(NSTextFieldRoundedBezel)
+        self.setEditable_(True)
+        self.setSelectable_(True)
+        self.setEnabled_(True)
+        self.setUsesSingleLineMode_(True)
+        
+        # Allow field to become first responder
+        self.setRefusesFirstResponder_(False)
+        
+        # Set font
+        self.setFont_(NSFont.systemFontOfSize_(13))
         
         return self
+    
+    def acceptsFirstResponder(self):
+        """Allow this field to become first responder"""
+        return True
     
     def becomeFirstResponder(self):
         """Clear field when focused"""
@@ -244,13 +257,32 @@ class PasteableTextField(NSTextField):
         if self is None:
             return None
         
-        # Configure for paste support
+        # Configure as single-line text field
         self.setBezeled_(True)
-        self.setBezelStyle_(NSTextFieldSquareBezel)
+        self.setBezelStyle_(NSTextFieldRoundedBezel)  # Modern rounded appearance
         self.setEditable_(True)
         self.setSelectable_(True)
+        self.setEnabled_(True)
+        self.setUsesSingleLineMode_(True)  # Force single line
+        self.setLineBreakMode_(NSLineBreakByClipping)  # Clip overflow
+        
+        # Allow field to become first responder
+        self.setRefusesFirstResponder_(False)
+        
+        # Set font to match system
+        self.setFont_(NSFont.systemFontOfSize_(13))
         
         return self
+    
+    def becomeFirstResponder(self):
+        """Handle becoming first responder"""
+        print("Debug - API key field becoming first responder")
+        result = objc.super(PasteableTextField, self).becomeFirstResponder()
+        if result:
+            print("Debug - API key field successfully became first responder")
+        else:
+            print("Debug - API key field failed to become first responder")
+        return result
     
     def performKeyEquivalent_(self, event):
         """Handle key equivalents like Cmd+V"""
@@ -576,6 +608,10 @@ class SettingsWindow(NSWindowController):
         
         window.setTitle_("Rephrasely Settings")
         window.setLevel_(NSNormalWindowLevel)
+        
+        # Set delegate to handle window events including ESC key
+        window.setDelegate_(self)
+        
         content_view = window.contentView()
         
         # Navigation buttons at top
@@ -672,6 +708,25 @@ class SettingsWindow(NSWindowController):
         self.content_container.addSubview_(view)
         
         self.current_section = section
+        
+        # Set focus to appropriate field based on section
+        if section == 0 and hasattr(self, 'api_key_field'):  # General section
+            # Delay focus setting to ensure view is fully displayed
+            def set_focus():
+                print("Debug - Setting focus to API key field")
+                self.window().makeFirstResponder_(self.api_key_field)
+            
+            # Use performSelector to delay the focus setting
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                0.1, self, "setApiKeyFocus:", None, False
+            )
+    
+    def setApiKeyFocus_(self, timer):
+        """Set focus to API key field (called by timer)"""
+        if hasattr(self, 'api_key_field') and self.current_section == 0:
+            print("Debug - Timer: Setting focus to API key field")
+            success = self.window().makeFirstResponder_(self.api_key_field)
+            print(f"Debug - Focus set result: {success}")
     
     def createGeneralView(self):
         """Create General settings view"""
@@ -699,6 +754,9 @@ class SettingsWindow(NSWindowController):
         self.api_key_field = PasteableTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
         self.api_key_field.setStringValue_(self.settings_manager.get("openai_api_key", ""))
         self.api_key_field.setPlaceholderString_("sk-...")
+        # Ensure it can become first responder
+        self.api_key_field.setEnabled_(True)
+        self.api_key_field.setEditable_(True)
         view.addSubview_(self.api_key_field)
         
         # API key help text
@@ -762,6 +820,47 @@ class SettingsWindow(NSWindowController):
         self.startup_checkbox.setTitle_("Launch Rephrasely at startup")
         self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
         view.addSubview_(self.startup_checkbox)
+        
+        # Permissions section
+        permissions_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 150, 620, 25))
+        permissions_label.setStringValue_("System Permissions:")
+        permissions_label.setFont_(NSFont.boldSystemFontOfSize_(14))
+        permissions_label.setBezeled_(False)
+        permissions_label.setDrawsBackground_(False)
+        permissions_label.setEditable_(False)
+        view.addSubview_(permissions_label)
+        
+        # Check permissions from the main app if available
+        permissions_status = self.get_permissions_status()
+        
+        # Accessibility permission status
+        self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 125, 500, 20))
+        accessibility_text = f"Accessibility (Copy/Type): {'✅ Granted' if permissions_status.get('accessibility', False) else '❌ Required'}"
+        self.accessibility_status.setStringValue_(accessibility_text)
+        self.accessibility_status.setBezeled_(False)
+        self.accessibility_status.setDrawsBackground_(False)
+        self.accessibility_status.setEditable_(False)
+        if not permissions_status.get('accessibility', False):
+            self.accessibility_status.setTextColor_(NSColor.systemRedColor())
+        else:
+            self.accessibility_status.setTextColor_(NSColor.systemGreenColor())
+        view.addSubview_(self.accessibility_status)
+        
+        # Button to open System Settings
+        self.open_settings_btn = NSButton.alloc().initWithFrame_(NSMakeRect(40, 95, 150, 25))
+        self.open_settings_btn.setTitle_("Open System Settings")
+        self.open_settings_btn.setTarget_(self)
+        self.open_settings_btn.setAction_("openSystemSettings:")
+        self.open_settings_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(self.open_settings_btn)
+        
+        # Refresh permissions button
+        self.refresh_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(200, 95, 120, 25))
+        self.refresh_permissions_btn.setTitle_("Refresh Status")
+        self.refresh_permissions_btn.setTarget_(self)
+        self.refresh_permissions_btn.setAction_("refreshPermissions:")
+        self.refresh_permissions_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(self.refresh_permissions_btn)
         
         # Update UI - this will set initial reset button visibility and check conflicts
         self.updateResetButton()
@@ -978,6 +1077,84 @@ class SettingsWindow(NSWindowController):
         self.hotkey_field.setStringValue_(default)
         self.updateResetButton()
     
+    def get_permissions_status(self):
+        """Get current permissions status from the main app"""
+        try:
+            # Try to import from rephrasely module to check permissions
+            import sys
+            rephrasely_module = sys.modules.get('__main__')
+            if rephrasely_module and hasattr(rephrasely_module, 'service'):
+                return rephrasely_module.service.get_permission_status()
+            
+            # Fallback: try to check permissions directly
+            try:
+                from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
+                from Quartz import CGWindowListCreateImage, CGRectNull
+                
+                # Check accessibility
+                accessibility = False
+                try:
+                    window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+                    accessibility = window_list and len(window_list) > 0
+                except:
+                    pass
+                
+                # Check screen recording
+                screen_recording = False
+                try:
+                    image = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionOnScreenOnly, kCGNullWindowID, 0)
+                    screen_recording = image is not None
+                except:
+                    pass
+                
+                return {
+                    "accessibility": accessibility,
+                    "screen_recording": screen_recording,
+                    "macos_available": True
+                }
+            except ImportError:
+                pass
+        except Exception as e:
+            print(f"Debug - Error checking permissions: {e}")
+        
+        # Default fallback
+        return {
+            "accessibility": False,
+            "screen_recording": False,
+            "macos_available": False
+        }
+    
+    def openSystemSettings_(self, sender):
+        """Open System Settings to Privacy & Security"""
+        import subprocess
+        try:
+            # For macOS 13+ (Ventura and later), it's System Settings
+            subprocess.run(['open', 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'], check=False)
+        except Exception as e:
+            print(f"Debug - Failed to open System Settings: {e}")
+            # Fallback to general System Preferences
+            try:
+                subprocess.run(['open', '/System/Applications/System Preferences.app'], check=False)
+            except Exception as e2:
+                print(f"Debug - Failed to open System Preferences fallback: {e2}")
+    
+    def refreshPermissions_(self, sender):
+        """Refresh permission status display"""
+        print("Debug - Refreshing permissions...")
+        
+        # Get updated permissions
+        permissions_status = self.get_permissions_status()
+        
+        # Update accessibility status
+        accessibility_text = f"Accessibility (Copy/Type): {'✅ Granted' if permissions_status.get('accessibility', False) else '❌ Required'}"
+        self.accessibility_status.setStringValue_(accessibility_text)
+        if not permissions_status.get('accessibility', False):
+            self.accessibility_status.setTextColor_(NSColor.systemRedColor())
+        else:
+            self.accessibility_status.setTextColor_(NSColor.systemGreenColor())
+        
+        print("Debug - Permissions status refreshed")
+    
     # NSTableViewDataSource methods for prompts table
     def numberOfRowsInTableView_(self, table_view):
         """Return number of rows"""
@@ -1115,6 +1292,7 @@ class SettingsWindow(NSWindowController):
                 callback_success = True
                 if hasattr(self, 'on_settings_changed') and self.on_settings_changed:
                     try:
+                        print("Debug - Calling settings change callback...")
                         self.on_settings_changed(settings)
                         print("Debug - Settings change callback executed successfully")
                     except Exception as e:
@@ -1126,7 +1304,25 @@ class SettingsWindow(NSWindowController):
                     print("Debug - Attempting to close settings window...")
                     window = self.window()
                     if window:
-                        print("Debug - Window exists, closing...")
+                        print("Debug - Window exists, about to call close()...")
+                        
+                        # Before closing, make sure NSApplication won't terminate
+                        try:
+                            from AppKit import NSApplication
+                            app = NSApplication.sharedApplication()
+                            print(f"Debug - NSApp activation policy before close: {app.activationPolicy()}")
+                            print(f"Debug - NSApp delegate before close: {app.delegate()}")
+                            
+                            # Ensure delegate is still set and working
+                            if app.delegate():
+                                print("Debug - NSApplication delegate is set")
+                            else:
+                                print("Debug - WARNING: NSApplication delegate is None!")
+                                
+                        except Exception as e:
+                            print(f"Debug - Error checking NSApplication state: {e}")
+                        
+                        print("Debug - Calling window.close()...")
                         window.close()
                         print("Debug - Window.close() called successfully")
                     else:
@@ -1167,6 +1363,38 @@ class SettingsWindow(NSWindowController):
     def cancel_(self, sender):
         """Cancel changes"""
         self.window().close()
+    
+    def windowShouldClose_(self, window):
+        """Handle window close events"""
+        print("Debug - Settings window should close called")
+        return True
+    
+    def windowWillClose_(self, notification):
+        """Handle window will close notification"""
+        print("Debug - Settings window will close")
+        # Make sure this doesn't trigger app termination
+        try:
+            from AppKit import NSApplication
+            app = NSApplication.sharedApplication()
+            # Ensure the app doesn't quit when this window closes
+            if hasattr(app, 'setActivationPolicy_'):
+                app.setActivationPolicy_(2)  # Keep as accessory app
+        except Exception as e:
+            print(f"Debug - Error in windowWillClose: {e}")
+    
+    def cancelOperation_(self, sender):
+        """Handle ESC key press to close dialog"""
+        print("Debug - ESC key pressed, closing dialog")
+        self.window().close()
+    
+    def keyDown_(self, event):
+        """Handle key events for the window"""
+        if event.keyCode() == 53:  # ESC key
+            print("Debug - ESC key detected")
+            self.window().close()
+        else:
+            # Pass other keys to superclass
+            objc.super(SettingsWindow, self).keyDown_(event)
 
     def addPrompt_(self, sender):
         """Add a new prompt using dialog"""
