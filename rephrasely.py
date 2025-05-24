@@ -221,7 +221,7 @@ class RephrasleyService:
                 'casual': 'Please rewrite the following text in a more casual, friendly tone:',
                 'formal': 'Please rewrite the following text in a more formal, professional tone:'
             }
-            self.hotkey_combo = {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
+            self.hotkey_combo = {'cmd', 'shift', 'r'}
             self.model = "gpt-3.5-turbo"
             self.max_tokens = 1000
             self.temperature = 0.7
@@ -232,28 +232,49 @@ class RephrasleyService:
         self.current_prompt = 'rephrase'
     
     def parse_hotkey(self, hotkey_str):
-        """Parse hotkey string into key combination set"""
+        """Parse hotkey string into a set of normalized key names"""
         try:
             keys = set()
             parts = hotkey_str.lower().split('+')
-            
+
             for part in parts:
                 part = part.strip()
                 if part in ['cmd', 'command']:
-                    keys.add(Key.cmd)
-                elif part in ['shift']:
-                    keys.add(Key.shift)
+                    keys.add('cmd')
+                elif part == 'shift':
+                    keys.add('shift')
                 elif part in ['ctrl', 'control']:
-                    keys.add(Key.ctrl)
+                    keys.add('ctrl')
                 elif part in ['alt', 'option']:
-                    keys.add(Key.alt)
+                    keys.add('alt')
                 elif len(part) == 1:
-                    keys.add(keyboard.KeyCode.from_char(part))
-            
-            return keys if keys else {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
+                    keys.add(part)
+
+            return keys if keys else {'cmd', 'shift', 'r'}
         except Exception as e:
             logger.error(f"Failed to parse hotkey '{hotkey_str}': {e}")
-            return {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
+            return {'cmd', 'shift', 'r'}
+
+    def normalize_key(self, key):
+        """Normalize pynput key objects to our string representation"""
+        try:
+            key_str = str(key).lower()
+        except Exception:
+            return None
+
+        if 'cmd' in key_str or 'command' in key_str:
+            return 'cmd'
+        if 'shift' in key_str:
+            return 'shift'
+        if 'ctrl' in key_str or 'control' in key_str:
+            return 'ctrl'
+        if 'alt' in key_str or 'option' in key_str:
+            return 'alt'
+
+        if isinstance(key, keyboard.KeyCode) and key.char:
+            return key.char.lower()
+
+        return None
     
     def on_settings_changed(self, new_settings):
         """Handle settings changes"""
@@ -699,13 +720,15 @@ class RephrasleyService:
     
     def on_key_press(self, key):
         """Handle key press events"""
-        self.current_keys.add(key)
-        
+        normalized = self.normalize_key(key)
+        if normalized:
+            self.current_keys.add(normalized)
+
         # Debug logging for hotkey detection
         if len(self.current_keys) >= 2:  # Only log when we have multiple keys
-            keys_str = ", ".join([str(k) for k in self.current_keys])
+            keys_str = ", ".join(sorted(self.current_keys))
             logger.debug(f"Current keys pressed: {keys_str}")
-        
+
         # Check if our hotkey combination is pressed
         if self.hotkey_combo.issubset(self.current_keys):
             logger.info("🎯 HOTKEY DETECTED! Processing selection...")
@@ -716,10 +739,9 @@ class RephrasleyService:
     
     def on_key_release(self, key):
         """Handle key release events"""
-        try:
-            self.current_keys.remove(key)
-        except KeyError:
-            pass
+        normalized = self.normalize_key(key)
+        if normalized and normalized in self.current_keys:
+            self.current_keys.remove(normalized)
     
     def show_preferences(self):
         """Show the preferences window"""
