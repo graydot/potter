@@ -29,6 +29,14 @@ try:
     from AppKit import NSWorkspace, NSBundle
     from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
     from ApplicationServices import AXIsProcessTrusted
+    # Import Quartz constants for event filtering
+    from Quartz import (
+        kCGEventKeyDown, kCGEventKeyUp, kCGEventFlagsChanged,
+        kCGEventLeftMouseDown, kCGEventLeftMouseUp, kCGEventRightMouseDown, 
+        kCGEventRightMouseUp, kCGEventMouseMoved, kCGEventLeftMouseDragged,
+        kCGEventRightMouseDragged, kCGEventScrollWheel, kCGEventOtherMouseDown,
+        kCGEventOtherMouseUp, kCGEventOtherMouseDragged
+    )
     MACOS_PERMISSIONS_AVAILABLE = True
 except ImportError:
     MACOS_PERMISSIONS_AVAILABLE = False
@@ -47,12 +55,22 @@ except ImportError as e:
 # Load environment variables
 load_dotenv()
 
+# Determine the correct log file path based on execution context
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller bundle - use user's home directory
+    log_file = os.path.expanduser('~/Library/Logs/rephrasely.log')
+    # Ensure the Logs directory exists
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+else:
+    # Running as script - use current directory
+    log_file = 'rephrasely.log'
+
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Enable debug logging temporarily
+    level=logging.INFO,  # Change from DEBUG to INFO to reduce verbosity
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('rephrasely.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -210,7 +228,6 @@ class RephrasleyService:
             self.model = self.settings_manager.get("model", "gpt-3.5-turbo")
             self.max_tokens = self.settings_manager.get("max_tokens", 1000)
             self.temperature = self.settings_manager.get("temperature", 0.7)
-            self.auto_paste = self.settings_manager.get("auto_paste", True)
             self.show_notifications = self.settings_manager.get("show_notifications", True)
         else:
             # Fallback to defaults
@@ -221,60 +238,98 @@ class RephrasleyService:
                 'casual': 'Please rewrite the following text in a more casual, friendly tone:',
                 'formal': 'Please rewrite the following text in a more formal, professional tone:'
             }
-            self.hotkey_combo = {'cmd', 'shift', 'r'}
+            self.hotkey_combo = {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
             self.model = "gpt-3.5-turbo"
             self.max_tokens = 1000
             self.temperature = 0.7
-            self.auto_paste = True
             self.show_notifications = True
         
         self.current_keys = set()
         self.current_prompt = 'rephrase'
     
     def parse_hotkey(self, hotkey_str):
-        """Parse hotkey string into a set of normalized key names"""
+        """Parse hotkey string into key combination set"""
         try:
             keys = set()
             parts = hotkey_str.lower().split('+')
-
+            
             for part in parts:
                 part = part.strip()
                 if part in ['cmd', 'command']:
-                    keys.add('cmd')
-                elif part == 'shift':
-                    keys.add('shift')
+                    keys.add(Key.cmd)
+                elif part in ['shift']:
+                    keys.add(Key.shift)
                 elif part in ['ctrl', 'control']:
-                    keys.add('ctrl')
+                    keys.add(Key.ctrl)
                 elif part in ['alt', 'option']:
-                    keys.add('alt')
+                    keys.add(Key.alt)
                 elif len(part) == 1:
-                    keys.add(part)
-
-            return keys if keys else {'cmd', 'shift', 'r'}
+                    keys.add(keyboard.KeyCode.from_char(part))
+            
+            return keys if keys else {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
         except Exception as e:
             logger.error(f"Failed to parse hotkey '{hotkey_str}': {e}")
-            return {'cmd', 'shift', 'r'}
+            return {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
 
     def normalize_key(self, key):
         """Normalize pynput key objects to our string representation"""
         try:
             key_str = str(key).lower()
-        except Exception:
+            logger.debug(f"DEBUG: normalize_key called with key={key}, str={key_str}, type={type(key)}")
+        except Exception as e:
+            logger.debug(f"DEBUG: Failed to convert key to string: {e}")
             return None
 
         if 'cmd' in key_str or 'command' in key_str:
+            logger.debug(f"DEBUG: Detected CMD key from '{key_str}'")
             return 'cmd'
         if 'shift' in key_str:
+            logger.debug(f"DEBUG: Detected SHIFT key from '{key_str}'")
             return 'shift'
         if 'ctrl' in key_str or 'control' in key_str:
+            logger.debug(f"DEBUG: Detected CTRL key from '{key_str}'")
             return 'ctrl'
         if 'alt' in key_str or 'option' in key_str:
+            logger.debug(f"DEBUG: Detected ALT key from '{key_str}'")
             return 'alt'
 
         if isinstance(key, keyboard.KeyCode) and key.char:
-            return key.char.lower()
+            char = key.char.lower()
+            logger.debug(f"DEBUG: Detected character '{char}' from KeyCode")
+            return char
 
+        logger.debug(f"DEBUG: No match found for key '{key_str}', returning None")
         return None
+    
+    def darwin_intercept(self, event_type, event):
+        """
+        Filter function for macOS to prevent mouse events from being processed as keyboard events.
+        This fixes the issue where mouse clicks were being detected as key <0> events.
+        """
+        if not MACOS_PERMISSIONS_AVAILABLE:
+            return event
+            
+        # Define mouse event types that should be filtered out
+        mouse_events = {
+            kCGEventLeftMouseDown, kCGEventLeftMouseUp, kCGEventRightMouseDown, 
+            kCGEventRightMouseUp, kCGEventMouseMoved, kCGEventLeftMouseDragged,
+            kCGEventRightMouseDragged, kCGEventScrollWheel, kCGEventOtherMouseDown,
+            kCGEventOtherMouseUp, kCGEventOtherMouseDragged
+        }
+        
+        # If this is a mouse event, suppress it (return None)
+        if event_type in mouse_events:
+            logger.debug(f"DEBUG: Filtering out mouse event type: {event_type}")
+            return None
+        
+        # Allow keyboard events to pass through
+        if event_type in {kCGEventKeyDown, kCGEventKeyUp, kCGEventFlagsChanged}:
+            logger.debug(f"DEBUG: Allowing keyboard event type: {event_type}")
+            return event
+        
+        # For any other event types, allow them through but log them
+        logger.debug(f"DEBUG: Unknown event type: {event_type}, allowing through")
+        return event
     
     def on_settings_changed(self, new_settings):
         """Handle settings changes"""
@@ -312,10 +367,17 @@ class RephrasleyService:
                     print(f"Debug - Error stopping listener: {e}")
             
             try:
-                self.listener = Listener(
-                    on_press=self.on_key_press,
-                    on_release=self.on_key_release
-                )
+                # Create listener with darwin_intercept to filter mouse events on macOS
+                listener_kwargs = {
+                    'on_press': self.on_key_press,
+                    'on_release': self.on_key_release
+                }
+                
+                # Add macOS-specific event filtering to prevent mouse events from being detected as keyboard events
+                if MACOS_PERMISSIONS_AVAILABLE:
+                    listener_kwargs['darwin_intercept'] = self.darwin_intercept
+                
+                self.listener = Listener(**listener_kwargs)
                 self.listener.start()
                 print("Debug - New keyboard listener started")
             except Exception as e:
@@ -334,17 +396,25 @@ class RephrasleyService:
                 # Get current permission status  
                 permissions = self.get_permission_status()
                 
+                # Determine what entity has permission (Python vs Rephrasely app)
+                permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+                
                 # Create menu items
                 menu_items = [
                     pystray.MenuItem(f"Mode: {self.current_prompt.title()}", lambda: None, enabled=False),
                     pystray.Menu.SEPARATOR,
                 ]
                 
-                # Add permission status indicators
-                accessibility_status = "✅" if permissions.get("accessibility", False) else "❌"
+                # Add permission status indicators with more helpful info
+                if permissions.get("accessibility", False):
+                    accessibility_status = f"✅ {permission_entity} has access"
+                else:
+                    accessibility_status = f"❌ {permission_entity} needs access"
+                
+                accessibility_item = pystray.MenuItem(f"Accessibility: {accessibility_status}", self.check_and_show_permissions)
                 
                 menu_items.extend([
-                    pystray.MenuItem(f"Accessibility (Copy/Type) {accessibility_status}", lambda: None, enabled=False),
+                    accessibility_item,
                     pystray.Menu.SEPARATOR,
                 ])
                 
@@ -404,46 +474,87 @@ class RephrasleyService:
     def check_accessibility_permissions(self):
         """Check if the app has accessibility permissions"""
         if not MACOS_PERMISSIONS_AVAILABLE:
+            logger.warning("macOS permissions checking not available")
             return False
         
         try:
             # Use the proper accessibility API to check permissions
             from ApplicationServices import AXIsProcessTrusted
             is_trusted = AXIsProcessTrusted()
-            logger.info(f"Accessibility permission check: {is_trusted}")
-            return is_trusted
-        except ImportError:
-            logger.warning("ApplicationServices not available, falling back to window list check")
+            logger.debug(f"AXIsProcessTrusted() returned: {is_trusted}")
+            
+            # Note: When running as a Python script (vs bundled app), this checks if Python itself
+            # has accessibility permission, not a specific app. This is expected behavior.
+            if getattr(sys, 'frozen', False):
+                logger.debug("Running as bundled app - checking app-specific permissions")
+            else:
+                logger.debug("Running as Python script - checking Python's accessibility permission")
+            
+            # Force a more aggressive check - try to actually use accessibility features
+            if is_trusted:
+                try:
+                    # Additional verification - try to access window list which requires accessibility permission
+                    window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+                    if window_list and len(window_list) > 0:
+                        # Extra verification: try to access detailed window information
+                        # This is more likely to fail if accessibility permission is not actually granted
+                        try:
+                            # Try to access window owner information - this typically requires accessibility permission
+                            for window in window_list[:3]:  # Check first 3 windows
+                                owner_name = window.get('kCGWindowOwnerName', '')
+                                window_name = window.get('kCGWindowName', '')
+                                if owner_name or window_name:
+                                    logger.debug(f"Window access verified: owner={owner_name}, name={window_name}")
+                                    break
+                            else:
+                                logger.warning("Could not access window details despite window list being available")
+                                return False
+                            
+                            logger.debug(f"Window list verification successful: {len(window_list)} windows")
+                            return True
+                        except Exception as e:
+                            logger.warning(f"Failed to access window details: {e}")
+                            return False
+                    else:
+                        logger.warning("AXIsProcessTrusted=True but window list is empty - permission might not be fully granted yet")
+                        return False
+                except Exception as e:
+                    logger.warning(f"Window list verification failed despite AXIsProcessTrusted=True: {e}")
+                    return False
+            else:
+                logger.debug("AXIsProcessTrusted() returned False - no accessibility permission")
+                return False
+                
+        except ImportError as e:
+            logger.warning(f"ApplicationServices not available: {e}")
+            # Fallback method - try to get window list directly (but be more strict)
             try:
-                # Fallback method - try to get window list
                 window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
-                return window_list and len(window_list) > 0
-            except Exception as e:
-                logger.warning(f"Window list check failed: {e}")
+                if window_list and len(window_list) > 5:  # Require more windows to reduce false positives
+                    # Try to access window details to verify real accessibility
+                    accessible_windows = 0
+                    for window in window_list[:5]:
+                        owner_name = window.get('kCGWindowOwnerName', '')
+                        if owner_name:
+                            accessible_windows += 1
+                    
+                    has_permission = accessible_windows >= 2  # Require at least 2 accessible windows
+                    logger.debug(f"Fallback window list check: {has_permission} (accessible windows: {accessible_windows})")
+                    return has_permission
+                else:
+                    logger.debug("Fallback window list check: insufficient windows")
+                    return False
+            except Exception as e2:
+                logger.warning(f"Fallback window list check failed: {e2}")
                 return False
         except Exception as e:
             logger.warning(f"Accessibility permission check failed: {e}")
-            return False
-    
-    def check_screen_recording_permissions(self):
-        """Check if the app has screen recording permissions (needed for some keyboard monitoring)"""
-        if not MACOS_PERMISSIONS_AVAILABLE:
-            return False
-        
-        try:
-            # Try to capture screen content
-            from Quartz import CGWindowListCreateImage, CGRectNull, kCGWindowListOptionOnScreenOnly
-            image = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionOnScreenOnly, kCGNullWindowID, 0)
-            return image is not None
-        except Exception as e:
-            logger.warning(f"Screen recording permission check failed: {e}")
             return False
     
     def get_permission_status(self):
         """Get current permission status"""
         return {
             "accessibility": self.check_accessibility_permissions(),
-            "screen_recording": self.check_screen_recording_permissions(),
             "macos_available": MACOS_PERMISSIONS_AVAILABLE
         }
     
@@ -468,97 +579,51 @@ class RephrasleyService:
         
         if not permissions["accessibility"]:
             logger.warning("Accessibility permission not granted")
+            logger.info("Opening settings to show permission status and grant access...")
+            
+            # No alert dialog - go directly to settings 
             if SETTINGS_UI_AVAILABLE:
-                try:
-                    from AppKit import NSAlert, NSAlertStyleWarning
-                    
-                    alert = NSAlert.alloc().init()
-                    alert.setMessageText_("Accessibility Permission Required")
-                    alert.setInformativeText_("Rephrasely needs accessibility permission to:\n\n• Monitor your global hotkey (Cmd+Shift+R)\n• Copy text from any app (simulates Cmd+C)\n• Paste processed text into any app (simulates Cmd+V)\n\nPlease grant permission in System Settings.")
-                    alert.setAlertStyle_(NSAlertStyleWarning)
-                    alert.addButtonWithTitle_("Open System Settings")
-                    alert.addButtonWithTitle_("Continue Anyway")
-                    
-                    response = alert.runModal()
-                    if response == 1000:  # First button
-                        self.open_system_preferences_security()
-                        return False  # Don't continue startup yet
-                    # else continue anyway
-                        
-                except Exception as e:
-                    logger.error(f"Failed to show permission dialog: {e}")
+                # Show settings directly
+                self.show_preferences()
+                return True  # Continue startup
             else:
                 print("⚠️  Accessibility permission required!")
-                print("   Needed for: global hotkey monitoring, copying from apps, pasting into apps")
+                print("   Needed for: global hotkey monitoring only")
+                print("   Rephrasely will process text already in your clipboard")
                 print("   Please grant permission in System Settings > Privacy & Security > Accessibility")
-                print("   Then restart Rephrasely")
-                return False
+                print("   The app will continue running and check for permissions periodically")
+                
+                # Start permission monitoring
+                self.start_permission_monitoring()
+                return True
         
         return True
     
-    def copy_selected_text(self):
-        """Copy currently selected text to clipboard"""
-        try:
-            # Simulate Cmd+C to copy selected text
-            subprocess.run(['osascript', '-e', 'tell application "System Events" to keystroke "c" using command down'], 
-                         check=True, capture_output=True)
-            time.sleep(0.1)  # Small delay to ensure copy completes
-            return True
-        except subprocess.CalledProcessError:
-            logger.error("Failed to copy selected text")
-            return False
-    
-    def paste_text_alternative(self):
-        """Alternative paste method using different AppleScript approach"""
-        try:
-            # Get the frontmost application and paste there
-            script = '''
-            tell application "System Events"
-                set frontApp to name of first application process whose frontmost is true
-                tell application process frontApp
-                    keystroke "v" using command down
-                end tell
-            end tell
-            '''
-            
-            result = subprocess.run(['osascript', '-e', script], 
-                         check=True, capture_output=True, text=True)
-            
-            logger.info("Alternative paste command executed successfully")
-            return True
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Alternative paste failed: {e}")
-            return False
-
-    def paste_text(self):
-        """Paste text from clipboard with fallback methods"""
-        if not self.auto_paste:
-            logger.info("Auto-paste disabled, skipping paste operation")
-            return True
+    def start_permission_monitoring(self):
+        """Start monitoring for permission changes"""
+        logger.info("🔍 Started permission monitoring - checking every 5 seconds")
         
-        try:
-            # Add a longer delay to ensure clipboard is updated and focus is restored
-            time.sleep(0.3)
-            
-            # Method 1: Simple keystroke
-            try:
-                result = subprocess.run(['osascript', '-e', 'tell application "System Events" to keystroke "v" using command down'], 
-                             check=True, capture_output=True, text=True)
-                logger.info("Paste command executed successfully")
-                return True
-            except subprocess.CalledProcessError:
-                logger.warning("Primary paste method failed, trying alternative...")
+        def check_permissions_periodically():
+            while self.is_running:
+                time.sleep(5)  # Check every 5 seconds
                 
-                # Method 2: Alternative approach
-                if self.paste_text_alternative():
-                    return True
-                
-                logger.error("Both paste methods failed")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Paste error: {e}")
-            return False
+                try:
+                    permissions = self.get_permission_status()
+                    if permissions["accessibility"]:
+                        logger.info("✅ Accessibility permission granted! Keyboard listener should now work")
+                        self.show_notification("Permissions Granted", "Accessibility permission detected! Rephrasely is now fully functional.", is_error=False)
+                        
+                        # Refresh the tray icon to show updated permission status
+                        self.refresh_tray_icon()
+                        
+                        break  # Stop monitoring once permissions are granted
+                    else:
+                        logger.debug("🔍 Still waiting for accessibility permission...")
+                except Exception as e:
+                    logger.error(f"Error checking permissions: {e}")
+        
+        # Start monitoring in background thread
+        threading.Thread(target=check_permissions_periodically, daemon=True).start()
     
     def process_text_with_chatgpt(self, text: str) -> Optional[str]:
         """Process text using ChatGPT"""
@@ -592,14 +657,14 @@ class RephrasleyService:
             return None
     
     def process_selection(self):
-        """Main function to process selected text"""
+        """Main function to process clipboard text with LLM"""
         if self.hotkey_pressed:
             logger.warning("⚠️  Hotkey already being processed, ignoring...")
             return  # Prevent multiple simultaneous executions
         
         self.hotkey_pressed = True
         self.set_processing_state(True)  # Start spinner
-        logger.info("🔄 Processing text selection...")
+        logger.info("🔄 Processing clipboard text...")
         
         try:
             # Check if OpenAI client is available first
@@ -609,46 +674,27 @@ class RephrasleyService:
                 self.show_notification("Configuration Error", error_msg, is_error=True)
                 return
             
-            # Store original clipboard content
+            # Get text from clipboard directly
             try:
-                original_clipboard = pyperclip.paste()
-                logger.debug(f"Original clipboard: {original_clipboard[:50] if original_clipboard else 'empty'}...")
-            except Exception as e:
-                logger.warning(f"Could not access clipboard: {e}")
-                original_clipboard = ""
-            
-            # Copy selected text
-            if not self.copy_selected_text():
-                error_msg = "Failed to copy text"
-                logger.error(error_msg)
-                self.show_notification("Copy Failed", error_msg, is_error=True)
-                return
-            
-            # Get text from clipboard
-            try:
-                new_clipboard = pyperclip.paste()
+                clipboard_text = pyperclip.paste()
             except Exception as e:
                 error_msg = f"Failed to read clipboard: {e}"
                 logger.error(error_msg)
                 self.show_notification("Clipboard Error", error_msg, is_error=True)
                 return
             
-            # Check if clipboard actually changed (indicating text was selected and copied)
-            if new_clipboard == original_clipboard:
-                logger.warning("Clipboard didn't change - no text may have been selected")
-                # Try to proceed anyway in case text was already in clipboard
-            
-            if not new_clipboard or not new_clipboard.strip():
-                error_msg = "No text found in clipboard"
+            # Check if clipboard has text
+            if not clipboard_text or not clipboard_text.strip():
+                error_msg = "No text found in clipboard. Copy some text first, then press the hotkey."
                 logger.warning(error_msg)
                 self.show_notification("No Text", error_msg, is_error=True)
                 return
             
-            logger.info(f"Processing text ({len(new_clipboard)} chars): {new_clipboard[:50]}...")
+            logger.info(f"Processing clipboard text ({len(clipboard_text)} chars): {clipboard_text[:50]}...")
             
             # Process with ChatGPT
             try:
-                processed_text = self.process_text_with_chatgpt(new_clipboard)
+                processed_text = self.process_text_with_chatgpt(clipboard_text)
                 if not processed_text:
                     error_msg = "Failed to process text with AI"
                     logger.error(error_msg)
@@ -662,9 +708,10 @@ class RephrasleyService:
             
             logger.info(f"Processed text ({len(processed_text)} chars): {processed_text[:50]}...")
             
-            # Put processed text in clipboard
+            # Put processed text back in clipboard
             try:
                 pyperclip.copy(processed_text)
+                logger.info("✅ Processed text copied to clipboard")
             except Exception as e:
                 error_msg = f"Failed to copy processed text to clipboard: {e}"
                 logger.error(error_msg)
@@ -684,27 +731,10 @@ class RephrasleyService:
                 logger.warning(f"Could not verify clipboard update: {e}")
                 # Continue anyway
             
-            logger.info("Clipboard updated with processed text, attempting to paste...")
-            
-            # Paste the processed text if auto-paste is enabled
-            if self.auto_paste:
-                try:
-                    if self.paste_text():
-                        success_msg = f"Text {self.current_prompt}d successfully"
-                        logger.info("Text processing completed successfully")
-                        self.show_notification("Success", success_msg, is_error=False)
-                    else:
-                        warning_msg = "Paste failed - processed text is in clipboard (Cmd+V to paste manually)"
-                        logger.error(warning_msg)
-                        self.show_notification("Paste Failed", warning_msg, is_error=True)
-                except Exception as e:
-                    warning_msg = f"Paste error: {e} - processed text is in clipboard (Cmd+V to paste manually)"
-                    logger.error(warning_msg)
-                    self.show_notification("Paste Failed", warning_msg, is_error=True)
-            else:
-                success_msg = f"Text {self.current_prompt}d and copied to clipboard"
-                logger.info("Text processing completed - auto-paste disabled")
-                self.show_notification("Success", success_msg, is_error=False)
+            # Always show success notification
+            success_msg = f"✅ Text {self.current_prompt}d and copied to clipboard! Press Cmd+V to paste."
+            logger.info("Text processing completed successfully")
+            self.show_notification("Processing Complete", success_msg, is_error=False)
             
         except Exception as e:
             error_msg = f"Unexpected error in process_selection: {str(e)}"
@@ -720,18 +750,21 @@ class RephrasleyService:
     
     def on_key_press(self, key):
         """Handle key press events"""
-        normalized = self.normalize_key(key)
-        if normalized:
-            self.current_keys.add(normalized)
+        logger.info(f"🔥 KEY PRESS DETECTED: {key} (type: {type(key)})")
+        print(f"🔥 KEY PRESS DETECTED: {key} (type: {type(key)})")  # Also print to console
+        
+        self.current_keys.add(key)
+        logger.debug(f"DEBUG: Added key to current_keys")
 
         # Debug logging for hotkey detection
-        if len(self.current_keys) >= 2:  # Only log when we have multiple keys
-            keys_str = ", ".join(sorted(self.current_keys))
-            logger.debug(f"Current keys pressed: {keys_str}")
+        logger.debug(f"DEBUG: Current keys: {[str(k) for k in self.current_keys]}")
+        logger.debug(f"DEBUG: Target hotkey: {[str(k) for k in self.hotkey_combo]}")
+        logger.debug(f"DEBUG: Is subset? {self.hotkey_combo.issubset(self.current_keys)}")
 
         # Check if our hotkey combination is pressed
         if self.hotkey_combo.issubset(self.current_keys):
             logger.info("🎯 HOTKEY DETECTED! Processing selection...")
+            print("🎯 HOTKEY DETECTED! Processing selection...")
             # Show immediate feedback that hotkey was detected
             self.show_notification("Hotkey Detected", "Processing selected text...", is_error=False)
             # Run processing in a separate thread to avoid blocking
@@ -739,9 +772,15 @@ class RephrasleyService:
     
     def on_key_release(self, key):
         """Handle key release events"""
-        normalized = self.normalize_key(key)
-        if normalized and normalized in self.current_keys:
-            self.current_keys.remove(normalized)
+        logger.info(f"🔥 KEY RELEASE DETECTED: {key}")
+        print(f"🔥 KEY RELEASE DETECTED: {key}")  # Also print to console
+        
+        try:
+            self.current_keys.remove(key)
+            logger.debug(f"DEBUG: Removed key from current_keys")
+        except KeyError:
+            logger.debug(f"DEBUG: Key {key} not in current_keys")
+            pass
     
     def show_preferences(self):
         """Show the preferences window"""
@@ -761,17 +800,25 @@ class RephrasleyService:
         # Get current permission status
         permissions = self.get_permission_status()
         
+        # Determine what entity has permission (Python vs Rephrasely app)
+        permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+        
         # Create menu
         menu_items = [
             pystray.MenuItem(f"Mode: {self.current_prompt.title()}", lambda: None, enabled=False),
             pystray.Menu.SEPARATOR,
         ]
         
-        # Add permission status indicators
-        accessibility_status = "✅" if permissions.get("accessibility", False) else "❌"
+        # Add permission status indicators with more helpful info
+        if permissions.get("accessibility", False):
+            accessibility_status = f"✅ {permission_entity} has access"
+        else:
+            accessibility_status = f"❌ {permission_entity} needs access"
+        
+        accessibility_item = pystray.MenuItem(f"Accessibility: {accessibility_status}", self.check_and_show_permissions)
         
         menu_items.extend([
-            pystray.MenuItem(f"Accessibility (Copy/Type) {accessibility_status}", lambda: None, enabled=False),
+            accessibility_item,
             pystray.Menu.SEPARATOR,
         ])
         
@@ -795,6 +842,23 @@ class RephrasleyService:
         menu = pystray.Menu(*menu_items)
         self.tray_icon = pystray.Icon("Rephrasely", image, "Rephrasely - AI Text Processor", menu)
     
+    def check_and_show_permissions(self):
+        """Check permissions and show status or open settings"""
+        permissions = self.get_permission_status()
+        
+        accessibility_granted = permissions.get("accessibility", False)
+        
+        if accessibility_granted:
+            # All permissions granted
+            self.show_notification("Permissions Status", "✅ All permissions granted. Rephrasely is fully functional!", is_error=False)
+        else:
+            # Essential permission missing - show settings
+            logger.info("Essential permissions missing - opening settings")
+            if SETTINGS_UI_AVAILABLE:
+                self.show_preferences()
+            else:
+                self.show_notification("Permission Required", "❌ Accessibility permission required. Please grant it in System Settings > Privacy & Security > Accessibility", is_error=True)
+    
     def change_mode(self, mode):
         """Change processing mode"""
         if mode in self.prompts:
@@ -802,10 +866,7 @@ class RephrasleyService:
             logger.info(f"Changed mode to: {mode}")
             
             # Update tray icon menu
-            if self.tray_icon:
-                self.tray_icon.stop()
-                self.create_tray_icon()
-                threading.Thread(target=self.tray_icon.run, daemon=True).start()
+            self.refresh_tray_icon()
     
     def quit_app(self, icon=None, item=None):
         """Quit the application"""
@@ -835,11 +896,9 @@ class RephrasleyService:
         
         if not permissions["accessibility"]:
             logger.warning("❌ Accessibility permission NOT granted")
-            logger.warning("   This will cause 'This process is not trusted!' errors")
-            if not self.request_permissions():
-                logger.warning("Required permissions not granted, exiting...")
-                self.instance_checker.cleanup()
-                sys.exit(1)
+            logger.warning("   The app will continue running and monitor for permission changes")
+            # Request permissions but don't exit - the method now handles monitoring
+            self.request_permissions()
         else:
             logger.info("✅ Accessibility permission granted")
         
@@ -867,7 +926,7 @@ class RephrasleyService:
                 self.tray_icon.run()  # This will keep the app alive
                 return
             else:
-                sys.exit(1)
+                logger.warning("No settings UI available and no OpenAI client - app will run with limited functionality")
         
         # Normal startup - start all service components
         self.start_service_components()
@@ -902,14 +961,22 @@ class RephrasleyService:
         """Set processing state and update icon"""
         self.is_processing = processing
         if self.tray_icon:
-            # Update the icon to show spinner or normal state
+            # Create the appropriate icon
             if processing:
-                self.create_spinner_icon()
+                logger.info("🔄 Setting spinner icon for processing state")
+                icon_image = self.create_spinner_icon()
             else:
-                self.create_normal_icon()
+                logger.info("✅ Setting normal icon for idle state")
+                icon_image = self.create_normal_icon()
             
-            # Update the tray icon
-            self.tray_icon.icon = self.current_icon_image
+            # Update the tray icon - force update by setting the property
+            try:
+                self.tray_icon.icon = icon_image
+                logger.debug(f"Icon updated successfully, processing={processing}")
+            except Exception as e:
+                logger.error(f"Failed to update tray icon: {e}")
+        else:
+            logger.warning("No tray icon available to update")
     
     def create_normal_icon(self):
         """Create the normal icon"""
@@ -1117,22 +1184,60 @@ class RephrasleyService:
         permissions = self.get_permission_status()
         logger.info(f"Accessibility permission: {'✅' if permissions['accessibility'] else '❌'}")
         
+        logger.info("🔄 Setting is_running = True")
         self.is_running = True
         
-        # Start keyboard listener
-        self.listener = Listener(
-            on_press=self.on_key_press,
-            on_release=self.on_key_release
-        )
-        self.listener.start()
+        # Start keyboard listener with detailed logging
+        logger.info("🎹 Starting keyboard listener...")
+        try:
+            logger.info("🔧 Creating Listener object...")
+            # Create listener with darwin_intercept to filter mouse events on macOS
+            listener_kwargs = {
+                'on_press': self.on_key_press,
+                'on_release': self.on_key_release
+            }
+            
+            # Add macOS-specific event filtering to prevent mouse events from being detected as keyboard events
+            if MACOS_PERMISSIONS_AVAILABLE:
+                listener_kwargs['darwin_intercept'] = self.darwin_intercept
+                logger.info("🔧 Added darwin_intercept to filter mouse events on macOS")
+            
+            self.listener = Listener(**listener_kwargs)
+            logger.info("🔧 Calling listener.start()...")
+            self.listener.start()
+            logger.info("✅ Keyboard listener started successfully")
+            logger.info("🔍 Listener should now capture ALL keystrokes - try pressing any key")
+        except Exception as e:
+            logger.error(f"❌ Failed to start keyboard listener: {e}")
+            import traceback
+            traceback.print_exc()
         
         # Create and start tray icon
+        logger.info("🖼️ Creating tray icon...")
         self.create_tray_icon()
+        logger.info("✅ Tray icon created")
         
+        logger.info("🚀 Starting tray icon event loop...")
         try:
-            self.tray_icon.run()
+            self.tray_icon.run()  # This blocks until app quits
         except KeyboardInterrupt:
+            logger.info("🛑 Keyboard interrupt received")
             self.quit_app()
+        except Exception as e:
+            logger.error(f"❌ Tray icon run failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def refresh_tray_icon(self):
+        """Refresh the tray icon menu to reflect current permission status"""
+        if self.tray_icon:
+            try:
+                self.tray_icon.stop()
+                self.create_tray_icon()
+                threading.Thread(target=self.tray_icon.run, daemon=True).start()
+                logger.debug("Tray icon refreshed successfully")
+            except Exception as e:
+                logger.error(f"Failed to refresh tray icon: {e}")
 
 def main():
     """Main entry point"""
@@ -1148,7 +1253,7 @@ def main():
         if bundle and bundle.bundlePath().endswith('.app'):
             # We're running as an app bundle, initialize NSApplication
             app = NSApplication.sharedApplication()
-            # Make sure the app doesn't terminate when all windows are closed
+            # Set as background/accessory app (no dock icon, but can still launch normally)
             app.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
 
             class AppDelegate(NSObject):
@@ -1156,6 +1261,11 @@ def main():
 
                 def applicationShouldTerminateAfterLastWindowClosed_(self, sender):
                     return False
+                
+                def applicationDidFinishLaunching_(self, sender):
+                    """Hide from dock after launching"""
+                    # Ensure the app doesn't show in dock after launch
+                    sender.setActivationPolicy_(2)  # NSApplicationActivationPolicyAccessory
 
             # Keep a reference so it's not garbage collected
             global _app_delegate

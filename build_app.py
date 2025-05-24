@@ -114,7 +114,7 @@ def fix_info_plist(app_path):
     info_plist_path = f"{app_path}/Contents/Info.plist"
     
     # Create proper Info.plist for background app that can be double-clicked
-    info_plist_content = """<?xml version="1.0" encoding="UTF-8"?>
+    info_plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -136,8 +136,6 @@ def fix_info_plist(app_path):
     <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>app_icon.icns</string>
-    <key>LSUIElement</key>
-    <string>1</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
@@ -199,8 +197,6 @@ def create_app_bundle_from_directory(bundle_path):
     <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>app_icon.icns</string>
-    <key>LSUIElement</key>
-    <string>1</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>

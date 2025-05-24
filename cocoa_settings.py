@@ -6,6 +6,7 @@ Built from scratch for reliability
 
 import json
 import os
+import sys
 import subprocess
 from typing import Dict, Any, Optional
 import objc
@@ -17,8 +18,19 @@ from UserNotifications import *
 class SettingsManager:
     """Simple settings manager"""
     
-    def __init__(self, settings_file="settings.json"):
-        self.settings_file = settings_file
+    def __init__(self, settings_file=None):
+        # Determine appropriate settings file location
+        if settings_file is None:
+            if getattr(sys, 'frozen', False):
+                # Running as PyInstaller bundle - use user's Application Support directory
+                settings_dir = os.path.expanduser('~/Library/Application Support/Rephrasely')
+                os.makedirs(settings_dir, exist_ok=True)
+                self.settings_file = os.path.join(settings_dir, 'settings.json')
+            else:
+                # Running as script - use current directory
+                self.settings_file = "settings.json"
+        else:
+            self.settings_file = settings_file
         self.default_settings = {
             "prompts": [
                 {
@@ -51,8 +63,7 @@ class SettingsManager:
             "model": "gpt-3.5-turbo",
             "max_tokens": 1000,
             "temperature": 0.7,
-            "auto_paste": True,
-            "show_notifications": False,
+            "show_notifications": True,
             "launch_at_startup": False,
             "openai_api_key": ""
         }
@@ -803,19 +814,13 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(self.conflict_label)
         
         # Options
-        self.auto_paste_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 250, 400, 25))
-        self.auto_paste_checkbox.setButtonType_(NSButtonTypeSwitch)
-        self.auto_paste_checkbox.setTitle_("Automatically paste processed text")
-        self.auto_paste_checkbox.setState_(1 if self.settings_manager.get("auto_paste", True) else 0)
-        view.addSubview_(self.auto_paste_checkbox)
-        
-        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 220, 400, 25))
+        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 250, 400, 25))
         self.notifications_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.notifications_checkbox.setTitle_("Show success/error notifications")
         self.notifications_checkbox.setState_(1 if self.settings_manager.get("show_notifications", False) else 0)
         view.addSubview_(self.notifications_checkbox)
         
-        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 190, 400, 25))
+        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 220, 400, 25))
         self.startup_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.startup_checkbox.setTitle_("Launch Rephrasely at startup")
         self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
@@ -833,9 +838,16 @@ class SettingsWindow(NSWindowController):
         # Check permissions from the main app if available
         permissions_status = self.get_permissions_status()
         
+        # Determine what entity has permission (Python vs Rephrasely app)
+        import sys
+        permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+        
         # Accessibility permission status
-        self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 125, 500, 20))
-        accessibility_text = f"Accessibility (Copy/Type): {'✅ Granted' if permissions_status.get('accessibility', False) else '❌ Required'}"
+        self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 125, 480, 20))
+        if permissions_status.get('accessibility', False):
+            accessibility_text = f"Accessibility (Global Hotkeys): ✅ Granted to {permission_entity}"
+        else:
+            accessibility_text = f"Accessibility (Global Hotkeys): ❌ Required for {permission_entity}"
         self.accessibility_status.setStringValue_(accessibility_text)
         self.accessibility_status.setBezeled_(False)
         self.accessibility_status.setDrawsBackground_(False)
@@ -846,16 +858,21 @@ class SettingsWindow(NSWindowController):
             self.accessibility_status.setTextColor_(NSColor.systemGreenColor())
         view.addSubview_(self.accessibility_status)
         
-        # Button to open System Settings
-        self.open_settings_btn = NSButton.alloc().initWithFrame_(NSMakeRect(40, 95, 150, 25))
-        self.open_settings_btn.setTitle_("Open System Settings")
-        self.open_settings_btn.setTarget_(self)
-        self.open_settings_btn.setAction_("openSystemSettings:")
-        self.open_settings_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(self.open_settings_btn)
+        # Accessibility permission button
+        self.accessibility_btn = NSButton.alloc().initWithFrame_(NSMakeRect(530, 125, 120, 20))
+        if not permissions_status.get('accessibility', False):
+            self.accessibility_btn.setTitle_("Grant Permission")
+            self.accessibility_btn.setTarget_(self)
+            self.accessibility_btn.setAction_("openAccessibilitySettings:")
+        else:
+            self.accessibility_btn.setTitle_("✅ Granted")
+            self.accessibility_btn.setEnabled_(False)
+        self.accessibility_btn.setBezelStyle_(NSBezelStyleRounded)
+        self.accessibility_btn.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.accessibility_btn)
         
-        # Refresh permissions button
-        self.refresh_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(200, 95, 120, 25))
+        # General refresh permissions button
+        self.refresh_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(40, 100, 120, 25))
         self.refresh_permissions_btn.setTitle_("Refresh Status")
         self.refresh_permissions_btn.setTarget_(self)
         self.refresh_permissions_btn.setAction_("refreshPermissions:")
@@ -1081,52 +1098,119 @@ class SettingsWindow(NSWindowController):
         """Get current permissions status from the main app"""
         try:
             # Try to import from rephrasely module to check permissions
-            import sys
             rephrasely_module = sys.modules.get('__main__')
             if rephrasely_module and hasattr(rephrasely_module, 'service'):
                 return rephrasely_module.service.get_permission_status()
             
-            # Fallback: try to check permissions directly
+            # Fallback: try to check permissions directly using the same improved method as main app
             try:
+                # Use the proper accessibility API to check permissions (same as main app)
+                from ApplicationServices import AXIsProcessTrusted
                 from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
-                from Quartz import CGWindowListCreateImage, CGRectNull
                 
-                # Check accessibility
+                # Check accessibility using the same robust method as main app
                 accessibility = False
                 try:
-                    window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
-                    accessibility = window_list and len(window_list) > 0
-                except:
-                    pass
-                
-                # Check screen recording
-                screen_recording = False
-                try:
-                    image = CGWindowListCreateImage(CGRectNull, kCGWindowListOptionOnScreenOnly, kCGNullWindowID, 0)
-                    screen_recording = image is not None
-                except:
-                    pass
+                    is_trusted = AXIsProcessTrusted()
+                    print(f"Debug - AXIsProcessTrusted() returned: {is_trusted}")
+                    
+                    # Force a more aggressive check - try to actually use accessibility features
+                    if is_trusted:
+                        try:
+                            # Additional verification - try to access window list which requires accessibility permission
+                            window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+                            if window_list and len(window_list) > 0:
+                                # Extra verification: try to access detailed window information
+                                # This is more likely to fail if accessibility permission is not actually granted
+                                try:
+                                    # Try to access window owner information - this typically requires accessibility permission
+                                    accessible_count = 0
+                                    for window in window_list[:3]:  # Check first 3 windows
+                                        owner_name = window.get('kCGWindowOwnerName', '')
+                                        window_name = window.get('kCGWindowName', '')
+                                        if owner_name or window_name:
+                                            print(f"Debug - Window access verified: owner={owner_name}, name={window_name}")
+                                            accessible_count += 1
+                                    
+                                    if accessible_count > 0:
+                                        print(f"Debug - Window list verification successful: {len(window_list)} windows, {accessible_count} accessible")
+                                        accessibility = True
+                                    else:
+                                        print("Debug - Could not access window details despite window list being available")
+                                        accessibility = False
+                                except Exception as e:
+                                    print(f"Debug - Failed to access window details: {e}")
+                                    accessibility = False
+                            else:
+                                print("Debug - AXIsProcessTrusted=True but window list is empty - permission might not be fully granted yet")
+                                accessibility = False
+                        except Exception as e:
+                            print(f"Debug - Window list verification failed despite AXIsProcessTrusted=True: {e}")
+                            accessibility = False
+                    else:
+                        print("Debug - AXIsProcessTrusted() returned False - no accessibility permission")
+                        accessibility = False
+                except Exception as e:
+                    print(f"Debug - Accessibility permission check failed: {e}")
+                    accessibility = False
                 
                 return {
                     "accessibility": accessibility,
-                    "screen_recording": screen_recording,
                     "macos_available": True
                 }
-            except ImportError:
-                pass
+            except ImportError as e:
+                print(f"Debug - ApplicationServices not available, falling back to window list only: {e}")
+                # Fallback method - try to get window list directly (but be more strict)
+                try:
+                    from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID
+                    window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
+                    if window_list and len(window_list) > 5:  # Require more windows to reduce false positives
+                        # Try to access window details to verify real accessibility
+                        accessible_windows = 0
+                        for window in window_list[:5]:
+                            owner_name = window.get('kCGWindowOwnerName', '')
+                            if owner_name:
+                                accessible_windows += 1
+                        
+                        accessibility = accessible_windows >= 2  # Require at least 2 accessible windows
+                        print(f"Debug - Fallback window list check: {accessibility} (accessible windows: {accessible_windows})")
+                        return {
+                            "accessibility": accessibility,
+                            "macos_available": True
+                        }
+                    else:
+                        print("Debug - Fallback window list check: insufficient windows")
+                        return {
+                            "accessibility": False,
+                            "macos_available": True
+                        }
+                except Exception as e2:
+                    print(f"Debug - Fallback window list check failed: {e2}")
+                    pass
         except Exception as e:
             print(f"Debug - Error checking permissions: {e}")
         
         # Default fallback
         return {
             "accessibility": False,
-            "screen_recording": False,
             "macos_available": False
         }
     
+    def openAccessibilitySettings_(self, sender):
+        """Open System Settings to Accessibility"""
+        try:
+            # For macOS 13+ (Ventura and later), it's System Settings
+            subprocess.run(['open', 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'], check=False)
+        except Exception as e:
+            print(f"Debug - Failed to open Accessibility Settings: {e}")
+            # Fallback to general System Preferences
+            try:
+                subprocess.run(['open', '/System/Applications/System Preferences.app'], check=False)
+            except Exception as e2:
+                print(f"Debug - Failed to open System Preferences fallback: {e2}")
+    
     def openSystemSettings_(self, sender):
-        """Open System Settings to Privacy & Security"""
-        import subprocess
+        """Open System Settings to Privacy & Security (general)"""
         try:
             # For macOS 13+ (Ventura and later), it's System Settings
             subprocess.run(['open', 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'], check=False)
@@ -1145,13 +1229,35 @@ class SettingsWindow(NSWindowController):
         # Get updated permissions
         permissions_status = self.get_permissions_status()
         
+        # Determine what entity has permission (Python vs Rephrasely app)
+        import sys
+        permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+        
         # Update accessibility status
-        accessibility_text = f"Accessibility (Copy/Type): {'✅ Granted' if permissions_status.get('accessibility', False) else '❌ Required'}"
+        if permissions_status.get('accessibility', False):
+            accessibility_text = f"Accessibility (Global Hotkeys): ✅ Granted to {permission_entity}"
+        else:
+            accessibility_text = f"Accessibility (Global Hotkeys): ❌ Required for {permission_entity}"
         self.accessibility_status.setStringValue_(accessibility_text)
         if not permissions_status.get('accessibility', False):
             self.accessibility_status.setTextColor_(NSColor.systemRedColor())
+            self.accessibility_btn.setTitle_("Grant Permission")
+            self.accessibility_btn.setEnabled_(True)
+            self.accessibility_btn.setTarget_(self)
+            self.accessibility_btn.setAction_("openAccessibilitySettings:")
         else:
             self.accessibility_status.setTextColor_(NSColor.systemGreenColor())
+            self.accessibility_btn.setTitle_("✅ Granted")
+            self.accessibility_btn.setEnabled_(False)
+        
+        # Also refresh the main app's tray icon if available
+        try:
+            rephrasely_module = sys.modules.get('__main__')
+            if rephrasely_module and hasattr(rephrasely_module, 'service') and hasattr(rephrasely_module.service, 'refresh_tray_icon'):
+                rephrasely_module.service.refresh_tray_icon()
+                print("Debug - Triggered tray icon refresh")
+        except Exception as e:
+            print(f"Debug - Could not refresh tray icon: {e}")
         
         print("Debug - Permissions status refreshed")
     
@@ -1235,10 +1341,6 @@ class SettingsWindow(NSWindowController):
                 if hotkey:  # Only save if not empty
                     settings["hotkey"] = hotkey
                     print(f"Debug - Hotkey saved: {hotkey}")
-            
-            if hasattr(self, 'auto_paste_checkbox') and self.auto_paste_checkbox:
-                settings["auto_paste"] = bool(self.auto_paste_checkbox.state())
-                print(f"Debug - Auto paste: {settings['auto_paste']}")
             
             if hasattr(self, 'notifications_checkbox') and self.notifications_checkbox:
                 settings["show_notifications"] = bool(self.notifications_checkbox.state())
