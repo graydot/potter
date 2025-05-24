@@ -135,10 +135,10 @@ class RephrasleyService:
         else:
             self.settings_manager = None
         
-        # Configuration from settings or defaults
-        self.api_key = os.getenv('OPENAI_API_KEY')
+        # Load configuration from settings or defaults
         self.load_settings()
         
+        # Initialize OpenAI client (after settings are loaded)
         self.setup_openai()
     
     def check_single_instance(self):
@@ -274,17 +274,25 @@ class RephrasleyService:
     
     def setup_openai(self):
         """Initialize OpenAI client"""
-        if not self.api_key:
-            logger.error("OpenAI API key not found. Please set OPENAI_API_KEY environment variable.")
-            return False
+        # Try to get API key from settings first, then environment
+        api_key = None
+        if self.settings_manager:
+            api_key = self.settings_manager.get("openai_api_key", "").strip()
+        
+        if not api_key:
+            api_key = os.getenv('OPENAI_API_KEY', "").strip()
+        
+        if not api_key:
+            logger.warning("No OpenAI API key found in settings or environment")
+            self.openai_client = None
+            return
         
         try:
-            self.openai_client = openai.OpenAI(api_key=self.api_key)
+            self.openai_client = openai.OpenAI(api_key=api_key)
             logger.info("OpenAI client initialized successfully")
-            return True
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
-            return False
+            self.openai_client = None
     
     def copy_selected_text(self):
         """Copy currently selected text to clipboard"""
@@ -553,12 +561,23 @@ class RephrasleyService:
     
     def start(self):
         """Start the service"""
-        if not self.openai_client:
-            logger.error("Cannot start service: OpenAI client not initialized")
-            sys.exit(1)
-        
         # Check for single instance before starting
         self.check_single_instance()
+        
+        # Check if this is the first launch and show settings if needed
+        if SETTINGS_UI_AVAILABLE and self.settings_manager and self.settings_manager.is_first_launch():
+            logger.info("First launch detected - showing settings dialog")
+            self.show_first_launch_settings()
+            return  # Exit after showing settings - user will restart the app
+        
+        if not self.openai_client:
+            logger.error("Cannot start service: OpenAI client not initialized")
+            if SETTINGS_UI_AVAILABLE:
+                logger.info("Opening settings to configure API key...")
+                self.show_preferences()
+                return
+            else:
+                sys.exit(1)
         
         logger.info("Starting Rephrasely service...")
         logger.info(f"Hotkey: {self.format_hotkey()}")
@@ -758,17 +777,76 @@ class RephrasleyService:
         self.current_icon_image = image
         return image
 
+    def show_first_launch_settings(self):
+        """Show settings dialog for first launch with welcome message"""
+        if not SETTINGS_UI_AVAILABLE or not self.settings_manager:
+            return
+        
+        def on_settings_saved(new_settings):
+            logger.info("First-time settings saved successfully")
+            # Restart the app to use the new settings
+            self.restart_app()
+        
+        try:
+            from cocoa_settings import show_settings
+            from AppKit import NSApp, NSAlert, NSAlertStyleInformational
+            
+            # Show welcome alert first
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Welcome to Rephrasely!")
+            alert.setInformativeText_("Please configure your OpenAI API key and preferences to get started. You can get an API key from https://platform.openai.com/api-keys")
+            alert.setAlertStyle_(NSAlertStyleInformational)
+            alert.addButtonWithTitle_("Open Settings")
+            alert.addButtonWithTitle_("Quit")
+            
+            response = alert.runModal()
+            if response == 1000:  # First button (Open Settings)
+                # Show settings window
+                controller = show_settings(self.settings_manager, on_settings_saved)
+                if controller:
+                    NSApp.run()
+            else:
+                # User chose to quit
+                sys.exit(0)
+                
+        except Exception as e:
+            logger.error(f"Failed to show first-launch settings: {e}")
+            sys.exit(1)
+    
+    def restart_app(self):
+        """Restart the application"""
+        try:
+            import subprocess
+            import sys
+            
+            # Get the current executable path
+            if getattr(sys, 'frozen', False):
+                # Running as PyInstaller bundle
+                executable = sys.executable
+            else:
+                # Running as script
+                executable = [sys.executable, __file__]
+            
+            # Cleanup current instance
+            self.instance_checker.cleanup()
+            
+            # Start new instance
+            if isinstance(executable, str):
+                subprocess.Popen([executable])
+            else:
+                subprocess.Popen(executable)
+            
+            # Exit current instance
+            sys.exit(0)
+            
+        except Exception as e:
+            logger.error(f"Failed to restart app: {e}")
+            sys.exit(1)
+
 def main():
     """Main entry point"""
     print("🔄 Rephrasely - Global Text Rephrasing Service")
     print("=" * 50)
-    
-    # Check for API key
-    if not os.getenv('OPENAI_API_KEY'):
-        print("❌ Error: OPENAI_API_KEY environment variable not set")
-        print("Please create a .env file with your OpenAI API key:")
-        print("OPENAI_API_KEY=your_api_key_here")
-        sys.exit(1)
     
     # Initialize NSApplication for macOS app bundle compatibility
     try:

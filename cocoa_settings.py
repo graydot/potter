@@ -53,7 +53,8 @@ class SettingsManager:
             "temperature": 0.7,
             "auto_paste": True,
             "show_notifications": False,
-            "launch_at_startup": False
+            "launch_at_startup": False,
+            "openai_api_key": ""
         }
         self.settings = self.load_settings()
     
@@ -120,6 +121,21 @@ class SettingsManager:
     def get(self, key: str, default=None):
         """Get a setting value"""
         return self.settings.get(key, default)
+    
+    def is_first_launch(self) -> bool:
+        """Check if this is the first launch (no settings file exists or no API key)"""
+        # Check if settings file exists
+        if not os.path.exists(self.settings_file):
+            return True
+        
+        # Check if OpenAI API key is configured (in settings or environment)
+        api_key_in_settings = self.get("openai_api_key", "").strip()
+        api_key_in_env = os.getenv('OPENAI_API_KEY', "").strip()
+        
+        if not api_key_in_settings and not api_key_in_env:
+            return True
+        
+        return False
     
     def show_notification(self, title, message, is_error=False):
         """Show a macOS notification"""
@@ -550,8 +566,31 @@ class SettingsWindow(NSWindowController):
         title.setAlignment_(NSTextAlignmentCenter)
         view.addSubview_(title)
         
+        # API Key section (most important for first-time users)
+        api_key_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 380, 120, 25))
+        api_key_label.setStringValue_("OpenAI API Key:")
+        api_key_label.setBezeled_(False)
+        api_key_label.setDrawsBackground_(False)
+        api_key_label.setEditable_(False)
+        view.addSubview_(api_key_label)
+        
+        self.api_key_field = NSSecureTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
+        self.api_key_field.setStringValue_(self.settings_manager.get("openai_api_key", ""))
+        self.api_key_field.setPlaceholderString_("sk-...")
+        view.addSubview_(self.api_key_field)
+        
+        # API key help text
+        api_help = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 355, 400, 20))
+        api_help.setStringValue_("Get your API key from https://platform.openai.com/api-keys")
+        api_help.setBezeled_(False)
+        api_help.setDrawsBackground_(False)
+        api_help.setEditable_(False)
+        api_help.setTextColor_(NSColor.secondaryLabelColor())
+        api_help.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(api_help)
+        
         # Hotkey section
-        hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 370, 120, 25))
+        hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 320, 120, 25))
         hotkey_label.setStringValue_("Global Hotkey:")
         hotkey_label.setBezeled_(False)
         hotkey_label.setDrawsBackground_(False)
@@ -560,14 +599,14 @@ class SettingsWindow(NSWindowController):
         
         # Hotkey field
         self.hotkey_field = HotkeyField.alloc().initWithFrame_manager_(
-            NSMakeRect(150, 370, 200, 25), self.settings_manager
+            NSMakeRect(150, 320, 200, 25), self.settings_manager
         )
         self.hotkey_field.setStringValue_(self.settings_manager.get("hotkey", "cmd+shift+r"))
         self.hotkey_field.reset_callback = self.updateResetButton
         view.addSubview_(self.hotkey_field)
         
         # Reset button - always create it, visibility controlled by updateResetButton
-        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(360, 370, 60, 25))
+        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(360, 320, 60, 25))
         self.reset_button.setTitle_("Reset")
         self.reset_button.setTarget_(self)
         self.reset_button.setAction_("resetHotkey:")
@@ -575,7 +614,7 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(self.reset_button)
         
         # Conflict warning
-        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 345, 400, 20))
+        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 295, 400, 20))
         self.conflict_label.setBezeled_(False)
         self.conflict_label.setDrawsBackground_(False)
         self.conflict_label.setEditable_(False)
@@ -584,19 +623,19 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(self.conflict_label)
         
         # Options
-        self.auto_paste_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 300, 400, 25))
+        self.auto_paste_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 250, 400, 25))
         self.auto_paste_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.auto_paste_checkbox.setTitle_("Automatically paste processed text")
         self.auto_paste_checkbox.setState_(1 if self.settings_manager.get("auto_paste", True) else 0)
         view.addSubview_(self.auto_paste_checkbox)
         
-        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 270, 400, 25))
+        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 220, 400, 25))
         self.notifications_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.notifications_checkbox.setTitle_("Show success/error notifications")
         self.notifications_checkbox.setState_(1 if self.settings_manager.get("show_notifications", False) else 0)
         view.addSubview_(self.notifications_checkbox)
         
-        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 240, 400, 25))
+        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 190, 400, 25))
         self.startup_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.startup_checkbox.setTitle_("Launch Rephrasely at startup")
         self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
@@ -883,6 +922,8 @@ class SettingsWindow(NSWindowController):
         settings = self.settings_manager.settings.copy()
         
         # General settings
+        if hasattr(self, 'api_key_field'):
+            settings["openai_api_key"] = str(self.api_key_field.stringValue())
         if self.hotkey_field:
             settings["hotkey"] = str(self.hotkey_field.stringValue())
         if self.auto_paste_checkbox:

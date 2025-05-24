@@ -2,6 +2,17 @@
 
 A powerful AI-powered text processing tool that runs in your menu bar, providing instant access to rephrase, summarize, expand, and tone adjustment features.
 
+## ✨ First-Time Setup Made Easy
+
+Rephrasely now features **automatic first-launch detection**! When you run the app for the first time, it will:
+
+1. **Welcome you** with a friendly setup dialog
+2. **Guide you** to configure your OpenAI API key
+3. **Let you customize** all preferences in the native macOS settings interface
+4. **Automatically restart** with your settings applied
+
+No more command-line configuration needed - everything is handled through the beautiful native UI!
+
 ## Installation
 
 ### Quick Installation (Recommended)
