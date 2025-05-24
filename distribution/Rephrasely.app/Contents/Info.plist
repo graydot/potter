@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Rephrasely</string>
+	<key>CFBundleExecutable</key>
+	<string>Rephrasely</string>
+	<key>CFBundleIconFile</key>
+	<string>icon-windowed.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>Rephrasely</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Rephrasely</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>dc3b2d1</string>
+	<key>CFBundleVersion</key>
+	<string>dc3b2d1</string>
+	<key>LSBackgroundOnly</key>
+	<false/>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Rephrasely needs to send AppleEvents to paste processed text and manage login items.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSystemAdministrationUsageDescription</key>
+	<string>Rephrasely needs system administration access to manage startup settings.</string>
+</dict>
+</plist>

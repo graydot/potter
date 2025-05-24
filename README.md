@@ -50,7 +50,17 @@ Potter - A powerful text rephrasing tool for macOS.
 
 ## 🛠 Installation
 
-### Quick Setup (Recommended)
+### 📦 **Download Pre-built App (Recommended)**
+Ready-to-use macOS app available from our [Releases page](https://github.com/yourusername/rephrasely/releases):
+
+1. **Download** `Rephrasely.app.zip` from the latest release
+2. **Extract** and move `Rephrasely.app` to `/Applications`  
+3. **Double-click** to launch (grant permissions when prompted)
+4. **Add your API key** in preferences
+
+### 🔨 **Build from Source**
+For development or customization:
+
 1. **Download or clone** this repository
 2. **Set up your API key**:
    ```bash
@@ -64,6 +74,18 @@ Potter - A powerful text rephrasing tool for macOS.
    ```bash
    cp -r dist/Rephrasely.app /Applications/
    ```
+
+### 🚀 **For Developers**
+Set up the automated build system:
+```bash
+# Install git hooks for automatic building
+./scripts/setup_hooks.sh
+
+# Test the build system  
+./scripts/build_for_distribution.sh
+```
+
+See [DISTRIBUTION.md](DISTRIBUTION.md) for complete build system documentation.
 
 ### First Launch
 1. **Open Rephrasely.app** from Applications

@@ -1,0 +1,2 @@
+# This file ensures the distribution folder is tracked by git
+# Built app files will be placed here by the build system 

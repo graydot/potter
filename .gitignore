@@ -45,11 +45,19 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
 # Virtual environments
 venv/
 env/
 ENV/
 rephrasely-env/
+env.bak/
+venv.bak/
 
 # IDE files
 .vscode/
@@ -91,5 +99,27 @@ Temporary Items
 
 # Backup files
 *.bak
+<<<<<<< HEAD
 *.backup 
 >>>>>>> ac4fb4a (partially working)
+=======
+*.backup
+
+# Application specific
+settings.json
+build_info.json
+
+# Build artifacts (but keep distribution folder)
+# distribution/ is tracked for GitHub releases
+# Individual build files in distribution/ may be ignored if too large
+
+# Temporary files
+.pytest_cache/
+.coverage
+htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/ 
+>>>>>>> e7e28f9 (Added pre commit instructions)

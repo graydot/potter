@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Rephrasely Pre-commit Hook
+# Automatically builds and updates distribution when committing to main branch
+
+echo "🔍 Rephrasely Pre-commit Hook"
+
+# Get the current branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "📍 Current branch: $BRANCH"
+
+# Only build for main/master branch
+if [[ "$BRANCH" != "main" && "$BRANCH" != "master" ]]; then
+    echo "⏭️  Skipping build - not on main/master branch"
+    exit 0
+fi
+
+# Check if any Python files changed
+PYTHON_FILES_CHANGED=$(git diff --cached --name-only | grep -E '\.(py)$' | wc -l)
+CONFIG_FILES_CHANGED=$(git diff --cached --name-only | grep -E '(requirements\.txt|build_app\.py|assets/)' | wc -l)
+
+if [[ $PYTHON_FILES_CHANGED -eq 0 && $CONFIG_FILES_CHANGED -eq 0 ]]; then
+    echo "⏭️  Skipping build - no relevant files changed"
+    exit 0
+fi
+
+echo "🔨 Building app for distribution..."
+echo "Files changed: $PYTHON_FILES_CHANGED Python files, $CONFIG_FILES_CHANGED config files"
+
+# Get the project root
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+cd "$PROJECT_ROOT"
+
+# Run the build script
+if [[ -x "scripts/build_for_distribution.sh" ]]; then
+    echo "🚀 Running distribution build..."
+    if scripts/build_for_distribution.sh; then
+        echo "✅ Build successful"
+        
+        # Add the distribution files to the commit
+        if [[ -f "distribution/Rephrasely.app.zip" ]]; then
+            echo "📦 Adding distribution files to commit..."
+            git add distribution/
+            echo "✅ Distribution files added to commit"
+        else
+            echo "⚠️  Distribution zip not found, build may have failed"
+        fi
+    else
+        echo "❌ Build failed - commit aborted"
+        exit 1
+    fi
+else
+    echo "⚠️  Build script not found or not executable"
+    echo "   Make sure scripts/build_for_distribution.sh exists and is executable"
+fi
+
+echo "✨ Pre-commit hook completed successfully"
+exit 0 

@@ -1,0 +1,144 @@
+name: 🚀 Auto Release
+
+on:
+  push:
+    branches: [ main, master ]
+    paths: 
+      - 'distribution/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 📋 Get version and build info
+      id: build_info
+      run: |
+        # Extract version from git tags or use timestamp
+        if git describe --tags --exact-match 2>/dev/null; then
+          VERSION=$(git describe --tags --exact-match)
+        else
+          VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+          echo "Creating new tag: $VERSION"
+          git tag $VERSION
+          git push origin $VERSION
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+        # Get build info if available
+        if [ -f "distribution/BUILD_INFO.md" ]; then
+          echo "build_info<<EOF" >> $GITHUB_OUTPUT
+          cat distribution/BUILD_INFO.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+        
+        # Get app size
+        if [ -f "distribution/Rephrasely.app.zip" ]; then
+          ZIP_SIZE=$(du -h "distribution/Rephrasely.app.zip" | cut -f1)
+          echo "zip_size=$ZIP_SIZE" >> $GITHUB_OUTPUT
+        fi
+        
+        if [ -d "distribution/Rephrasely.app" ]; then
+          APP_SIZE=$(du -sh "distribution/Rephrasely.app" | cut -f1)
+          echo "app_size=$APP_SIZE" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "build_date=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+
+    - name: 📝 Generate Release Notes
+      id: release_notes
+      run: |
+        cat > release_notes.md << 'EOF'
+        # 🎉 Rephrasely macOS App
+        
+        **AI-powered text processing directly from your menu bar**
+        
+        ## 📦 Download
+        
+        Download the ready-to-use macOS application below:
+        
+        **[⬇️ Download Rephrasely.app.zip](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.build_info.outputs.version }}/Rephrasely.app.zip)** (${{ steps.build_info.outputs.zip_size }})
+        
+        **[⬇️ Download Rephrasely.app (Direct)](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.build_info.outputs.version }}/Rephrasely.app.tar.gz)** (${{ steps.build_info.outputs.app_size }})
+        
+        > 💡 **Tip**: Download the ZIP if you prefer, or the direct .app for easier installation
+        
+        ## 🚀 Features
+        
+        - ✅ **Global Hotkey**: Process text from any app (default: Cmd+Shift+R)
+        - ✅ **Multiple AI Prompts**: Rephrase, summarize, expand, casual/formal tone
+        - ✅ **Custom Prompts**: Create your own with different output formats
+        - ✅ **Native macOS UI**: Clean preferences interface
+        - ✅ **Menu Bar Integration**: Always accessible from your menu bar
+        - ✅ **Auto-paste**: Automatically replaces selected text
+        
+        ## 📱 Installation
+        
+        1. Download `Rephrasely.app.zip`
+        2. Extract and move `Rephrasely.app` to `/Applications`
+        3. Double-click to launch (grant permissions when prompted)
+        4. Add your OpenAI API key in preferences
+        
+        ## ⚡ Quick Start
+        
+        1. Select any text in any application
+        2. Press `Cmd+Shift+R` (or your custom hotkey)
+        3. Watch as AI processes and replaces your text!
+        
+        ## ⚙️ Configuration
+        
+        Right-click the menu bar icon → "Preferences" to:
+        - Customize hotkeys and AI models
+        - Add/edit custom prompts
+        - Configure output formats (text, images, PDF)
+        - Set up startup options
+        
+        ## 🔧 Requirements
+        
+        - macOS 10.14 (Mojave) or later
+        - OpenAI API key
+        
+        ---
+        
+        **Build Info:**
+        - Version: ${{ steps.build_info.outputs.version }}
+        - Commit: ${{ steps.build_info.outputs.commit_hash }}
+        - Built: ${{ steps.build_info.outputs.build_date }}
+        
+        EOF
+        
+        echo "notes_file=release_notes.md" >> $GITHUB_OUTPUT
+
+    - name: 🏷️ Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.build_info.outputs.version }}
+        name: "Rephrasely ${{ steps.build_info.outputs.version }}"
+        body_path: release_notes.md
+        files: |
+          distribution/Rephrasely.app.zip
+          distribution/BUILD_INFO.md
+          distribution/Rephrasely.app.tar.gz
+        draft: false
+        prerelease: false
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: ✅ Release Complete
+      run: |
+        echo "🎉 Release ${{ steps.build_info.outputs.version }} created successfully!"
+        echo "📱 App size: ${{ steps.build_info.outputs.app_size }}"
+        echo "🔗 Download URL: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.build_info.outputs.version }}/Rephrasely.app.zip" 

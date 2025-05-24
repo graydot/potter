@@ -360,15 +360,15 @@ class PromptDialog(NSWindowController):
         
         # Validation
         if not name:
-            self.showAlert_("Name Required", "Please enter a name for this prompt.")
+            self.showAlertWithTitle_message_("Name Required", "Please enter a name for this prompt.")
             return
         
         if len(name) > 10:
-            self.showAlert_("Name Too Long", "Name must be 10 characters or less.")
+            self.showAlertWithTitle_message_("Name Too Long", "Name must be 10 characters or less.")
             return
         
         if not text:
-            self.showAlert_("Prompt Required", "Please enter the prompt text.")
+            self.showAlertWithTitle_message_("Prompt Required", "Please enter the prompt text.")
             return
         
         # Create result
@@ -391,7 +391,7 @@ class PromptDialog(NSWindowController):
             self.callback(None)
         self.window().close()
     
-    def showAlert_(self, title, message):
+    def showAlertWithTitle_message_(self, title, message):
         """Show an alert dialog"""
         alert = NSAlert.alloc().init()
         alert.setMessageText_(title)
