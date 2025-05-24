@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 import objc
 from Foundation import *
 from AppKit import *
+from UserNotifications import *
 
 
 class SettingsManager:
@@ -31,7 +32,7 @@ class SettingsManager:
             "max_tokens": 1000,
             "temperature": 0.7,
             "auto_paste": True,
-            "show_notifications": True,
+            "show_notifications": False,
             "launch_at_startup": False
         }
         self.settings = self.load_settings()
@@ -65,6 +66,34 @@ class SettingsManager:
     def get(self, key: str, default=None):
         """Get a setting value"""
         return self.settings.get(key, default)
+    
+    def show_notification(self, title, message, is_error=False):
+        """Show a macOS notification"""
+        try:
+            notification = NSUserNotification.alloc().init()
+            notification.setTitle_(title)
+            notification.setInformativeText_(message)
+            
+            if is_error:
+                notification.setSoundName_("Funk")  # Error sound
+            else:
+                notification.setSoundName_("Glass")  # Success sound
+            
+            center = NSUserNotificationCenter.defaultUserNotificationCenter()
+            center.deliverNotification_(notification)
+            
+        except Exception as e:
+            print(f"Failed to show notification: {e}")
+    
+    def show_success(self, message="Operation completed successfully"):
+        """Show success notification if enabled"""
+        if self.get("show_notifications", False):
+            self.show_notification("Rephrasely", message, is_error=False)
+    
+    def show_error(self, error_message):
+        """Show error notification if enabled"""
+        if self.get("show_notifications", False):
+            self.show_notification("Rephrasely Error", error_message, is_error=True)
 
 
 class HotkeyField(NSTextField):
@@ -175,26 +204,35 @@ class SettingsWindow(NSWindowController):
         content_view = window.contentView()
         
         # Navigation buttons at top
-        general_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 550, 100, 30))
-        general_btn.setTitle_("General")
-        general_btn.setTag_(0)
-        general_btn.setTarget_(self)
-        general_btn.setAction_("switchSection:")
-        content_view.addSubview_(general_btn)
+        self.general_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 550, 100, 30))
+        self.general_btn.setTitle_("General")
+        self.general_btn.setTag_(0)
+        self.general_btn.setTarget_(self)
+        self.general_btn.setAction_("switchSection:")
+        self.general_btn.setButtonType_(NSButtonTypePushOnPushOff)
+        self.general_btn.setBezelStyle_(NSBezelStyleRounded)
+        content_view.addSubview_(self.general_btn)
         
-        prompts_btn = NSButton.alloc().initWithFrame_(NSMakeRect(130, 550, 100, 30))
-        prompts_btn.setTitle_("Prompts") 
-        prompts_btn.setTag_(1)
-        prompts_btn.setTarget_(self)
-        prompts_btn.setAction_("switchSection:")
-        content_view.addSubview_(prompts_btn)
+        self.prompts_btn = NSButton.alloc().initWithFrame_(NSMakeRect(130, 550, 100, 30))
+        self.prompts_btn.setTitle_("Prompts") 
+        self.prompts_btn.setTag_(1)
+        self.prompts_btn.setTarget_(self)
+        self.prompts_btn.setAction_("switchSection:")
+        self.prompts_btn.setButtonType_(NSButtonTypePushOnPushOff)
+        self.prompts_btn.setBezelStyle_(NSBezelStyleRounded)
+        content_view.addSubview_(self.prompts_btn)
         
-        advanced_btn = NSButton.alloc().initWithFrame_(NSMakeRect(240, 550, 100, 30))
-        advanced_btn.setTitle_("Advanced")
-        advanced_btn.setTag_(2)
-        advanced_btn.setTarget_(self)
-        advanced_btn.setAction_("switchSection:")
-        content_view.addSubview_(advanced_btn)
+        self.advanced_btn = NSButton.alloc().initWithFrame_(NSMakeRect(240, 550, 100, 30))
+        self.advanced_btn.setTitle_("Advanced")
+        self.advanced_btn.setTag_(2)
+        self.advanced_btn.setTarget_(self)
+        self.advanced_btn.setAction_("switchSection:")
+        self.advanced_btn.setButtonType_(NSButtonTypePushOnPushOff)
+        self.advanced_btn.setBezelStyle_(NSBezelStyleRounded)
+        content_view.addSubview_(self.advanced_btn)
+        
+        # Store buttons for easy access
+        self.section_buttons = [self.general_btn, self.prompts_btn, self.advanced_btn]
         
         # Content area
         self.content_container = NSView.alloc().initWithFrame_(NSMakeRect(20, 80, 660, 460))
@@ -207,7 +245,7 @@ class SettingsWindow(NSWindowController):
             self.createAdvancedView()
         ]
         
-        # Show general view initially
+        # Show general view initially and set button states
         self.showSection_(0)
         
         # Bottom buttons
@@ -237,6 +275,17 @@ class SettingsWindow(NSWindowController):
         """Show the specified section"""
         if section < 0 or section >= len(self.content_views):
             return
+        
+        # Update button states to show which is active
+        for i, button in enumerate(self.section_buttons):
+            if i == section:
+                # Active button styling
+                button.setState_(1)  # Pressed/selected state
+                button.setBezelStyle_(NSBezelStyleRounded)
+            else:
+                # Inactive button styling  
+                button.setState_(0)  # Normal state
+                button.setBezelStyle_(NSBezelStyleRounded)
         
         # Remove current content
         for subview in self.content_container.subviews():
@@ -306,7 +355,7 @@ class SettingsWindow(NSWindowController):
         self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 270, 400, 25))
         self.notifications_checkbox.setButtonType_(NSButtonTypeSwitch)
         self.notifications_checkbox.setTitle_("Show success/error notifications")
-        self.notifications_checkbox.setState_(1 if self.settings_manager.get("show_notifications", True) else 0)
+        self.notifications_checkbox.setState_(1 if self.settings_manager.get("show_notifications", False) else 0)
         view.addSubview_(self.notifications_checkbox)
         
         self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 240, 400, 25))

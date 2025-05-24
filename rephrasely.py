@@ -127,6 +127,7 @@ class RephrasleyService:
         self.listener = None
         self.settings_window = None
         self.instance_checker = SingleInstanceChecker()
+        self.is_processing = False  # Track if AI processing is happening
         
         # Initialize settings manager
         if SETTINGS_UI_AVAILABLE:
@@ -361,6 +362,7 @@ class RephrasleyService:
             return  # Prevent multiple simultaneous executions
         
         self.hotkey_pressed = True
+        self.set_processing_state(True)  # Start spinner
         logger.info("Processing text selection...")
         
         try:
@@ -369,7 +371,9 @@ class RephrasleyService:
             
             # Copy selected text
             if not self.copy_selected_text():
-                logger.error("Failed to copy text")
+                error_msg = "Failed to copy text"
+                logger.error(error_msg)
+                self.show_notification("Copy Failed", error_msg, is_error=True)
                 return
             
             # Get text from clipboard
@@ -381,7 +385,9 @@ class RephrasleyService:
                 # Try to proceed anyway in case text was already in clipboard
             
             if not new_clipboard or not new_clipboard.strip():
-                logger.warning("No text found in clipboard")
+                error_msg = "No text found in clipboard"
+                logger.warning(error_msg)
+                self.show_notification("No Text", error_msg, is_error=True)
                 return
             
             logger.info(f"Processing text ({len(new_clipboard)} chars): {new_clipboard[:50]}...")
@@ -389,7 +395,9 @@ class RephrasleyService:
             # Process with ChatGPT
             processed_text = self.process_text_with_chatgpt(new_clipboard)
             if not processed_text:
-                logger.error("Failed to process text")
+                error_msg = "Failed to process text with AI"
+                logger.error(error_msg)
+                self.show_notification("AI Processing Failed", error_msg, is_error=True)
                 return
             
             logger.info(f"Processed text ({len(processed_text)} chars): {processed_text[:50]}...")
@@ -401,20 +409,35 @@ class RephrasleyService:
             time.sleep(0.1)
             clipboard_check = pyperclip.paste()
             if clipboard_check != processed_text:
-                logger.error("Failed to update clipboard with processed text")
+                error_msg = "Failed to update clipboard with processed text"
+                logger.error(error_msg)
+                self.show_notification("Clipboard Error", error_msg, is_error=True)
                 return
             
             logger.info("Clipboard updated with processed text, attempting to paste...")
             
-            # Paste the processed text
-            if self.paste_text():
-                logger.info("Text processing completed successfully")
+            # Paste the processed text if auto-paste is enabled
+            if self.auto_paste:
+                if self.paste_text():
+                    success_msg = f"Text {self.current_prompt}d successfully"
+                    logger.info("Text processing completed successfully")
+                    self.show_notification("Success", success_msg, is_error=False)
+                else:
+                    warning_msg = "Paste failed - processed text is in clipboard (Cmd+V to paste manually)"
+                    logger.error(warning_msg)
+                    self.show_notification("Paste Failed", warning_msg, is_error=True)
             else:
-                logger.error("Paste operation failed - processed text is in clipboard, you can paste manually with Cmd+V")
+                success_msg = f"Text {self.current_prompt}d and copied to clipboard"
+                logger.info("Text processing completed - auto-paste disabled")
+                self.show_notification("Success", success_msg, is_error=False)
             
         except Exception as e:
-            logger.error(f"Error in process_selection: {e}")
+            error_msg = f"Error in process_selection: {str(e)}"
+            logger.error(error_msg)
+            self.show_notification("Processing Error", error_msg, is_error=True)
         finally:
+            # Stop spinner and reset flag
+            self.set_processing_state(False)
             # Reset the flag after a short delay
             threading.Timer(1.0, lambda: setattr(self, 'hotkey_pressed', False)).start()
     
@@ -446,76 +469,8 @@ class RephrasleyService:
     
     def create_tray_icon(self):
         """Create system tray icon"""
-        # Create a clean copy icon with AI sparkle
-        image = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        
-        # Simple background circle (subtle gray)
-        draw.ellipse([4, 4, 60, 60], fill=(240, 240, 240, 220))
-        
-        # Main clipboard/copy icon (centered, black and white)
-        clip_x, clip_y = 18, 12
-        clip_w, clip_h = 28, 36
-        
-        # Clipboard body (white with black outline)
-        draw.rectangle([clip_x, clip_y, clip_x + clip_w, clip_y + clip_h], 
-                      fill='white', outline='black', width=2)
-        
-        # Clipboard top clip (black)
-        clip_top_x = clip_x + 8
-        clip_top_y = clip_y - 4
-        clip_top_w = 12
-        clip_top_h = 6
-        draw.rectangle([clip_top_x, clip_top_y, clip_top_x + clip_top_w, clip_top_y + clip_top_h], 
-                      fill='black')
-        
-        # Document lines (gray)
-        line_x = clip_x + 4
-        line_w = 20
-        line_h = 2
-        line_color = '#666666'
-        
-        draw.rectangle([line_x, clip_y + 8, line_x + line_w, clip_y + 8 + line_h], fill=line_color)
-        draw.rectangle([line_x, clip_y + 14, line_x + line_w, clip_y + 14 + line_h], fill=line_color)
-        draw.rectangle([line_x, clip_y + 20, line_x + 16, clip_y + 20 + line_h], fill=line_color)
-        draw.rectangle([line_x, clip_y + 26, line_x + 18, clip_y + 26 + line_h], fill=line_color)
-        
-        # AI Sparkle at bottom right (inspired by the provided icon)
-        sparkle_x, sparkle_y = 44, 44
-        sparkle_size = 8
-        
-        # Create the 4-pointed diamond star with blue gradient effect
-        # Main diamond shape
-        points = [
-            (sparkle_x, sparkle_y - sparkle_size),  # Top
-            (sparkle_x + sparkle_size, sparkle_y),   # Right
-            (sparkle_x, sparkle_y + sparkle_size),   # Bottom
-            (sparkle_x - sparkle_size, sparkle_y)    # Left
-        ]
-        
-        # Draw the sparkle with gradient-like effect
-        # Outer layer (darker blue)
-        draw.polygon(points, fill='#4A90E2')
-        
-        # Inner layer (lighter blue) - smaller diamond
-        inner_size = sparkle_size - 2
-        inner_points = [
-            (sparkle_x, sparkle_y - inner_size),
-            (sparkle_x + inner_size, sparkle_y),
-            (sparkle_x, sparkle_y + inner_size),
-            (sparkle_x - inner_size, sparkle_y)
-        ]
-        draw.polygon(inner_points, fill='#7BB3F0')
-        
-        # Center highlight (very light blue/white)
-        center_size = sparkle_size - 4
-        center_points = [
-            (sparkle_x, sparkle_y - center_size),
-            (sparkle_x + center_size, sparkle_y),
-            (sparkle_x, sparkle_y + center_size),
-            (sparkle_x - center_size, sparkle_y)
-        ]
-        draw.polygon(center_points, fill='#B8D4F1')
+        # Create the normal icon
+        image = self.create_normal_icon()
         
         # Create menu
         menu_items = [
@@ -607,6 +562,176 @@ class RephrasleyService:
         if self.settings_manager:
             return self.settings_manager.get("hotkey", "Cmd+Shift+R")
         return "Cmd+Shift+R"
+
+    def show_notification(self, title, message, is_error=False):
+        """Show notification if enabled"""
+        if self.settings_manager and self.settings_manager.get("show_notifications", False):
+            if hasattr(self.settings_manager, 'show_notification'):
+                self.settings_manager.show_notification(title, message, is_error)
+            else:
+                # Fallback notification method
+                logger.info(f"Notification: {title} - {message}")
+    
+    def set_processing_state(self, processing):
+        """Set processing state and update icon"""
+        self.is_processing = processing
+        if self.tray_icon:
+            # Update the icon to show spinner or normal state
+            if processing:
+                self.create_spinner_icon()
+            else:
+                self.create_normal_icon()
+            
+            # Update the tray icon
+            self.tray_icon.icon = self.current_icon_image
+    
+    def create_normal_icon(self):
+        """Create the normal icon"""
+        image = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        
+        # Simple background circle (subtle gray)
+        draw.ellipse([4, 4, 60, 60], fill=(240, 240, 240, 220))
+        
+        # Main clipboard/copy icon (centered, black and white)
+        clip_x, clip_y = 18, 12
+        clip_w, clip_h = 28, 36
+        
+        # Clipboard body (white with black outline)
+        draw.rectangle([clip_x, clip_y, clip_x + clip_w, clip_y + clip_h], 
+                      fill='white', outline='black', width=2)
+        
+        # Clipboard top clip (black)
+        clip_top_x = clip_x + 8
+        clip_top_y = clip_y - 4
+        clip_top_w = 12
+        clip_top_h = 6
+        draw.rectangle([clip_top_x, clip_top_y, clip_top_x + clip_top_w, clip_top_y + clip_top_h], 
+                      fill='black')
+        
+        # Document lines (gray)
+        line_x = clip_x + 4
+        line_w = 20
+        line_h = 2
+        line_color = '#666666'
+        
+        draw.rectangle([line_x, clip_y + 8, line_x + line_w, clip_y + 8 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 14, line_x + line_w, clip_y + 14 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 20, line_x + 16, clip_y + 20 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 26, line_x + 18, clip_y + 26 + line_h], fill=line_color)
+        
+        # AI Sparkle at bottom right (inspired by the provided icon)
+        sparkle_x, sparkle_y = 44, 44
+        sparkle_size = 8
+        
+        # Create the 4-pointed diamond star with blue gradient effect
+        # Main diamond shape
+        points = [
+            (sparkle_x, sparkle_y - sparkle_size),  # Top
+            (sparkle_x + sparkle_size, sparkle_y),   # Right
+            (sparkle_x, sparkle_y + sparkle_size),   # Bottom
+            (sparkle_x - sparkle_size, sparkle_y)    # Left
+        ]
+        
+        # Draw the sparkle with gradient-like effect
+        # Outer layer (darker blue)
+        draw.polygon(points, fill='#4A90E2')
+        
+        # Inner layer (lighter blue) - smaller diamond
+        inner_size = sparkle_size - 2
+        inner_points = [
+            (sparkle_x, sparkle_y - inner_size),
+            (sparkle_x + inner_size, sparkle_y),
+            (sparkle_x, sparkle_y + inner_size),
+            (sparkle_x - inner_size, sparkle_y)
+        ]
+        draw.polygon(inner_points, fill='#7BB3F0')
+        
+        # Center highlight (very light blue/white)
+        center_size = sparkle_size - 4
+        center_points = [
+            (sparkle_x, sparkle_y - center_size),
+            (sparkle_x + center_size, sparkle_y),
+            (sparkle_x, sparkle_y + center_size),
+            (sparkle_x - center_size, sparkle_y)
+        ]
+        draw.polygon(center_points, fill='#B8D4F1')
+        
+        self.current_icon_image = image
+        return image
+    
+    def create_spinner_icon(self):
+        """Create a spinning/processing icon"""
+        image = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        
+        # Background circle (slightly more vibrant to show activity)
+        draw.ellipse([4, 4, 60, 60], fill=(250, 250, 250, 240))
+        
+        # Main clipboard/copy icon (same as normal)
+        clip_x, clip_y = 18, 12
+        clip_w, clip_h = 28, 36
+        
+        # Clipboard body (white with blue outline to show activity)
+        draw.rectangle([clip_x, clip_y, clip_x + clip_w, clip_y + clip_h], 
+                      fill='white', outline='#4A90E2', width=2)
+        
+        # Clipboard top clip (blue)
+        clip_top_x = clip_x + 8
+        clip_top_y = clip_y - 4
+        clip_top_w = 12
+        clip_top_h = 6
+        draw.rectangle([clip_top_x, clip_top_y, clip_top_x + clip_top_w, clip_top_y + clip_top_h], 
+                      fill='#4A90E2')
+        
+        # Document lines (blue to show processing)
+        line_x = clip_x + 4
+        line_w = 20
+        line_h = 2
+        line_color = '#4A90E2'
+        
+        draw.rectangle([line_x, clip_y + 8, line_x + line_w, clip_y + 8 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 14, line_x + line_w, clip_y + 14 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 20, line_x + 16, clip_y + 20 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 26, line_x + 18, clip_y + 26 + line_h], fill=line_color)
+        
+        # Animated sparkle (larger and more prominent)
+        sparkle_x, sparkle_y = 44, 44
+        sparkle_size = 10
+        
+        # Create the 4-pointed diamond star with brighter colors
+        points = [
+            (sparkle_x, sparkle_y - sparkle_size),  # Top
+            (sparkle_x + sparkle_size, sparkle_y),   # Right
+            (sparkle_x, sparkle_y + sparkle_size),   # Bottom
+            (sparkle_x - sparkle_size, sparkle_y)    # Left
+        ]
+        
+        # Draw the sparkle with bright processing colors
+        draw.polygon(points, fill='#FF6B35')  # Orange-red for activity
+        
+        # Inner layer 
+        inner_size = sparkle_size - 2
+        inner_points = [
+            (sparkle_x, sparkle_y - inner_size),
+            (sparkle_x + inner_size, sparkle_y),
+            (sparkle_x, sparkle_y + inner_size),
+            (sparkle_x - inner_size, sparkle_y)
+        ]
+        draw.polygon(inner_points, fill='#FFB347')  # Light orange
+        
+        # Center highlight
+        center_size = sparkle_size - 4
+        center_points = [
+            (sparkle_x, sparkle_y - center_size),
+            (sparkle_x + center_size, sparkle_y),
+            (sparkle_x, sparkle_y + center_size),
+            (sparkle_x - center_size, sparkle_y)
+        ]
+        draw.polygon(center_points, fill='#FFF8DC')  # Almost white yellow
+        
+        self.current_icon_image = image
+        return image
 
 def main():
     """Main entry point"""

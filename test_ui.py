@@ -17,13 +17,20 @@ try:
     
     # Create and show settings window
     app = NSApplication.sharedApplication()
-    controller = show_settings(settings_manager)
+    
+    def on_settings_changed(settings):
+        """Called when settings are saved"""
+        print("✅ Settings saved successfully")
+        # Terminate the app when settings are saved
+        app.terminate_(None)
+    
+    controller = show_settings(settings_manager, on_settings_changed)
     
     if controller:
         print("✅ Settings window created successfully")
         print("✅ You should see a native macOS preferences window")
         
-        # Debug: Check tab view
+        # Debug: Check content view
         window = controller.window()
         content_view = window.contentView()
         subviews = content_view.subviews()
@@ -31,12 +38,16 @@ try:
         
         for i, subview in enumerate(subviews):
             print(f"  Subview {i}: {subview.__class__.__name__}")
-            if hasattr(subview, 'numberOfTabViewItems'):
-                tab_count = subview.numberOfTabViewItems()
-                print(f"    Tab view has {tab_count} tabs")
-                for j in range(tab_count):
-                    tab = subview.tabViewItemAtIndex_(j)
-                    print(f"      Tab {j}: {tab.label()}")
+        
+        # Make window delegate to handle close
+        class WindowDelegate:
+            def windowWillClose_(self, notification):
+                """Called when window is about to close"""
+                print("✅ Settings window closed")
+                app.terminate_(None)
+        
+        window_delegate = WindowDelegate()
+        window.setDelegate_(window_delegate)
         
         app.run()
     else:
