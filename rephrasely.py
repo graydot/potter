@@ -750,8 +750,7 @@ class RephrasleyService:
     
     def on_key_press(self, key):
         """Handle key press events"""
-        logger.info(f"🔥 KEY PRESS DETECTED: {key} (type: {type(key)})")
-        print(f"🔥 KEY PRESS DETECTED: {key} (type: {type(key)})")  # Also print to console
+        logger.debug(f"🔥 KEY PRESS DETECTED: {key} (type: {type(key)})")
         
         self.current_keys.add(key)
         logger.debug(f"DEBUG: Added key to current_keys")
@@ -764,7 +763,6 @@ class RephrasleyService:
         # Check if our hotkey combination is pressed
         if self.hotkey_combo.issubset(self.current_keys):
             logger.info("🎯 HOTKEY DETECTED! Processing selection...")
-            print("🎯 HOTKEY DETECTED! Processing selection...")
             # Show immediate feedback that hotkey was detected
             self.show_notification("Hotkey Detected", "Processing selected text...", is_error=False)
             # Run processing in a separate thread to avoid blocking
@@ -772,8 +770,7 @@ class RephrasleyService:
     
     def on_key_release(self, key):
         """Handle key release events"""
-        logger.info(f"🔥 KEY RELEASE DETECTED: {key}")
-        print(f"🔥 KEY RELEASE DETECTED: {key}")  # Also print to console
+        logger.debug(f"🔥 KEY RELEASE DETECTED: {key}")
         
         try:
             self.current_keys.remove(key)
@@ -974,10 +971,10 @@ class RephrasleyService:
         if self.tray_icon:
             # Create the appropriate icon
             if processing:
-                logger.info("🔄 Setting spinner icon for processing state")
+                logger.debug("🔄 Setting spinner icon for processing state")
                 icon_image = self.create_spinner_icon()
             else:
-                logger.info("✅ Setting normal icon for idle state")
+                logger.debug("✅ Setting normal icon for idle state")
                 icon_image = self.create_normal_icon()
             
             # Update the tray icon - force update by setting the property
@@ -1201,7 +1198,7 @@ class RephrasleyService:
         # Start keyboard listener with detailed logging
         logger.info("🎹 Starting keyboard listener...")
         try:
-            logger.info("🔧 Creating Listener object...")
+            logger.debug("🔧 Creating Listener object...")
             # Create listener with darwin_intercept to filter mouse events on macOS
             listener_kwargs = {
                 'on_press': self.on_key_press,
@@ -1211,13 +1208,13 @@ class RephrasleyService:
             # Add macOS-specific event filtering to prevent mouse events from being detected as keyboard events
             if MACOS_PERMISSIONS_AVAILABLE:
                 listener_kwargs['darwin_intercept'] = self.darwin_intercept
-                logger.info("🔧 Added darwin_intercept to filter mouse events on macOS")
+                logger.debug("🔧 Added darwin_intercept to filter mouse events on macOS")
             
             self.listener = Listener(**listener_kwargs)
-            logger.info("🔧 Calling listener.start()...")
+            logger.debug("🔧 Calling listener.start()...")
             self.listener.start()
             logger.info("✅ Keyboard listener started successfully")
-            logger.info("🔍 Listener should now capture ALL keystrokes - try pressing any key")
+            logger.debug("🔍 Listener should now capture ALL keystrokes - try pressing any key")
         except Exception as e:
             logger.error(f"❌ Failed to start keyboard listener: {e}")
             import traceback
