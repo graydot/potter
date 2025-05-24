@@ -216,17 +216,14 @@ cp -R "dist/Rephrasely.app" "distribution/"
 cat > "distribution/INSTALLATION.md" << EOF
 # Rephrasely Installation Instructions
 
-## Quick Install
-1. Download \`Rephrasely.app.zip\` from the release
-2. Extract the ZIP file by double-clicking it
-3. Drag \`Rephrasely.app\` to your Applications folder
-4. Right-click the app and select "Open" on first launch
-5. Grant accessibility permissions when prompted
-6. Look for the Rephrasely icon in your menu bar
-
-## Alternative Downloads
-- **Rephrasely.app.zip** (Recommended) - Compressed app bundle
-- **Rephrasely.app.tar.gz** - Alternative compression format
+## Quick Install from DMG
+1. Download \`Rephrasely-$VERSION.dmg\` from the release
+2. Double-click the DMG file to open it
+3. Drag \`Rephrasely.app\` to the Applications folder in the window
+4. Eject the DMG and launch Rephrasely from Applications
+5. Right-click the app and select "Open" on first launch
+6. Grant accessibility permissions when prompted
+7. Look for the Rephrasely icon in your menu bar
 
 ## First Launch
 1. macOS may show a security warning for unsigned apps
@@ -250,30 +247,179 @@ cat > "distribution/INSTALLATION.md" << EOF
 - Internet connection for AI processing
 EOF
 
-# Create ZIP and tar.gz archives
-echo "🗜️  Creating distribution archives..."
-cd distribution
+# Create DMG installer
+echo "💿 Creating DMG installer..."
 
-# Create ZIP
-zip -r "Rephrasely.app.zip" "Rephrasely.app"
-echo "✅ Created Rephrasely.app.zip"
+DMG_NAME="Rephrasely-$VERSION.dmg"
+DMG_TEMP_NAME="temp_$DMG_NAME"
+VOLUME_NAME="Rephrasely $VERSION"
+DMG_DIR="dmg_staging"
 
-# Create tar.gz (preserves permissions better)
-tar -czf "Rephrasely.app.tar.gz" "Rephrasely.app"
-echo "✅ Created Rephrasely.app.tar.gz"
+# Create staging directory
+rm -rf "$DMG_DIR"
+mkdir -p "$DMG_DIR"
+
+# Copy app to staging
+cp -R "Rephrasely.app" "$DMG_DIR/"
+
+# Create Applications symlink
+ln -s /Applications "$DMG_DIR/Applications"
+
+# Create a simple background (we'll use a solid color for simplicity)
+mkdir -p "$DMG_DIR/.background"
+
+# Copy the professional background image if available
+if [[ -f "$PROJECT_ROOT/assets/dmg_background.png" ]]; then
+    cp "$PROJECT_ROOT/assets/dmg_background.png" "$DMG_DIR/.background/background.png"
+    echo "✅ Using professional DMG background"
+else
+    # Fallback: Create background image using built-in tools
+    echo "⚠️  Professional background not found, creating simple background..."
+    cat > "$DMG_DIR/.background/create_bg.py" << 'BGEOF'
+#!/usr/bin/env python3
+from PIL import Image, ImageDraw, ImageFont
+import sys
+
+# Create a 600x400 background image
+width, height = 600, 400
+img = Image.new('RGB', (width, height), color='#f5f5f5')
+draw = ImageDraw.Draw(img)
+
+# Create a subtle gradient
+for y in range(height):
+    alpha = int(255 * (1 - y / height * 0.1))
+    color = (240, 240, 240)
+    draw.line([(0, y), (width, y)], fill=color)
+
+# Add some text
+try:
+    # Try to use a system font
+    font = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 24)
+except:
+    font = ImageFont.load_default()
+
+text = "Drag Rephrasely to Applications to install"
+text_bbox = draw.textbbox((0, 0), text, font=font)
+text_width = text_bbox[2] - text_bbox[0]
+text_x = (width - text_width) // 2
+text_y = height - 60
+
+draw.text((text_x, text_y), text, fill='#666666', font=font)
+
+# Add an arrow
+arrow_start_x = 180
+arrow_start_y = 200
+arrow_end_x = 420
+arrow_end_y = 200
+
+# Draw arrow line
+draw.line([(arrow_start_x, arrow_start_y), (arrow_end_x, arrow_end_y)], fill='#999999', width=3)
+
+# Draw arrowhead
+arrow_size = 15
+draw.polygon([
+    (arrow_end_x, arrow_end_y),
+    (arrow_end_x - arrow_size, arrow_end_y - arrow_size//2),
+    (arrow_end_x - arrow_size, arrow_end_y + arrow_size//2)
+], fill='#999999')
+
+img.save('background.png')
+BGEOF
+
+    # Create background using Python (if available) or skip
+    cd "$DMG_DIR/.background"
+    if command -v python3 &> /dev/null && python3 -c "import PIL" 2>/dev/null; then
+        python3 create_bg.py
+        echo "✅ Created fallback background image"
+    else
+        # Create a simple solid color background
+        echo "⚠️  PIL not available, using minimal background"
+        # Create a minimal 600x400 gray background using sips (built into macOS)
+        sips -c 600 400 -s format png --out background.png /System/Library/CoreServices/DefaultDesktop.heic 2>/dev/null || \
+        echo "Creating minimal background..." > background.txt && mv background.txt background.png
+    fi
+    rm -f create_bg.py
+    cd "$PROJECT_ROOT/distribution"
+fi
+
+# Calculate the size needed for the DMG
+APP_SIZE_MB=$(du -sm "$DMG_DIR" | cut -f1)
+DMG_SIZE_MB=$((APP_SIZE_MB + 50))  # Add 50MB padding
+
+echo "📏 DMG size: ${DMG_SIZE_MB}MB"
+
+# Create the DMG
+hdiutil create -srcfolder "$DMG_DIR" \
+               -volname "$VOLUME_NAME" \
+               -fs HFS+ \
+               -fsargs "-c c=64,a=16,e=16" \
+               -format UDRW \
+               -size ${DMG_SIZE_MB}m \
+               "$DMG_TEMP_NAME"
+
+# Mount the DMG for customization
+echo "🔧 Customizing DMG layout..."
+DMG_DEVICE=$(hdiutil attach -readwrite -noverify -noautoopen "$DMG_TEMP_NAME" | grep '^/dev/' | sed 1q | awk '{print $1}')
+MOUNT_POINT="/Volumes/$VOLUME_NAME"
+
+# Wait for mount
+sleep 2
+
+# Set up the DMG window appearance using AppleScript
+osascript << APPLESCRIPT
+tell application "Finder"
+    tell disk "$VOLUME_NAME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {100, 100, 700, 500}
+        set theViewOptions to the icon view options of container window
+        set arrangement of theViewOptions to not arranged
+        set icon size of theViewOptions to 128
+        
+        -- Position the app icon
+        set position of item "Rephrasely.app" of container window to {150, 200}
+        
+        -- Position the Applications symlink
+        set position of item "Applications" of container window to {450, 200}
+        
+        -- Set background if available
+        try
+            set background picture of theViewOptions to file ".background:background.png"
+        end try
+        
+        -- Update and close
+        update without registering applications
+        delay 2
+        close
+    end tell
+end tell
+APPLESCRIPT
+
+# Unmount the DMG
+hdiutil detach "$DMG_DEVICE"
+
+# Convert to read-only compressed DMG
+echo "🗜️  Compressing DMG..."
+hdiutil convert "$DMG_TEMP_NAME" -format UDZO -imagekey zlib-level=9 -o "$DMG_NAME"
+
+# Clean up
+rm -f "$DMG_TEMP_NAME"
+rm -rf "$DMG_DIR"
+
+echo "✅ Created $DMG_NAME"
 
 cd "$PROJECT_ROOT"
 
 # Calculate file sizes
 APP_SIZE=$(du -sh "distribution/Rephrasely.app" | cut -f1)
-ZIP_SIZE=$(du -sh "distribution/Rephrasely.app.zip" | cut -f1)
-TAR_SIZE=$(du -sh "distribution/Rephrasely.app.tar.gz" | cut -f1)
+DMG_SIZE=$(du -sh "distribution/$DMG_NAME" | cut -f1)
 
 echo ""
 echo "📦 Distribution files ready:"
 echo "   • App bundle: $APP_SIZE"
-echo "   • ZIP archive: $ZIP_SIZE"
-echo "   • TAR archive: $TAR_SIZE"
+echo "   • DMG installer: $DMG_SIZE"
 
 # Generate release notes
 RELEASE_NOTES_FILE="release_notes_temp.md"
@@ -290,10 +436,12 @@ AI-powered text processing for macOS with global hotkey support.
 - **OpenAI Integration**: Uses GPT models for text processing
 
 ## 📦 Installation
-1. Download \`Rephrasely.app.zip\`
-2. Extract and drag to Applications folder
-3. Right-click and "Open" on first launch
-4. Configure OpenAI API key in settings
+1. Download \`Rephrasely-$VERSION.dmg\`
+2. Double-click the DMG file to open it
+3. Drag \`Rephrasely.app\` to the Applications folder in the window
+4. Eject the DMG and launch Rephrasely from Applications
+5. Right-click the app and select "Open" on first launch
+6. Configure OpenAI API key in settings
 
 ## 🔧 Requirements
 - macOS 10.14+
@@ -305,13 +453,12 @@ AI-powered text processing for macOS with global hotkey support.
 - **Build Date**: $BUILD_DATE
 - **Commit**: $COMMIT_HASH
 - **App Size**: $APP_SIZE
-- **ZIP Size**: $ZIP_SIZE
+- **DMG Size**: $DMG_SIZE
 
 ## 📥 Download Options
-- **Rephrasely.app.zip** (Recommended) - Standard ZIP archive
-- **Rephrasely.app.tar.gz** - Alternative compression format
+- **Rephrasely-$VERSION.dmg** (Recommended) - Standard DMG installer
 
-Choose the ZIP file for easiest installation on most systems.
+Choose the DMG installer for easiest installation on most systems.
 EOF
 
 # Ask for additional release notes
@@ -339,8 +486,7 @@ echo ""
 echo "🚀 Creating GitHub release..."
 
 gh release create "$VERSION" \
-    "distribution/Rephrasely.app.zip" \
-    "distribution/Rephrasely.app.tar.gz" \
+    "distribution/$DMG_NAME" \
     "distribution/INSTALLATION.md" \
     --title "Rephrasely $VERSION" \
     --notes-file "$RELEASE_NOTES_FILE" \
@@ -352,8 +498,7 @@ if [[ $? -eq 0 ]]; then
     echo "🔗 Release URL: https://github.com/$(gh repo view --json owner,name -q '.owner.login + "/" + .name')/releases/tag/$VERSION"
     echo ""
     echo "📤 Files uploaded:"
-    echo "   • Rephrasely.app.zip ($ZIP_SIZE)"
-    echo "   • Rephrasely.app.tar.gz ($TAR_SIZE)"
+    echo "   • Rephrasely-$VERSION.dmg"
     echo "   • INSTALLATION.md"
     echo ""
     echo "🎉 Users can now download Rephrasely $VERSION from GitHub Releases!"

@@ -48,17 +48,18 @@ Potter - A powerful text rephrasing tool for macOS.
 - **📱 System Tray**: Easy mode switching via menu bar icon
 - **⚙️ Highly Customizable**: Edit prompts, hotkeys, and AI parameters
 
-## 🛠 Installation
+## 📦 Installation
 
-### 📦 **Download Pre-built App (Recommended)**
-Ready-to-use macOS app available from our [Releases page](https://github.com/yourusername/rephrasely/releases):
+### Option 1: Download from GitHub Releases (Recommended)
+1. Visit the [Releases page](https://github.com/yourusername/rephrasely/releases)
+2. Download the latest `Rephrasely-X.X.X.dmg` file
+3. Double-click the DMG file to open it
+4. Drag `Rephrasely.app` to the Applications folder in the window
+5. Eject the DMG and launch Rephrasely from Applications
+6. Right-click the app and select "Open" on first launch (security requirement)
+7. Configure your OpenAI API key in the app settings
 
-1. **Download** `Rephrasely.app.zip` from the latest release
-2. **Extract** and move `Rephrasely.app` to `/Applications`  
-3. **Double-click** to launch (grant permissions when prompted)
-4. **Add your API key** in preferences
-
-### 🔨 **Build from Source**
+### Option 2: Build from Source
 For development or customization:
 
 1. **Download or clone** this repository

@@ -1,4 +1,4 @@
-# Rephrasely v0.0.1
+# Rephrasely v1.0.0
 
 AI-powered text processing for macOS with global hotkey support.
 
@@ -21,11 +21,11 @@ AI-powered text processing for macOS with global hotkey support.
 - Internet connection
 
 ## 📋 Build Info
-- **Version**: v0.0.1
-- **Build Date**: 2025-05-23 15:17:24
-- **Commit**: 3cbdfb1
+- **Version**: v1.0.0
+- **Build Date**: 2025-05-23 18:04:44
+- **Commit**: e91dbd5
 - **App Size**:  42M
-- **ZIP Size**:  51M
+- **ZIP Size**:  52M
 
 ## 📥 Download Options
 - **Rephrasely.app.zip** (Recommended) - Standard ZIP archive
