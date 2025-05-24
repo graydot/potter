@@ -945,17 +945,28 @@ class RephrasleyService:
         # Try to show native notification if settings allow it
         if self.settings_manager and self.settings_manager.get("show_notifications", True):
             if hasattr(self.settings_manager, 'show_notification'):
-                self.settings_manager.show_notification(title, message, is_error)
+                try:
+                    self.settings_manager.show_notification(title, message, is_error)
+                except Exception as e:
+                    logger.debug(f"NSUserNotification failed: {e}")
         
-        # Also try to show macOS notification as fallback
+        # Always try to show macOS notification as primary method
         try:
-            # Simple macOS notification using osascript
-            script = f'''
-            display notification "{message}" with title "{title}"
-            '''
-            subprocess.run(['osascript', '-e', script], check=False, capture_output=True)
+            # Escape quotes in message and title for shell safety
+            safe_title = title.replace('"', '\\"').replace("'", "\\'")
+            safe_message = message.replace('"', '\\"').replace("'", "\\'")
+            
+            # Simple macOS notification using osascript - don't capture output to let it show
+            script = f'display notification "{safe_message}" with title "{safe_title}"'
+            subprocess.run(['osascript', '-e', script], check=False)
         except Exception as e:
-            logger.debug(f"Could not show native notification: {e}")
+            logger.debug(f"Could not show osascript notification: {e}")
+            # Final fallback - try a simple alert
+            try:
+                script = f'display alert "{safe_title}" message "{safe_message}"'
+                subprocess.run(['osascript', '-e', script], check=False)
+            except Exception as e2:
+                logger.debug(f"Could not show alert either: {e2}")
     
     def set_processing_state(self, processing):
         """Set processing state and update icon"""
