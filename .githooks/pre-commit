@@ -1,19 +1,13 @@
 #!/bin/bash
 
 # Rephrasely Pre-commit Hook
-# Automatically creates GitHub releases when committing to main branch
+# Basic validation and checks before commit
 
 echo "🔍 Rephrasely Pre-commit Hook"
 
 # Get the current branch
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 echo "📍 Current branch: $BRANCH"
-
-# Only process main/master branch
-if [[ "$BRANCH" != "main" && "$BRANCH" != "master" ]]; then
-    echo "⏭️  Skipping release check - not on main/master branch"
-    exit 0
-fi
 
 # Check if any significant files changed
 PYTHON_FILES_CHANGED=$(git diff --cached --name-only | grep -E '\.(py)$' | wc -l)
@@ -22,87 +16,38 @@ RELEASE_FILES_CHANGED=$(git diff --cached --name-only | grep -E '(README\.md|CHA
 
 TOTAL_CHANGES=$((PYTHON_FILES_CHANGED + CONFIG_FILES_CHANGED + RELEASE_FILES_CHANGED))
 
-if [[ $TOTAL_CHANGES -eq 0 ]]; then
-    echo "⏭️  Skipping release check - no significant files changed"
-    exit 0
-fi
-
 echo "📋 Files changed: $PYTHON_FILES_CHANGED Python, $CONFIG_FILES_CHANGED config, $RELEASE_FILES_CHANGED docs"
 
-# Check if GitHub CLI is available
-if ! command -v gh &> /dev/null; then
-    echo "⚠️  GitHub CLI not found - skipping automatic release"
-    echo "   Install with: brew install gh"
-    echo "   Or manually create releases using: scripts/create_github_release.sh"
-    exit 0
-fi
-
-# Check if authenticated
-if ! gh auth status &> /dev/null; then
-    echo "⚠️  Not authenticated with GitHub CLI - skipping automatic release"
-    echo "   Run: gh auth login"
-    echo "   Or manually create releases using: scripts/create_github_release.sh"
-    exit 0
-fi
-
-# Get project root
-PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-cd "$PROJECT_ROOT"
-
-# Check if this commit should trigger a release
-COMMIT_MSG=$(git log --format=%B -n 1 HEAD 2>/dev/null || echo "")
-SHOULD_RELEASE=false
-
-# Check commit message for release indicators
-if echo "$COMMIT_MSG" | grep -qE "(release|version|v[0-9]+\.[0-9]+)" -i; then
-    SHOULD_RELEASE=true
-    echo "🏷️  Release indicators found in commit message"
-elif [[ $PYTHON_FILES_CHANGED -gt 0 ]]; then
-    # Ask user if they want to create a release for Python changes
-    echo "🤔 Python files changed. Create a GitHub release? (y/N)"
-    echo "   This will build the app and upload to GitHub Releases"
-    read -p "Create release? " -t 10 CREATE_RELEASE
+# Basic syntax check for Python files if any were changed
+if [[ $PYTHON_FILES_CHANGED -gt 0 ]]; then
+    echo "🐍 Checking Python syntax..."
     
-    if [[ "$CREATE_RELEASE" =~ ^[Yy]$ ]]; then
-        SHOULD_RELEASE=true
-    else
-        echo "⏭️  Skipping release creation"
-    fi
-fi
-
-if [[ "$SHOULD_RELEASE" == "true" ]]; then
-    echo "🚀 Creating GitHub release..."
+    # Get list of changed Python files
+    CHANGED_PY_FILES=$(git diff --cached --name-only | grep -E '\.(py)$')
     
-    # Run the GitHub release creation script
-    if [[ -x "scripts/create_github_release.sh" ]]; then
-        echo "📦 Running GitHub release script..."
-        
-        # Run the script in a way that preserves user interaction
-        if scripts/create_github_release.sh; then
-            echo "✅ GitHub release created successfully"
-            echo "🔗 Check GitHub Releases page for the new release"
-        else
-            echo "❌ GitHub release creation failed"
-            echo "⚠️  You can manually create a release later with:"
-            echo "   scripts/create_github_release.sh"
-            echo ""
-            echo "Do you want to continue with the commit anyway? (y/N)"
-            read -p "Continue? " CONTINUE_COMMIT
-            
-            if [[ ! "$CONTINUE_COMMIT" =~ ^[Yy]$ ]]; then
-                echo "❌ Commit aborted"
-                exit 1
+    # Check syntax for each file
+    SYNTAX_ERRORS=0
+    for file in $CHANGED_PY_FILES; do
+        if [[ -f "$file" ]]; then
+            if ! python -m py_compile "$file" 2>/dev/null; then
+                echo "❌ Syntax error in: $file"
+                SYNTAX_ERRORS=$((SYNTAX_ERRORS + 1))
             fi
         fi
+    done
+    
+    if [[ $SYNTAX_ERRORS -gt 0 ]]; then
+        echo "❌ Found $SYNTAX_ERRORS Python syntax error(s). Please fix before committing."
+        exit 1
     else
-        echo "❌ GitHub release script not found or not executable"
-        echo "   Expected: scripts/create_github_release.sh"
-        echo "   Continuing with commit..."
+        echo "✅ Python syntax check passed"
     fi
-else
-    echo "⏭️  No release needed for this commit"
-    echo "💡 To manually create a release later, run:"
-    echo "   scripts/create_github_release.sh"
+fi
+
+# Remind about manual releases for main/master branch
+if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]] && [[ $TOTAL_CHANGES -gt 0 ]]; then
+    echo "💡 Remember to create a release manually when ready:"
+    echo "   scripts/manual_release.sh"
 fi
 
 echo "✨ Pre-commit hook completed successfully"
