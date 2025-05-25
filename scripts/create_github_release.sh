@@ -8,6 +8,16 @@ set -e  # Exit on any error
 echo "🚀 Creating GitHub Release for Potter"
 echo "===================================="
 
+# Load signing configuration
+if [[ -f "$HOME/.potter_signing.env" ]]; then
+    echo "🔐 Loading signing configuration..."
+    source "$HOME/.potter_signing.env"
+    echo "✅ Signing configuration loaded"
+else
+    echo "⚠️  No signing configuration found at $HOME/.potter_signing.env"
+    echo "   Will proceed with adhoc signing"
+fi
+
 # Check if GitHub CLI is installed
 if ! command -v gh &> /dev/null; then
     echo "❌ GitHub CLI (gh) is not installed"
@@ -162,75 +172,16 @@ cat > build_info.json << EOF
 }
 EOF
 
-# Build the app with PyInstaller
-echo "🔨 Building app with PyInstaller..."
+# Build the app using the proper build script
+echo "🔨 Building Potter app with proper signing..."
 
-# Check if icon exists, use it if available
-ICON_PARAM=""
-if [[ -f "assets/icon.icns" ]]; then
-    ICON_PARAM="--icon=assets/icon.icns"
-    echo "📱 Using app icon: assets/icon.icns"
+# Use the Python build script which handles signing correctly
+if python scripts/build_app.py --target github; then
+    echo "✅ App built and signed successfully"
 else
-    echo "⚠️  No icon file found, building without custom icon"
-fi
-
-python -m PyInstaller \
-    --name="Potter" \
-    --windowed \
-    --onedir \
-    --distpath=dist/app \
-    --workpath=build \
-    $ICON_PARAM \
-    --add-data="build_info.json:." \
-    --hidden-import="objc" \
-    --hidden-import="Foundation" \
-    --hidden-import="AppKit" \
-    --hidden-import="UserNotifications" \
-    --hidden-import="ApplicationServices" \
-    --hidden-import="Quartz" \
-    --clean \
-    src/potter.py
-
-# Verify the app was built
-if [[ ! -d "dist/app/Potter.app" ]]; then
-    echo "❌ Build failed: App not found in dist/app/"
+    echo "❌ Build failed"
     exit 1
 fi
-
-echo "✅ App built successfully"
-
-# Fix app bundle configuration
-echo "🔧 Configuring app bundle..."
-
-# Update Info.plist with proper settings
-/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "dist/app/Potter.app/Contents/Info.plist"
-
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "dist/app/Potter.app/Contents/Info.plist"
-
-/usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :LSUIElement true" "dist/app/Potter.app/Contents/Info.plist"
-
-/usr/libexec/PlistBuddy -c "Add :LSBackgroundOnly bool false" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :LSBackgroundOnly false" "dist/app/Potter.app/Contents/Info.plist"
-
-# Add usage descriptions
-/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Potter.app/Contents/Info.plist"
-
-/usr/libexec/PlistBuddy -c "Add :NSSystemAdministrationUsageDescription string 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :NSSystemAdministrationUsageDescription 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Potter.app/Contents/Info.plist"
-
-# Set executable permissions
-chmod +x "dist/app/Potter.app/Contents/MacOS/Potter"
-
-echo "✅ App bundle configured"
-
-# Code signing
-echo "🔐 Code signing..."
-codesign --force --deep --sign - "dist/app/Potter.app"
-echo "✅ App signed with adhoc signature"
 
 # Create installation instructions in dist/archives
 echo "📁 Preparing distribution files..."
