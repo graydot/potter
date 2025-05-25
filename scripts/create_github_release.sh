@@ -90,13 +90,10 @@ if [[ "$VERSION" == *"-"* ]] || [[ "$VERSION" == "v1.0.0-dev" ]]; then
     echo "🏷️  Creating tag: $VERSION"
     git tag -a "$VERSION" -m "Release $VERSION"
     
-    # Ask if user wants to push the tag
-    echo "📤 Do you want to push the tag to remote? (y/N)"
-    read -p "Push tag? " PUSH_TAG
-    if [[ "$PUSH_TAG" =~ ^[Yy]$ ]]; then
-        git push origin "$VERSION"
-        echo "✅ Tag pushed to remote"
-    fi
+
+    git push origin "$VERSION"
+    echo "✅ Tag pushed to remote"
+
 fi
 
 echo "🏷️  Version: $VERSION"
@@ -185,6 +182,7 @@ fi
 
 # Create installation instructions in dist/archives
 echo "📁 Preparing distribution files..."
+mkdir -p dist/archives
 cat > "dist/archives/INSTALLATION.md" << EOF
 # Potter Installation Instructions
 
