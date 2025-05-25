@@ -399,6 +399,11 @@ cat > "$RELEASE_NOTES_FILE" << EOF
 
 AI-powered text processing for macOS with global hotkey support.
 
+## 📥 Download Options
+- **Potter-$VERSION.dmg** (Recommended) - Standard DMG installer
+
+Choose the DMG installer for easiest installation on most systems.
+
 ## 🎯 Features
 - **Global Hotkey**: Cmd+Shift+R to process selected text
 - **AI Modes**: Rephrase, Summarize, Expand, Casual, Formal
@@ -425,11 +430,6 @@ AI-powered text processing for macOS with global hotkey support.
 - **Commit**: $COMMIT_HASH
 - **App Size**: $APP_SIZE
 - **DMG Size**: $DMG_SIZE
-
-## 📥 Download Options
-- **Potter-$VERSION.dmg** (Recommended) - Standard DMG installer
-
-Choose the DMG installer for easiest installation on most systems.
 EOF
 
 # Ask for additional release notes

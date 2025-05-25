@@ -35,28 +35,23 @@ class SettingsManager:
             "prompts": [
                 {
                     "name": "rephrase",
-                    "text": "Please rephrase the following text to make it clearer and more professional:",
-                    "output_format": "text"
+                    "text": "Please rephrase the following text to make it clearer and more professional:"
                 },
                 {
                     "name": "summarize", 
-                    "text": "Please provide a concise summary of the following text:",
-                    "output_format": "text"
+                    "text": "Please provide a concise summary of the following text:"
                 },
                 {
                     "name": "expand",
-                    "text": "Please expand on the following text with more detail and examples:",
-                    "output_format": "text"
+                    "text": "Please expand on the following text with more detail and examples:"
                 },
                 {
                     "name": "casual",
-                    "text": "Please rewrite the following text in a more casual, friendly tone:",
-                    "output_format": "text"
+                    "text": "Please rewrite the following text in a more casual, friendly tone:"
                 },
                 {
                     "name": "formal",
-                    "text": "Please rewrite the following text in a more formal, professional tone:",
-                    "output_format": "text"
+                    "text": "Please rewrite the following text in a more formal, professional tone:"
                 }
             ],
             "hotkey": "cmd+shift+r",
@@ -88,8 +83,7 @@ class SettingsManager:
                             for name, text in old_prompts.items():
                                 new_prompts.append({
                                     "name": name,
-                                    "text": text,
-                                    "output_format": "text"
+                                    "text": text
                                 })
                             
                             settings["prompts"] = new_prompts
@@ -408,7 +402,7 @@ class PromptDialog(NSWindowController):
         if self is None:
             return None
         
-        self.prompt = prompt or {"name": "", "text": "", "output_format": "text"}
+        self.prompt = prompt or {"name": "", "text": ""}
         self.is_edit = is_edit
         self.result = None
         self.callback = None
@@ -475,19 +469,7 @@ class PromptDialog(NSWindowController):
         scroll_view.setDocumentView_(self.prompt_text_view)
         content_view.addSubview_(scroll_view)
         
-        # Output format dropdown
-        format_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 60, 100, 20))
-        format_label.setStringValue_("Output Format:")
-        format_label.setBezeled_(False)
-        format_label.setDrawsBackground_(False)
-        format_label.setEditable_(False)
-        content_view.addSubview_(format_label)
-        
-        self.format_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(130, 60, 150, 25))
-        self.format_popup.addItemsWithTitles_(["text", "images", "pdf"])
-        current_format = self.prompt.get("output_format", "text")
-        self.format_popup.selectItemWithTitle_(current_format)
-        content_view.addSubview_(self.format_popup)
+
         
         # Buttons
         cancel_btn = NSButton.alloc().initWithFrame_(NSMakeRect(320, 20, 80, 30))
@@ -534,42 +516,62 @@ class PromptDialog(NSWindowController):
     
     def save_(self, sender):
         """Save the prompt"""
-        name = str(self.name_field.stringValue()).strip()
-        text = str(self.prompt_text_view.string()).strip()
-        output_format = str(self.format_popup.titleOfSelectedItem())
-        
-        # Validation
-        if not name:
-            self.showAlertWithTitle_message_("Name Required", "Please enter a name for this prompt.")
-            return
-        
-        if len(name) > 10:
-            self.showAlertWithTitle_message_("Name Too Long", "Name must be 10 characters or less.")
-            return
-        
-        if not text:
-            self.showAlertWithTitle_message_("Prompt Required", "Please enter the prompt text.")
-            return
-        
-        # Create result
-        self.result = {
-            "name": name,
-            "text": text,
-            "output_format": output_format
-        }
-        
-        # Call callback if set
-        if self.callback:
-            self.callback(self.result)
-        
-        self.window().close()
+        try:
+            name = str(self.name_field.stringValue()).strip()
+            text = str(self.prompt_text_view.string()).strip()
+            
+            # Validation
+            if not name:
+                self.showAlertWithTitle_message_("Name Required", "Please enter a name for this prompt.")
+                return
+            
+            if len(name) > 10:
+                self.showAlertWithTitle_message_("Name Too Long", "Name must be 10 characters or less.")
+                return
+            
+            if not text:
+                self.showAlertWithTitle_message_("Prompt Required", "Please enter the prompt text.")
+                return
+            
+            # Create result
+            self.result = {
+                "name": name,
+                "text": text
+            }
+            
+            # Call callback if set, but ensure window closes even if callback fails
+            if self.callback:
+                try:
+                    self.callback(self.result)
+                except Exception as e:
+                    print(f"Debug - Callback error in save: {e}")
+            
+        except Exception as e:
+            print(f"Debug - Error in save_: {e}")
+        finally:
+            # Always close the window
+            try:
+                self.window().close()
+            except Exception as e:
+                print(f"Debug - Error closing window in save: {e}")
     
     def cancel_(self, sender):
         """Cancel the dialog"""
-        self.result = None
-        if self.callback:
-            self.callback(None)
-        self.window().close()
+        try:
+            self.result = None
+            if self.callback:
+                try:
+                    self.callback(None)
+                except Exception as e:
+                    print(f"Debug - Callback error in cancel: {e}")
+        except Exception as e:
+            print(f"Debug - Error in cancel_: {e}")
+        finally:
+            # Always close the window
+            try:
+                self.window().close()
+            except Exception as e:
+                print(f"Debug - Error closing window in cancel: {e}")
     
     def showAlertWithTitle_message_(self, title, message):
         """Show an alert dialog"""
@@ -653,8 +655,17 @@ class SettingsWindow(NSWindowController):
         self.advanced_btn.setBezelStyle_(NSBezelStyleRounded)
         content_view.addSubview_(self.advanced_btn)
         
+        self.logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(350, 550, 100, 30))
+        self.logs_btn.setTitle_("Logs")
+        self.logs_btn.setTag_(3)
+        self.logs_btn.setTarget_(self)
+        self.logs_btn.setAction_("switchSection:")
+        self.logs_btn.setButtonType_(NSButtonTypePushOnPushOff)
+        self.logs_btn.setBezelStyle_(NSBezelStyleRounded)
+        content_view.addSubview_(self.logs_btn)
+        
         # Store buttons for easy access
-        self.section_buttons = [self.general_btn, self.prompts_btn, self.advanced_btn]
+        self.section_buttons = [self.general_btn, self.prompts_btn, self.advanced_btn, self.logs_btn]
         
         # Content area
         self.content_container = NSView.alloc().initWithFrame_(NSMakeRect(20, 80, 660, 460))
@@ -664,7 +675,8 @@ class SettingsWindow(NSWindowController):
         self.content_views = [
             self.createGeneralView(),
             self.createPromptsView(),
-            self.createAdvancedView()
+            self.createAdvancedView(),
+            self.createLogsView()
         ]
         
         # Show general view initially and set button states
@@ -871,13 +883,44 @@ class SettingsWindow(NSWindowController):
         self.accessibility_btn.setFont_(NSFont.systemFontOfSize_(11))
         view.addSubview_(self.accessibility_btn)
         
+        # Notification permission status
+        self.notification_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 100, 480, 20))
+        notification_text, notification_color = self.get_notification_status()
+        self.notification_status.setStringValue_(notification_text)
+        self.notification_status.setBezeled_(False)
+        self.notification_status.setDrawsBackground_(False)
+        self.notification_status.setEditable_(False)
+        self.notification_status.setTextColor_(notification_color)
+        view.addSubview_(self.notification_status)
+        
+        # Notification permission button
+        self.notification_btn = NSButton.alloc().initWithFrame_(NSMakeRect(530, 100, 120, 20))
+        if "❌" in notification_text:
+            self.notification_btn.setTitle_("Open Settings")
+            self.notification_btn.setTarget_(self)
+            self.notification_btn.setAction_("openNotificationSettings:")
+        else:
+            self.notification_btn.setTitle_("✅ Working")
+            self.notification_btn.setEnabled_(False)
+        self.notification_btn.setBezelStyle_(NSBezelStyleRounded)
+        self.notification_btn.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.notification_btn)
+        
         # General refresh permissions button
-        self.refresh_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(40, 100, 120, 25))
+        self.refresh_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(40, 75, 120, 25))
         self.refresh_permissions_btn.setTitle_("Refresh Status")
         self.refresh_permissions_btn.setTarget_(self)
         self.refresh_permissions_btn.setAction_("refreshPermissions:")
         self.refresh_permissions_btn.setBezelStyle_(NSBezelStyleRounded)
         view.addSubview_(self.refresh_permissions_btn)
+        
+        # Reset permissions button
+        self.reset_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(170, 75, 140, 25))
+        self.reset_permissions_btn.setTitle_("Reset Permissions")
+        self.reset_permissions_btn.setTarget_(self)
+        self.reset_permissions_btn.setAction_("resetPermissions:")
+        self.reset_permissions_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(self.reset_permissions_btn)
         
         # Update UI - this will set initial reset button visibility and check conflicts
         self.updateResetButton()
@@ -933,19 +976,10 @@ class SettingsWindow(NSWindowController):
         # Prompt text column
         text_column = NSTableColumn.alloc().initWithIdentifier_("text")
         text_column.headerCell().setStringValue_("Prompt Text")
-        text_column.setWidth_(380)
-        text_column.setMinWidth_(200)
+        text_column.setWidth_(480)
+        text_column.setMinWidth_(300)
         text_column.setEditable_(True)
         self.prompts_table.addTableColumn_(text_column)
-        
-        # Output format column
-        format_column = NSTableColumn.alloc().initWithIdentifier_("format")
-        format_column.headerCell().setStringValue_("Format")
-        format_column.setWidth_(100)
-        format_column.setMinWidth_(80)
-        format_column.setMaxWidth_(120)
-        format_column.setEditable_(True)
-        self.prompts_table.addTableColumn_(format_column)
         
         # Get prompts and ensure correct format
         prompts = self.settings_manager.get("prompts", [])
@@ -1043,6 +1077,278 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(self.temp_field)
         
         return view
+    
+    def createLogsView(self):
+        """Create Logs view with real-time log monitoring"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
+        
+        # Title
+        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
+        title.setStringValue_("Application Logs")
+        title.setFont_(NSFont.boldSystemFontOfSize_(18))
+        title.setBezeled_(False)
+        title.setDrawsBackground_(False)
+        title.setEditable_(False)
+        title.setAlignment_(NSTextAlignmentCenter)
+        view.addSubview_(title)
+        
+        # Controls row
+        controls_y = 380
+        
+        # Auto-scroll checkbox
+        self.auto_scroll_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, controls_y, 120, 25))
+        self.auto_scroll_checkbox.setButtonType_(NSButtonTypeSwitch)
+        self.auto_scroll_checkbox.setTitle_("Auto-scroll")
+        self.auto_scroll_checkbox.setState_(1)  # Default to enabled
+        view.addSubview_(self.auto_scroll_checkbox)
+        
+        # Refresh logs button
+        refresh_logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(150, controls_y, 100, 25))
+        refresh_logs_btn.setTitle_("Refresh")
+        refresh_logs_btn.setTarget_(self)
+        refresh_logs_btn.setAction_("refreshLogs:")
+        refresh_logs_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(refresh_logs_btn)
+        
+        # Clear logs button
+        clear_logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(260, controls_y, 100, 25))
+        clear_logs_btn.setTitle_("Clear View")
+        clear_logs_btn.setTarget_(self)
+        clear_logs_btn.setAction_("clearLogsView:")
+        clear_logs_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(clear_logs_btn)
+        
+        # Open log file button
+        open_log_btn = NSButton.alloc().initWithFrame_(NSMakeRect(370, controls_y, 120, 25))
+        open_log_btn.setTitle_("Open Log File")
+        open_log_btn.setTarget_(self)
+        open_log_btn.setAction_("openLogFile:")
+        open_log_btn.setBezelStyle_(NSBezelStyleRounded)
+        view.addSubview_(open_log_btn)
+        
+        # Log level filter
+        level_label = NSTextField.alloc().initWithFrame_(NSMakeRect(500, controls_y, 60, 25))
+        level_label.setStringValue_("Filter:")
+        level_label.setBezeled_(False)
+        level_label.setDrawsBackground_(False)
+        level_label.setEditable_(False)
+        level_label.setAlignment_(NSTextAlignmentRight)
+        view.addSubview_(level_label)
+        
+        self.log_level_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(570, controls_y, 80, 25))
+        self.log_level_popup.addItemsWithTitles_(["All", "ERROR", "WARNING", "INFO", "DEBUG"])
+        self.log_level_popup.selectItemWithTitle_("All")
+        self.log_level_popup.setTarget_(self)
+        self.log_level_popup.setAction_("filterLogs:")
+        view.addSubview_(self.log_level_popup)
+        
+        # Status label
+        self.log_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 350, 620, 20))
+        self.log_status_label.setStringValue_("Loading logs...")
+        self.log_status_label.setBezeled_(False)
+        self.log_status_label.setDrawsBackground_(False)
+        self.log_status_label.setEditable_(False)
+        self.log_status_label.setFont_(NSFont.systemFontOfSize_(11))
+        self.log_status_label.setTextColor_(NSColor.secondaryLabelColor())
+        view.addSubview_(self.log_status_label)
+        
+        # Create scroll view for logs
+        scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, 20, 620, 320))
+        scroll_view.setHasVerticalScroller_(True)
+        scroll_view.setHasHorizontalScroller_(True)
+        scroll_view.setBorderType_(NSBezelBorder)
+        scroll_view.setAutohidesScrollers_(False)
+        
+        # Create text view for logs
+        self.logs_text_view = NSTextView.alloc().initWithFrame_(scroll_view.contentView().bounds())
+        self.logs_text_view.setEditable_(False)
+        self.logs_text_view.setSelectable_(True)
+        self.logs_text_view.setFont_(NSFont.fontWithName_size_("Monaco", 11))  # Monospace font
+        self.logs_text_view.setString_("Loading logs...")
+        self.logs_text_view.setTextContainerInset_(NSMakeSize(5, 5))
+        
+        # Enable word wrapping
+        self.logs_text_view.textContainer().setWidthTracksTextView_(True)
+        self.logs_text_view.textContainer().setContainerSize_(NSMakeSize(scroll_view.contentSize().width, 1e7))
+        
+        scroll_view.setDocumentView_(self.logs_text_view)
+        view.addSubview_(scroll_view)
+        
+        # Initialize log monitoring
+        self.log_timer = None
+        self.last_log_size = 0
+        self.full_log_content = ""
+        
+        # Load initial logs
+        self.loadLogs()
+        
+        # Start monitoring timer (check every 2 seconds)
+        self.startLogMonitoring()
+        
+        return view
+    
+    def getLogFilePath(self):
+        """Get the path to the log file"""
+        import sys
+        if getattr(sys, 'frozen', False):
+            # Running as PyInstaller bundle
+            return os.path.expanduser('~/Library/Logs/rephrasely.log')
+        else:
+            # Running as script
+            return 'rephrasely.log'
+    
+    def loadLogs(self):
+        """Load logs from file"""
+        try:
+            log_file_path = self.getLogFilePath()
+            
+            if not os.path.exists(log_file_path):
+                self.logs_text_view.setString_("Log file not found at: " + log_file_path)
+                self.log_status_label.setStringValue_("Log file not found")
+                return
+            
+            # Get file size to track changes
+            file_size = os.path.getsize(log_file_path)
+            
+            # Read the file
+            with open(log_file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            
+            self.full_log_content = content
+            self.last_log_size = file_size
+            
+            # Apply current filter
+            self.filterLogsContent()
+            
+            # Update status
+            line_count = len(content.splitlines()) if content else 0
+            self.log_status_label.setStringValue_(f"Loaded {line_count} log entries from {log_file_path}")
+            
+            # Auto-scroll to bottom if enabled
+            if hasattr(self, 'auto_scroll_checkbox') and self.auto_scroll_checkbox.state():
+                self.scrollToBottom()
+                
+        except Exception as e:
+            error_msg = f"Error loading logs: {str(e)}"
+            self.logs_text_view.setString_(error_msg)
+            self.log_status_label.setStringValue_(error_msg)
+    
+    def filterLogsContent(self):
+        """Filter log content based on selected level"""
+        if not hasattr(self, 'log_level_popup'):
+            return
+        
+        selected_level = str(self.log_level_popup.titleOfSelectedItem())
+        
+        if selected_level == "All":
+            filtered_content = self.full_log_content
+        else:
+            # Filter lines containing the selected level
+            lines = self.full_log_content.splitlines()
+            filtered_lines = [line for line in lines if selected_level in line]
+            filtered_content = '\n'.join(filtered_lines)
+        
+        self.logs_text_view.setString_(filtered_content)
+        
+        # Auto-scroll to bottom if enabled
+        if hasattr(self, 'auto_scroll_checkbox') and self.auto_scroll_checkbox.state():
+            self.scrollToBottom()
+    
+    def scrollToBottom(self):
+        """Scroll the log view to the bottom"""
+        try:
+            # Get the text view's content
+            text_length = len(self.logs_text_view.string())
+            if text_length > 0:
+                # Scroll to the end
+                end_range = NSMakeRange(text_length, 0)
+                self.logs_text_view.scrollRangeToVisible_(end_range)
+        except Exception as e:
+            print(f"Error scrolling to bottom: {e}")
+    
+    def startLogMonitoring(self):
+        """Start the log monitoring timer"""
+        if self.log_timer:
+            self.log_timer.invalidate()
+        
+        # Check for log updates every 2 seconds
+        self.log_timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            2.0, self, "checkLogUpdates:", None, True
+        )
+    
+    def stopLogMonitoring(self):
+        """Stop the log monitoring timer"""
+        if self.log_timer:
+            self.log_timer.invalidate()
+            self.log_timer = None
+    
+    def checkLogUpdates_(self, timer):
+        """Check if log file has been updated"""
+        try:
+            log_file_path = self.getLogFilePath()
+            
+            if not os.path.exists(log_file_path):
+                return
+            
+            # Check if file size changed
+            current_size = os.path.getsize(log_file_path)
+            
+            if current_size != self.last_log_size:
+                # File has been updated, reload logs
+                self.loadLogs()
+                
+        except Exception as e:
+            print(f"Error checking log updates: {e}")
+    
+    def refreshLogs_(self, sender):
+        """Refresh logs manually"""
+        self.loadLogs()
+    
+    def clearLogsView_(self, sender):
+        """Clear the logs view (not the actual log file)"""
+        self.logs_text_view.setString_("")
+        self.log_status_label.setStringValue_("Log view cleared")
+    
+    def openLogFile_(self, sender):
+        """Open the log file in the default text editor"""
+        try:
+            log_file_path = self.getLogFilePath()
+            if os.path.exists(log_file_path):
+                import subprocess
+                subprocess.run(['open', log_file_path])
+            else:
+                alert = NSAlert.alloc().init()
+                alert.setMessageText_("Log File Not Found")
+                alert.setInformativeText_(f"Log file not found at: {log_file_path}")
+                alert.setAlertStyle_(NSAlertStyleWarning)
+                alert.runModal()
+        except Exception as e:
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Error Opening Log File")
+            alert.setInformativeText_(f"Could not open log file: {str(e)}")
+            alert.setAlertStyle_(NSAlertStyleCritical)
+            alert.runModal()
+    
+    def filterLogs_(self, sender):
+        """Filter logs based on selected level"""
+        self.filterLogsContent()
+    
+    def windowWillClose_(self, notification):
+        """Handle window will close notification"""
+        print("Debug - Settings window will close")
+        
+        # Stop log monitoring when window closes
+        self.stopLogMonitoring()
+        
+        # Make sure this doesn't trigger app termination
+        try:
+            from AppKit import NSApplication
+            app = NSApplication.sharedApplication()
+            # Ensure the app doesn't quit when this window closes
+            if hasattr(app, 'setActivationPolicy_'):
+                app.setActivationPolicy_(2)  # Keep as accessory app
+        except Exception as e:
+            print(f"Debug - Error in windowWillClose: {e}")
     
     def updateResetButton(self):
         """Update reset button visibility and check conflicts"""
@@ -1250,6 +1556,21 @@ class SettingsWindow(NSWindowController):
             self.accessibility_btn.setTitle_("✅ Granted")
             self.accessibility_btn.setEnabled_(False)
         
+        # Update notification status if the UI elements exist
+        if hasattr(self, 'notification_status') and hasattr(self, 'notification_btn'):
+            notification_text, notification_color = self.get_notification_status()
+            self.notification_status.setStringValue_(notification_text)
+            self.notification_status.setTextColor_(notification_color)
+            
+            if "❌" in notification_text or "⚠️" in notification_text:
+                self.notification_btn.setTitle_("Open Settings")
+                self.notification_btn.setEnabled_(True)
+                self.notification_btn.setTarget_(self)
+                self.notification_btn.setAction_("openNotificationSettings:")
+            else:
+                self.notification_btn.setTitle_("✅ Working")
+                self.notification_btn.setEnabled_(False)
+        
         # Also refresh the main app's tray icon if available
         try:
             rephrasely_module = sys.modules.get('__main__')
@@ -1260,6 +1581,191 @@ class SettingsWindow(NSWindowController):
             print(f"Debug - Could not refresh tray icon: {e}")
         
         print("Debug - Permissions status refreshed")
+    
+    def resetPermissions_(self, sender):
+        """Reset all permissions for the Potter app"""
+        try:
+            # Show confirmation dialog first
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Reset All Permissions")
+            alert.setInformativeText_("This will reset ALL system permissions for Potter, including:\n\n• Accessibility (required for global hotkeys)\n• Notifications\n• Any other granted permissions\n\nYou will need to re-grant permissions and restart the app. Continue?")
+            alert.setAlertStyle_(NSAlertStyleCritical)
+            alert.addButtonWithTitle_("Reset Permissions")
+            alert.addButtonWithTitle_("Cancel")
+            
+            response = alert.runModal()
+            if response != NSAlertFirstButtonReturn:  # User clicked Cancel
+                return
+            
+            # Run the tccutil reset command for our app bundle ID
+            import subprocess
+            bundle_id = "com.potter.app"
+            
+            try:
+                # Reset all permissions for our bundle ID
+                result = subprocess.run(['tccutil', 'reset', 'All', bundle_id], 
+                                      capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    # Success - show confirmation and offer to restart
+                    success_alert = NSAlert.alloc().init()
+                    success_alert.setMessageText_("Permissions Reset Successfully")
+                    success_alert.setInformativeText_("All permissions for Potter have been reset.\n\nPotter needs to be restarted for changes to take effect. Would you like to restart now?")
+                    success_alert.setAlertStyle_(NSAlertStyleInformational)
+                    success_alert.addButtonWithTitle_("Restart Potter")
+                    success_alert.addButtonWithTitle_("Later")
+                    
+                    restart_response = success_alert.runModal()
+                    if restart_response == NSAlertFirstButtonReturn:  # Restart
+                        self.restartApp()
+                    else:
+                        # Just refresh the permissions display
+                        self.refreshPermissions_(None)
+                        
+                else:
+                    # Command failed
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                    self.showPermissionResetError(f"Failed to reset permissions: {error_msg}")
+                    
+            except subprocess.TimeoutExpired:
+                self.showPermissionResetError("Permission reset timed out. Please try again.")
+            except FileNotFoundError:
+                self.showPermissionResetError("tccutil command not found. This feature requires macOS 10.11 or later.")
+            except Exception as e:
+                self.showPermissionResetError(f"Unexpected error: {str(e)}")
+                
+        except Exception as e:
+            print(f"Debug - Error in resetPermissions: {e}")
+            self.showPermissionResetError(f"Failed to reset permissions: {str(e)}")
+    
+    def showPermissionResetError(self, message):
+        """Show permission reset error dialog"""
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Permission Reset Failed")
+        alert.setInformativeText_(message)
+        alert.setAlertStyle_(NSAlertStyleCritical)
+        alert.runModal()
+    
+    def restartApp(self):
+        """Restart the Potter application"""
+        try:
+            import subprocess
+            import sys
+            import os
+            
+            # Get the path to the current executable
+            if getattr(sys, 'frozen', False):
+                # Running as app bundle
+                app_path = sys.executable
+                # Find the .app bundle root
+                while app_path and not app_path.endswith('.app'):
+                    app_path = os.path.dirname(app_path)
+                
+                if app_path and app_path.endswith('.app'):
+                    # Launch the app bundle
+                    subprocess.Popen(['open', app_path])
+                    
+                    # Quit current app after a short delay
+                    def quit_app():
+                        try:
+                            from AppKit import NSApplication
+                            app = NSApplication.sharedApplication()
+                            app.terminate_(None)
+                        except:
+                            import os
+                            os._exit(0)
+                    
+                    # Use a timer to quit after launching new instance
+                    NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                        1.0, self, "quitApp:", None, False
+                    )
+                else:
+                    self.showPermissionResetError("Could not find app bundle path for restart.")
+            else:
+                # Running as script - just show message
+                alert = NSAlert.alloc().init()
+                alert.setMessageText_("Manual Restart Required")
+                alert.setInformativeText_("Please manually restart Potter for the permission changes to take effect.")
+                alert.setAlertStyle_(NSAlertStyleInformational)
+                alert.runModal()
+                
+        except Exception as e:
+            print(f"Debug - Error restarting app: {e}")
+            # Fallback - just show message
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Manual Restart Required")
+            alert.setInformativeText_("Please manually restart Potter for the permission changes to take effect.")
+            alert.setAlertStyle_(NSAlertStyleInformational)
+            alert.runModal()
+    
+    def quitApp_(self, timer):
+        """Quit the app (called by timer after restart)"""
+        try:
+            from AppKit import NSApplication
+            app = NSApplication.sharedApplication()
+            app.terminate_(None)
+        except:
+            import os
+            os._exit(0)
+    
+    def get_notification_status(self):
+        """Get notification permission and Do Not Disturb status"""
+        try:
+            import subprocess
+            
+            # Check if Do Not Disturb is enabled
+            try:
+                result = subprocess.run(['defaults', 'read', 'com.apple.controlcenter', 'NSStatusItem Visible FocusModes'], 
+                                      capture_output=True, text=True, timeout=5)
+                focus_modes_visible = result.stdout.strip() == "1"
+                
+                # Check current Focus mode status
+                result = subprocess.run(['shortcuts', 'run', 'Get Current Focus'], 
+                                      capture_output=True, text=True, timeout=5)
+                focus_mode = result.stdout.strip()
+                
+                if focus_mode and focus_mode != "None":
+                    return (f"Notifications: ❌ Blocked by Focus mode ({focus_mode})", NSColor.systemOrangeColor())
+                
+            except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+                # If we can't check Focus mode, continue with other checks
+                pass
+            
+            # Test if notifications work by checking app registration
+            try:
+                from UserNotifications import UNUserNotificationCenter
+                center = UNUserNotificationCenter.currentNotificationCenter()
+                
+                def check_settings(settings):
+                    if settings:
+                        if settings.authorizationStatus() == 2:  # UNAuthorizationStatusAuthorized
+                            return (f"Notifications: ✅ Enabled and working", NSColor.systemGreenColor())
+                        elif settings.authorizationStatus() == 1:  # UNAuthorizationStatusDenied
+                            return (f"Notifications: ❌ Permission denied", NSColor.systemRedColor())
+                        else:
+                            return (f"Notifications: ⚠️ Permission not determined", NSColor.systemOrangeColor())
+                    return (f"Notifications: ❌ Could not check permissions", NSColor.systemRedColor())
+                
+                # This is async, so we'll just assume enabled for now if we get here
+                return (f"Notifications: ✅ Enabled (app has permission)", NSColor.systemGreenColor())
+                
+            except ImportError:
+                # Fallback: assume notifications are enabled if the checkbox is checked
+                if self.settings_manager.get("show_notifications", False):
+                    return (f"Notifications: ✅ Enabled in settings", NSColor.systemGreenColor())
+                else:
+                    return (f"Notifications: ❌ Disabled in settings", NSColor.systemRedColor())
+                
+        except Exception as e:
+            print(f"Debug - get_notification_status error: {e}")
+            return (f"Notifications: ⚠️ Status unknown", NSColor.systemOrangeColor())
+    
+    def openNotificationSettings_(self, sender):
+        """Open System Settings to Notifications"""
+        try:
+            subprocess.run(['open', 'x-apple.systempreferences:com.apple.preference.notifications'], check=False)
+        except Exception as e:
+            print(f"Debug - Failed to open Notification Settings: {e}")
     
     # NSTableViewDataSource methods for prompts table
     def numberOfRowsInTableView_(self, table_view):
@@ -1291,8 +1797,6 @@ class SettingsWindow(NSWindowController):
             return prompt.get("name", "")
         elif identifier == "text":
             return prompt.get("text", "")
-        elif identifier == "format":
-            return prompt.get("output_format", "text")
         
         return ""
     
@@ -1316,11 +1820,6 @@ class SettingsWindow(NSWindowController):
             prompt["name"] = str(value)
         elif identifier == "text":
             prompt["text"] = str(value)
-        elif identifier == "format":
-            # Validate format
-            format_val = str(value)
-            if format_val in ["text", "images", "pdf"]:  # video disabled
-                prompt["output_format"] = format_val
     
     def save_(self, sender):
         """Save settings"""
