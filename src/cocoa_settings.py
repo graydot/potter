@@ -34,24 +34,24 @@ class SettingsManager:
         self.default_settings = {
             "prompts": [
                 {
-                    "name": "rephrase",
-                    "text": "Please rephrase the following text to make it clearer and more professional:"
-                },
-                {
                     "name": "summarize", 
-                    "text": "Please provide a concise summary of the following text:"
-                },
-                {
-                    "name": "expand",
-                    "text": "Please expand on the following text with more detail and examples:"
-                },
-                {
-                    "name": "casual",
-                    "text": "Please rewrite the following text in a more casual, friendly tone:"
+                    "text": "Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way."
                 },
                 {
                     "name": "formal",
-                    "text": "Please rewrite the following text in a more formal, professional tone:"
+                    "text": "Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication."
+                },
+                {
+                    "name": "casual",
+                    "text": "Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact."
+                },
+                {
+                    "name": "friendly",
+                    "text": "Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging."
+                },
+                {
+                    "name": "polish",
+                    "text": "Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness."
                 }
             ],
             "hotkey": "cmd+shift+r",

@@ -189,24 +189,24 @@ class RephrasleyService:
         if self.settings_manager:
             prompts_list = self.settings_manager.get("prompts", [
                 {
-                    "name": "rephrase",
-                    "text": "Please rephrase the following text to make it clearer and more professional:"
-                },
-                {
                     "name": "summarize", 
-                    "text": "Please provide a concise summary of the following text:"
-                },
-                {
-                    "name": "expand",
-                    "text": "Please expand on the following text with more detail and examples:"
-                },
-                {
-                    "name": "casual",
-                    "text": "Please rewrite the following text in a more casual, friendly tone:"
+                    "text": "Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way."
                 },
                 {
                     "name": "formal",
-                    "text": "Please rewrite the following text in a more formal, professional tone:"
+                    "text": "Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication."
+                },
+                {
+                    "name": "casual",
+                    "text": "Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact."
+                },
+                {
+                    "name": "friendly",
+                    "text": "Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging."
+                },
+                {
+                    "name": "polish",
+                    "text": "Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness."
                 }
             ])
             
@@ -227,11 +227,11 @@ class RephrasleyService:
         else:
             # Fallback to defaults
             self.prompts = {
-                'rephrase': 'Please rephrase the following text to make it clearer and more professional:',
-                'summarize': 'Please provide a concise summary of the following text:',
-                'expand': 'Please expand on the following text with more detail and examples:',
-                'casual': 'Please rewrite the following text in a more casual, friendly tone:',
-                'formal': 'Please rewrite the following text in a more formal, professional tone:'
+                'summarize': 'Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way.',
+                'formal': 'Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication.',
+                'casual': 'Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact.',
+                'friendly': 'Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging.',
+                'polish': 'Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness.'
             }
             self.hotkey_combo = {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
             self.model = "gpt-3.5-turbo"
@@ -240,7 +240,7 @@ class RephrasleyService:
             self.show_notifications = True
         
         self.current_keys = set()
-        self.current_prompt = 'rephrase'
+        self.current_prompt = 'polish'
     
     def parse_hotkey(self, hotkey_str):
         """Parse hotkey string into key combination set"""
@@ -679,7 +679,7 @@ class RephrasleyService:
             return None
         
         try:
-            prompt = self.prompts.get(self.current_prompt, self.prompts['rephrase'])
+            prompt = self.prompts.get(self.current_prompt, self.prompts['polish'])
             
             response = self.openai_client.chat.completions.create(
                 model=self.model,

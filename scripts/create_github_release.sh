@@ -392,6 +392,9 @@ echo "📦 Distribution files ready in dist/:"
 echo "   • App bundle: $APP_SIZE (dist/app/Potter.app)"
 echo "   • DMG installer: $DMG_SIZE (dist/dmg/$DMG_NAME)"
 
+# Get the repository name for download URLs
+REPO_INFO=$(cd "$POTTER_DIR" && gh repo view --json owner,name -q '.owner.login + "/" + .name')
+
 # Generate release notes
 RELEASE_NOTES_FILE="release_notes_temp.md"
 cat > "$RELEASE_NOTES_FILE" << EOF
@@ -399,10 +402,22 @@ cat > "$RELEASE_NOTES_FILE" << EOF
 
 AI-powered text processing for macOS with global hotkey support.
 
-## 📥 Download Options
-- **Potter-$VERSION.dmg** (Recommended) - Standard DMG installer
+---
 
-Choose the DMG installer for easiest installation on most systems.
+# 🔥 **GET POTTER NOW** 🔥
+
+## 📥 **DIRECT DOWNLOAD LINKS** (Click to download immediately)
+
+> ### 🚀 **[⬇️ DOWNLOAD POTTER-$VERSION.DMG](https://github.com/$REPO_INFO/releases/download/$VERSION/Potter-$VERSION.dmg)** 
+> **👆 CLICK THE LINK ABOVE TO DOWNLOAD NOW 👆**
+
+### Alternative Download Options:
+- **[📦 This Version (Potter-$VERSION.dmg)](https://github.com/$REPO_INFO/releases/download/$VERSION/Potter-$VERSION.dmg)** - Direct link to this release
+- **[🔄 Always Latest Version](https://github.com/$REPO_INFO/releases/latest)** - Always redirects to newest release
+
+**Quick Install**: Click link above → DMG downloads → Double-click → Drag to Applications → Done!
+
+---
 
 ## 🎯 Features
 - **Global Hotkey**: Cmd+Shift+R to process selected text
@@ -430,6 +445,10 @@ Choose the DMG installer for easiest installation on most systems.
 - **Commit**: $COMMIT_HASH
 - **App Size**: $APP_SIZE
 - **DMG Size**: $DMG_SIZE
+
+---
+
+> **📥 Download files are also available in the "Assets" section below, but we recommend using the download link at the top of this page for the easiest experience.**
 EOF
 
 # Ask for additional release notes
