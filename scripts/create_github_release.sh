@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Rephrasely GitHub Release Creation Script
+# Potter GitHub Release Creation Script
 # This script builds the app and creates a GitHub release with distribution files
 
 set -e  # Exit on any error
 
-echo "🚀 Creating GitHub Release for Rephrasely"
-echo "========================================="
+echo "🚀 Creating GitHub Release for Potter"
+echo "===================================="
 
 # Check if GitHub CLI is installed
 if ! command -v gh &> /dev/null; then
@@ -93,9 +93,24 @@ echo "🏷️  Version: $VERSION"
 echo "📅 Build Date: $BUILD_DATE"
 echo "🔗 Commit: $COMMIT_HASH"
 
-# Check if release already exists
+# Check if Potter directory exists
+POTTER_DIR="../Potter"
+if [[ ! -d "$POTTER_DIR" ]]; then
+    echo "❌ Potter directory not found at $POTTER_DIR"
+    echo "   Please ensure the Potter repository exists"
+    exit 1
+fi
+
+# Check if Potter directory is a git repository
+cd "$POTTER_DIR"
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "❌ Potter directory is not a git repository"
+    exit 1
+fi
+
+# Check if release already exists in Potter repo
 if gh release view "$VERSION" &> /dev/null; then
-    echo "⚠️  Release $VERSION already exists"
+    echo "⚠️  Release $VERSION already exists in Potter repository"
     echo "   Do you want to delete it and create a new one? (y/N)"
     read -p "Delete existing release? " DELETE_RELEASE
     
@@ -108,6 +123,9 @@ if gh release view "$VERSION" &> /dev/null; then
         exit 1
     fi
 fi
+
+# Return to project root for building
+cd "$PROJECT_ROOT"
 
 # Clean previous builds
 echo "🧹 Cleaning previous builds..."
@@ -157,7 +175,7 @@ else
 fi
 
 python -m PyInstaller \
-    --name="Rephrasely" \
+    --name="Potter" \
     --windowed \
     --onedir \
     --distpath=dist/app \
@@ -171,10 +189,10 @@ python -m PyInstaller \
     --hidden-import="ApplicationServices" \
     --hidden-import="Quartz" \
     --clean \
-    src/rephrasely.py
+    src/potter.py
 
 # Verify the app was built
-if [[ ! -d "dist/app/Rephrasely.app" ]]; then
+if [[ ! -d "dist/app/Potter.app" ]]; then
     echo "❌ Build failed: App not found in dist/app/"
     exit 1
 fi
@@ -185,48 +203,48 @@ echo "✅ App built successfully"
 echo "🔧 Configuring app bundle..."
 
 # Update Info.plist with proper settings
-/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "dist/app/Potter.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "dist/app/Potter.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :LSUIElement true" "dist/app/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :LSUIElement true" "dist/app/Potter.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :LSBackgroundOnly bool false" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :LSBackgroundOnly false" "dist/app/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :LSBackgroundOnly bool false" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :LSBackgroundOnly false" "dist/app/Potter.app/Contents/Info.plist"
 
 # Add usage descriptions
-/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Potter.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :NSSystemAdministrationUsageDescription string 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :NSSystemAdministrationUsageDescription 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSSystemAdministrationUsageDescription string 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Potter.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :NSSystemAdministrationUsageDescription 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Potter.app/Contents/Info.plist"
 
 # Set executable permissions
-chmod +x "dist/app/Rephrasely.app/Contents/MacOS/Rephrasely"
+chmod +x "dist/app/Potter.app/Contents/MacOS/Potter"
 
 echo "✅ App bundle configured"
 
 # Code signing
 echo "🔐 Code signing..."
-codesign --force --deep --sign - "dist/app/Rephrasely.app"
+codesign --force --deep --sign - "dist/app/Potter.app"
 echo "✅ App signed with adhoc signature"
 
 # Create installation instructions in dist/archives
 echo "📁 Preparing distribution files..."
 cat > "dist/archives/INSTALLATION.md" << EOF
-# Rephrasely Installation Instructions
+# Potter Installation Instructions
 
 ## Quick Install from DMG
-1. Download \`Rephrasely-$VERSION.dmg\` from the release
+1. Download \`Potter-$VERSION.dmg\` from the release
 2. Double-click the DMG file to open it
-3. Drag \`Rephrasely.app\` to the Applications folder in the window
-4. Eject the DMG and launch Rephrasely from Applications
+3. Drag \`Potter.app\` to the Applications folder in the window
+4. Eject the DMG and launch Potter from Applications
 5. Right-click the app and select "Open" on first launch
 6. Grant accessibility permissions when prompted
-7. Look for the Rephrasely icon in your menu bar
+7. Look for the Potter icon in your menu bar
 
 ## First Launch
 1. macOS may show a security warning for unsigned apps
@@ -240,7 +258,7 @@ cat > "dist/archives/INSTALLATION.md" << EOF
 - **Modes**: Rephrase, Summarize, Expand, Casual, Formal
 
 ## Troubleshooting
-- If the app doesn't start, try removing quarantine: \`xattr -r -d com.apple.quarantine Rephrasely.app\`
+- If the app doesn't start, try removing quarantine: \`xattr -r -d com.apple.quarantine Potter.app\`
 - Check Console.app for error messages if needed
 - Make sure you have an active internet connection for AI processing
 
@@ -253,9 +271,9 @@ EOF
 # Create DMG installer in dist/dmg
 echo "💿 Creating DMG installer..."
 
-DMG_NAME="Rephrasely-$VERSION.dmg"
+DMG_NAME="Potter-$VERSION.dmg"
 DMG_TEMP_NAME="temp_$DMG_NAME"
-VOLUME_NAME="Rephrasely $VERSION"
+VOLUME_NAME="Potter $VERSION"
 DMG_STAGING_DIR="dist/dmg/staging"
 
 # Create staging directory
@@ -263,7 +281,7 @@ rm -rf "$DMG_STAGING_DIR"
 mkdir -p "$DMG_STAGING_DIR"
 
 # Copy app to staging
-cp -R "dist/app/Rephrasely.app" "$DMG_STAGING_DIR/"
+cp -R "dist/app/Potter.app" "$DMG_STAGING_DIR/"
 
 # Create Applications symlink
 ln -s /Applications "$DMG_STAGING_DIR/Applications"
@@ -301,7 +319,7 @@ try:
 except:
     font = ImageFont.load_default()
 
-text = "Drag Rephrasely to Applications to install"
+text = "Drag Potter to Applications to install"
 text_bbox = draw.textbbox((0, 0), text, font=font)
 text_width = text_bbox[2] - text_bbox[0]
 text_x = (width - text_width) // 2
@@ -383,7 +401,7 @@ tell application "Finder"
         set icon size of theViewOptions to 128
         
         -- Position the app icon
-        set position of item "Rephrasely.app" of container window to {150, 200}
+        set position of item "Potter.app" of container window to {150, 200}
         
         -- Position the Applications symlink
         set position of item "Applications" of container window to {450, 200}
@@ -417,18 +435,18 @@ echo "✅ Created $DMG_NAME in dist/dmg/"
 cd "$PROJECT_ROOT"
 
 # Calculate file sizes
-APP_SIZE=$(du -sh "dist/app/Rephrasely.app" | cut -f1)
+APP_SIZE=$(du -sh "dist/app/Potter.app" | cut -f1)
 DMG_SIZE=$(du -sh "dist/dmg/$DMG_NAME" | cut -f1)
 
 echo ""
 echo "📦 Distribution files ready in dist/:"
-echo "   • App bundle: $APP_SIZE (dist/app/Rephrasely.app)"
+echo "   • App bundle: $APP_SIZE (dist/app/Potter.app)"
 echo "   • DMG installer: $DMG_SIZE (dist/dmg/$DMG_NAME)"
 
 # Generate release notes
 RELEASE_NOTES_FILE="release_notes_temp.md"
 cat > "$RELEASE_NOTES_FILE" << EOF
-# Rephrasely $VERSION
+# Potter $VERSION
 
 AI-powered text processing for macOS with global hotkey support.
 
@@ -440,10 +458,10 @@ AI-powered text processing for macOS with global hotkey support.
 - **OpenAI Integration**: Uses GPT models for text processing
 
 ## 📦 Installation
-1. Download \`Rephrasely-$VERSION.dmg\`
+1. Download \`Potter-$VERSION.dmg\`
 2. Double-click the DMG file to open it
-3. Drag \`Rephrasely.app\` to the Applications folder in the window
-4. Eject the DMG and launch Rephrasely from Applications
+3. Drag \`Potter.app\` to the Applications folder in the window
+4. Eject the DMG and launch Potter from Applications
 5. Right-click the app and select "Open" on first launch
 6. Configure OpenAI API key in settings
 
@@ -460,7 +478,7 @@ AI-powered text processing for macOS with global hotkey support.
 - **DMG Size**: $DMG_SIZE
 
 ## 📥 Download Options
-- **Rephrasely-$VERSION.dmg** (Recommended) - Standard DMG installer
+- **Potter-$VERSION.dmg** (Recommended) - Standard DMG installer
 
 Choose the DMG installer for easiest installation on most systems.
 EOF
@@ -485,15 +503,27 @@ if [[ "$ADD_NOTES" =~ ^[Yy]$ ]]; then
     echo "$ADDITIONAL_NOTES" >> "$RELEASE_NOTES_FILE"
 fi
 
-# Create the GitHub release
+# Create the GitHub release in Potter repository
 echo ""
-echo "🚀 Creating GitHub release..."
+echo "🚀 Creating GitHub release in Potter repository..."
 
+# Change to Potter directory
+cd "$POTTER_DIR"
+
+# Create tag in Potter repo
+echo "🏷️  Creating tag $VERSION in Potter repository..."
+git tag "$VERSION" 2>/dev/null || echo "   Tag $VERSION already exists"
+
+# Push tag to Potter repo
+echo "📤 Pushing tag to Potter repository..."
+git push origin "$VERSION" 2>/dev/null || echo "   Tag already pushed or no remote configured"
+
+# Create release in Potter repo
 gh release create "$VERSION" \
-    "dist/dmg/$DMG_NAME" \
-    "dist/archives/INSTALLATION.md" \
-    --title "Rephrasely $VERSION" \
-    --notes-file "$RELEASE_NOTES_FILE" \
+    "$PROJECT_ROOT/dist/dmg/$DMG_NAME" \
+    "$PROJECT_ROOT/dist/archives/INSTALLATION.md" \
+    --title "Potter $VERSION" \
+    --notes-file "$PROJECT_ROOT/$RELEASE_NOTES_FILE" \
     --discussion-category "Releases"
 
 if [[ $? -eq 0 ]]; then
@@ -502,14 +532,17 @@ if [[ $? -eq 0 ]]; then
     echo "🔗 Release URL: https://github.com/$(gh repo view --json owner,name -q '.owner.login + "/" + .name')/releases/tag/$VERSION"
     echo ""
     echo "📤 Files uploaded:"
-    echo "   • Rephrasely-$VERSION.dmg"
+    echo "   • Potter-$VERSION.dmg"
     echo "   • INSTALLATION.md"
     echo ""
-    echo "🎉 Users can now download Rephrasely $VERSION from GitHub Releases!"
+    echo "🎉 Users can now download Potter $VERSION from GitHub Releases!"
 else
     echo "❌ Failed to create GitHub release"
     exit 1
 fi
+
+# Return to project root
+cd "$PROJECT_ROOT"
 
 # Clean up
 rm -f "$RELEASE_NOTES_FILE"
@@ -517,74 +550,5 @@ rm -f build_info.json
 
 echo "✨ GitHub release creation complete!"
 
-# Create release in Potter repository (releases-only repo)
 echo ""
-echo "🎯 Creating release in Potter repository..."
-
-# Check if Potter directory exists
-POTTER_DIR="../Potter"
-if [[ -d "$POTTER_DIR" ]]; then
-    # Save current directory
-    ORIGINAL_DIR=$(pwd)
-    
-    # Change to Potter directory
-    cd "$POTTER_DIR"
-    
-    # Check if this is a git repository
-    if git rev-parse --git-dir > /dev/null 2>&1; then
-        # Create tag in Potter repo (rename DMG to Potter-VERSION.dmg)
-        POTTER_DMG_NAME="Potter-${VERSION#v}.dmg"
-        
-        echo "🏷️  Creating tag $VERSION in Potter repository..."
-        git tag "$VERSION" 2>/dev/null || echo "   Tag $VERSION already exists"
-        
-        # Push tag to Potter repo
-        echo "📤 Pushing tag to Potter repository..."
-        git push origin "$VERSION" 2>/dev/null || echo "   Tag already pushed or no remote configured"
-        
-        # Copy and rename DMG for Potter release
-        echo "📋 Preparing Potter DMG..."
-        cp "$ORIGINAL_DIR/dist/dmg/$DMG_NAME" "/tmp/$POTTER_DMG_NAME"
-        
-        # Create release in Potter repo with renamed DMG
-        echo "🚀 Creating Potter release with DMG..."
-        gh release create "$VERSION" \
-            "/tmp/$POTTER_DMG_NAME" \
-            --title "Potter $VERSION" \
-            --notes "Potter $VERSION - AI-powered text rephrasing tool for macOS
-
-## 📦 Installation
-1. Download \`$POTTER_DMG_NAME\`
-2. Double-click the DMG file to open it
-3. Drag \`Potter.app\` to the Applications folder
-4. Launch Potter from Applications
-
-## 🔧 Requirements
-- macOS 10.14+
-- OpenAI API key
-- Internet connection
-
-Built from commit $COMMIT_HASH on $BUILD_DATE."
-        
-        if [[ $? -eq 0 ]]; then
-            echo "✅ Potter release created successfully!"
-            echo "🔗 Potter Release: https://github.com/$(gh repo view --json owner,name -q '.owner.login + "/" + .name')/releases/tag/$VERSION"
-        else
-            echo "⚠️  Failed to create Potter release (this is optional)"
-        fi
-        
-        # Clean up temporary DMG
-        rm -f "/tmp/$POTTER_DMG_NAME"
-    else
-        echo "⚠️  Potter directory is not a git repository"
-    fi
-    
-    # Return to original directory
-    cd "$ORIGINAL_DIR"
-else
-    echo "⚠️  Potter directory not found at $POTTER_DIR"
-    echo "   Skipping Potter release creation"
-fi
-
-echo ""
-echo "🎉 All releases completed!" 
+echo "🎉 Potter release completed!" 
