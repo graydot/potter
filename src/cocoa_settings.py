@@ -27,8 +27,8 @@ class SettingsManager:
                 os.makedirs(settings_dir, exist_ok=True)
                 self.settings_file = os.path.join(settings_dir, 'settings.json')
             else:
-                # Running as script - use current directory
-                self.settings_file = "settings.json"
+                # Running as script - use config directory
+                self.settings_file = "config/settings.json"
         else:
             self.settings_file = settings_file
         self.default_settings = {

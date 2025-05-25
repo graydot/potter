@@ -112,10 +112,14 @@ fi
 # Clean previous builds
 echo "🧹 Cleaning previous builds..."
 rm -rf build/ dist/
-rm -rf distribution/
 
-# Create distribution directory
-mkdir -p distribution
+# Create dist directory structure
+mkdir -p dist/app
+mkdir -p dist/dmg
+mkdir -p dist/archives
+
+# Remove old distribution folder (we'll use dist now)
+rm -rf distribution/
 
 # Ensure we're in the virtual environment
 if [[ "$VIRTUAL_ENV" == "" ]]; then
@@ -156,6 +160,8 @@ python -m PyInstaller \
     --name="Rephrasely" \
     --windowed \
     --onedir \
+    --distpath=dist/app \
+    --workpath=build \
     $ICON_PARAM \
     --add-data="build_info.json:." \
     --hidden-import="objc" \
@@ -165,11 +171,11 @@ python -m PyInstaller \
     --hidden-import="ApplicationServices" \
     --hidden-import="Quartz" \
     --clean \
-    rephrasely.py
+    src/rephrasely.py
 
 # Verify the app was built
-if [[ ! -d "dist/Rephrasely.app" ]]; then
-    echo "❌ Build failed: App not found in dist/"
+if [[ ! -d "dist/app/Rephrasely.app" ]]; then
+    echo "❌ Build failed: App not found in dist/app/"
     exit 1
 fi
 
@@ -179,41 +185,38 @@ echo "✅ App built successfully"
 echo "🔧 Configuring app bundle..."
 
 # Update Info.plist with proper settings
-/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "dist/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "dist/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" "dist/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "dist/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "dist/app/Rephrasely.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "dist/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :LSUIElement true" "dist/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :LSUIElement true" "dist/app/Rephrasely.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :LSBackgroundOnly bool false" "dist/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :LSBackgroundOnly false" "dist/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :LSBackgroundOnly bool false" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :LSBackgroundOnly false" "dist/app/Rephrasely.app/Contents/Info.plist"
 
 # Add usage descriptions
-/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Rephrasely needs to send AppleEvents to paste processed text and manage login items.'" "dist/app/Rephrasely.app/Contents/Info.plist"
 
-/usr/libexec/PlistBuddy -c "Add :NSSystemAdministrationUsageDescription string 'Rephrasely needs system administration access to manage startup settings.'" "dist/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Set :NSSystemAdministrationUsageDescription 'Rephrasely needs system administration access to manage startup settings.'" "dist/Rephrasely.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSSystemAdministrationUsageDescription string 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Rephrasely.app/Contents/Info.plist" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :NSSystemAdministrationUsageDescription 'Rephrasely needs system administration access to manage startup settings.'" "dist/app/Rephrasely.app/Contents/Info.plist"
 
 # Set executable permissions
-chmod +x "dist/Rephrasely.app/Contents/MacOS/Rephrasely"
+chmod +x "dist/app/Rephrasely.app/Contents/MacOS/Rephrasely"
 
 echo "✅ App bundle configured"
 
 # Code signing
 echo "🔐 Code signing..."
-codesign --force --deep --sign - "dist/Rephrasely.app"
+codesign --force --deep --sign - "dist/app/Rephrasely.app"
 echo "✅ App signed with adhoc signature"
 
-# Copy to distribution folder
+# Create installation instructions in dist/archives
 echo "📁 Preparing distribution files..."
-cp -R "dist/Rephrasely.app" "distribution/"
-
-# Create installation instructions
-cat > "distribution/INSTALLATION.md" << EOF
+cat > "dist/archives/INSTALLATION.md" << EOF
 # Rephrasely Installation Instructions
 
 ## Quick Install from DMG
@@ -247,35 +250,35 @@ cat > "distribution/INSTALLATION.md" << EOF
 - Internet connection for AI processing
 EOF
 
-# Create DMG installer
+# Create DMG installer in dist/dmg
 echo "💿 Creating DMG installer..."
 
 DMG_NAME="Rephrasely-$VERSION.dmg"
 DMG_TEMP_NAME="temp_$DMG_NAME"
 VOLUME_NAME="Rephrasely $VERSION"
-DMG_DIR="dmg_staging"
+DMG_STAGING_DIR="dist/dmg/staging"
 
 # Create staging directory
-rm -rf "$DMG_DIR"
-mkdir -p "$DMG_DIR"
+rm -rf "$DMG_STAGING_DIR"
+mkdir -p "$DMG_STAGING_DIR"
 
 # Copy app to staging
-cp -R "Rephrasely.app" "$DMG_DIR/"
+cp -R "dist/app/Rephrasely.app" "$DMG_STAGING_DIR/"
 
 # Create Applications symlink
-ln -s /Applications "$DMG_DIR/Applications"
+ln -s /Applications "$DMG_STAGING_DIR/Applications"
 
 # Create a simple background (we'll use a solid color for simplicity)
-mkdir -p "$DMG_DIR/.background"
+mkdir -p "$DMG_STAGING_DIR/.background"
 
 # Copy the professional background image if available
 if [[ -f "$PROJECT_ROOT/assets/dmg_background.png" ]]; then
-    cp "$PROJECT_ROOT/assets/dmg_background.png" "$DMG_DIR/.background/background.png"
+    cp "$PROJECT_ROOT/assets/dmg_background.png" "$DMG_STAGING_DIR/.background/background.png"
     echo "✅ Using professional DMG background"
 else
     # Fallback: Create background image using built-in tools
     echo "⚠️  Professional background not found, creating simple background..."
-    cat > "$DMG_DIR/.background/create_bg.py" << 'BGEOF'
+    cat > "$DMG_STAGING_DIR/.background/create_bg.py" << 'BGEOF'
 #!/usr/bin/env python3
 from PIL import Image, ImageDraw, ImageFont
 import sys
@@ -327,7 +330,7 @@ img.save('background.png')
 BGEOF
 
     # Create background using Python (if available) or skip
-    cd "$DMG_DIR/.background"
+    cd "$DMG_STAGING_DIR/.background"
     if command -v python3 &> /dev/null && python3 -c "import PIL" 2>/dev/null; then
         python3 create_bg.py
         echo "✅ Created fallback background image"
@@ -339,17 +342,18 @@ BGEOF
         echo "Creating minimal background..." > background.txt && mv background.txt background.png
     fi
     rm -f create_bg.py
-    cd "$PROJECT_ROOT/distribution"
+    cd "$PROJECT_ROOT"
 fi
 
 # Calculate the size needed for the DMG
-APP_SIZE_MB=$(du -sm "$DMG_DIR" | cut -f1)
+APP_SIZE_MB=$(du -sm "$DMG_STAGING_DIR" | cut -f1)
 DMG_SIZE_MB=$((APP_SIZE_MB + 50))  # Add 50MB padding
 
 echo "📏 DMG size: ${DMG_SIZE_MB}MB"
 
-# Create the DMG
-hdiutil create -srcfolder "$DMG_DIR" \
+# Create the DMG in dist/dmg
+cd "dist/dmg"
+hdiutil create -srcfolder "staging" \
                -volname "$VOLUME_NAME" \
                -fs HFS+ \
                -fsargs "-c c=64,a=16,e=16" \
@@ -404,22 +408,22 @@ hdiutil detach "$DMG_DEVICE"
 echo "🗜️  Compressing DMG..."
 hdiutil convert "$DMG_TEMP_NAME" -format UDZO -imagekey zlib-level=9 -o "$DMG_NAME"
 
-# Clean up
+# Clean up temporary files
 rm -f "$DMG_TEMP_NAME"
-rm -rf "$DMG_DIR"
+rm -rf staging
 
-echo "✅ Created $DMG_NAME"
+echo "✅ Created $DMG_NAME in dist/dmg/"
 
 cd "$PROJECT_ROOT"
 
 # Calculate file sizes
-APP_SIZE=$(du -sh "distribution/Rephrasely.app" | cut -f1)
-DMG_SIZE=$(du -sh "distribution/$DMG_NAME" | cut -f1)
+APP_SIZE=$(du -sh "dist/app/Rephrasely.app" | cut -f1)
+DMG_SIZE=$(du -sh "dist/dmg/$DMG_NAME" | cut -f1)
 
 echo ""
-echo "📦 Distribution files ready:"
-echo "   • App bundle: $APP_SIZE"
-echo "   • DMG installer: $DMG_SIZE"
+echo "📦 Distribution files ready in dist/:"
+echo "   • App bundle: $APP_SIZE (dist/app/Rephrasely.app)"
+echo "   • DMG installer: $DMG_SIZE (dist/dmg/$DMG_NAME)"
 
 # Generate release notes
 RELEASE_NOTES_FILE="release_notes_temp.md"
@@ -486,8 +490,8 @@ echo ""
 echo "🚀 Creating GitHub release..."
 
 gh release create "$VERSION" \
-    "distribution/$DMG_NAME" \
-    "distribution/INSTALLATION.md" \
+    "dist/dmg/$DMG_NAME" \
+    "dist/archives/INSTALLATION.md" \
     --title "Rephrasely $VERSION" \
     --notes-file "$RELEASE_NOTES_FILE" \
     --discussion-category "Releases"

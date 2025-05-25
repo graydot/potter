@@ -29,7 +29,6 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -109,11 +108,19 @@ Temporary Items
 settings.json
 build_info.json
 
-# Build artifacts - generated locally, not tracked in git
+# Build artifacts - consolidated in dist/ with subdirectories
 # Use GitHub Releases for distribution instead
+dist/
+dmg_staging/
+dmg_staging_test/
 distribution/
 
-# Temporary files
+# Temporary build files
+app_icon.icns
+*.dmg
+temp_*.dmg
+
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/

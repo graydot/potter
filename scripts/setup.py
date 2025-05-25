@@ -76,29 +76,6 @@ def install_dependencies():
             print(f"❌ Alternative installation also failed: {e2}")
             return False
 
-def create_env_file():
-    """Create .env file if it doesn't exist"""
-    env_file = '.env'
-    if os.path.exists(env_file):
-        print("✅ .env file already exists")
-        return True
-    
-    print("📝 Creating .env file...")
-    try:
-        with open(env_file, 'w') as f:
-            f.write("# Add your OpenAI API key here\n")
-            f.write("OPENAI_API_KEY=your_openai_api_key_here\n")
-            f.write("\n# Optional: Customize other settings\n")
-            f.write("# MODEL=gpt-3.5-turbo\n")
-            f.write("# MAX_TOKENS=1000\n")
-        
-        print("✅ .env file created")
-        print("⚠️  Please edit .env and add your OpenAI API key")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to create .env file: {e}")
-        return False
-
 def create_run_script():
     """Create a convenience script to run the app with the virtual environment"""
     script_content = '''#!/bin/bash
@@ -113,16 +90,11 @@ if [ ! -d "$DIR/.venv" ]; then
     exit 1
 fi
 
-# Check if .env file exists
-if [ ! -f "$DIR/.env" ]; then
-    echo "❌ .env file not found. Please create one with your OpenAI API key."
-    exit 1
-fi
-
 # Activate virtual environment and run the app
 echo "🔄 Starting Rephrasely..."
+echo "ℹ️  Note: Configure your OpenAI API key in the app settings"
 source "$DIR/.venv/bin/activate"
-python "$DIR/rephrasely.py"
+python "$DIR/src/rephrasely.py"
 '''
     
     try:
@@ -168,10 +140,6 @@ def main():
     if not install_dependencies():
         sys.exit(1)
     
-    # Create environment file
-    if not create_env_file():
-        sys.exit(1)
-    
     # Create run script
     create_run_script()
     
@@ -181,19 +149,18 @@ def main():
     print("🎉 Setup completed!")
     print()
     print("Next steps:")
-    print("1. Edit .env file and add your OpenAI API key")
-    print("   Get one from: https://platform.openai.com/api-keys")
+    print("1. Build the app:")
+    print("   python scripts/build_app.py")
     print()
-    print("2. Test your setup:")
-    print("   ./.venv/bin/python test_setup.py")
+    print("2. Install the app:")
+    print("   cp -r dist/app/Rephrasely.app /Applications/")
     print()
-    print("3. Run Rephrasely:")
-    print("   ./run.sh")
-    print("   OR")
-    print("   ./.venv/bin/python rephrasely.py")
+    print("3. Launch and configure:")
+    print("   • Open Rephrasely.app from Applications")
+    print("   • Configure your OpenAI API key in app settings")
+    print("   • Grant accessibility permissions when prompted")
     print()
-    print("4. Grant accessibility permissions when prompted")
-    print("5. Test with Cmd+Shift+R in any app")
+    print("4. Test with Cmd+Shift+R in any app")
     print()
     print("Need help? Check the README.md file for detailed instructions.")
 

@@ -10,13 +10,8 @@ if [ ! -d "$DIR/.venv" ]; then
     exit 1
 fi
 
-# Check if .env file exists
-if [ ! -f "$DIR/.env" ]; then
-    echo "❌ .env file not found. Please create one with your OpenAI API key."
-    exit 1
-fi
-
 # Activate virtual environment and run the app
 echo "🔄 Starting Rephrasely..."
+echo "ℹ️  Note: Configure your OpenAI API key in the app settings"
 source "$DIR/.venv/bin/activate"
-python "$DIR/rephrasely.py"
+python "$DIR/src/rephrasely.py"

@@ -63,18 +63,15 @@ Potter - A powerful text rephrasing tool for macOS.
 For development or customization:
 
 1. **Download or clone** this repository
-2. **Set up your API key**:
+2. **Build the standalone app**:
    ```bash
-   echo "OPENAI_API_KEY=your_api_key_here" > .env
+   python scripts/build_app.py
    ```
-3. **Build the standalone app**:
+3. **Install the app**:
    ```bash
-   python build_app.py
+   cp -r dist/app/Rephrasely.app /Applications/
    ```
-4. **Install the app**:
-   ```bash
-   cp -r dist/Rephrasely.app /Applications/
-   ```
+4. **Configure API key**: Launch the app and set your OpenAI API key in settings
 
 ### 🚀 **For Developers**
 Set up the automated build system:
@@ -82,17 +79,34 @@ Set up the automated build system:
 # Install git hooks for automatic building
 ./scripts/setup_hooks.sh
 
+# Build the app
+./scripts/build_app.py
+
 # Test the build system  
-./scripts/build_for_distribution.sh
+./scripts/test_build.sh
 ```
 
-See [DISTRIBUTION.md](DISTRIBUTION.md) for complete build system documentation.
+See **[📖 Documentation](#-documentation)** below for detailed guides.
 
 ### First Launch
 1. **Open Rephrasely.app** from Applications
 2. **Grant accessibility permissions** when prompted
 3. **Look for the blue "R"** in your menu bar
 4. **Test with any text**: Select text and press `Cmd+Shift+R`
+
+## 📖 Documentation
+
+### 📚 **Complete Guides**
+- **[📦 Distribution & Releases](docs/DISTRIBUTION.md)** - Build system and GitHub releases
+- **[🔧 Installation Guide](docs/INSTALLATION.md)** - Detailed setup instructions  
+- **[🎨 UI Guide](docs/UI_GUIDE.md)** - Settings interface and customization
+- **[🔐 Code Signing Setup](docs/CODE_SIGNING_SETUP.md)** - Professional distribution with Apple certificates
+- **[🗑️ Uninstall Guide](docs/UNINSTALL.md)** - Complete removal instructions
+- **[⚙️ GitHub Releases Setup](docs/SETUP_GITHUB_RELEASES.md)** - Automated release configuration
+
+### 🛠️ **Developer Resources**
+- **[🔨 Build Scripts](scripts/)** - All build and setup automation
+- **[🧪 Test Scripts](test_scripts/)** - Testing and debugging tools
 
 ## ⚙️ Customization
 
@@ -196,10 +210,11 @@ Support: "Rewrite as a helpful customer support response:"
 3. **Only enable "Rephrasely.app"** (not Terminal or other tools)
 4. **Easily revokable** if needed
 
-## 📁 File Structure
+## 📁 Project Structure
 
 ```
 rephrasely/
+<<<<<<< HEAD
 ├── rephrasely.py          # Main application
 ├── settings_ui.py         # Preferences interface
 ├── build_app.py          # App builder
@@ -302,3 +317,44 @@ MIT License - feel free to modify and distribute!
 
 **Enjoy your AI-powered text enhancement! 🚀** 
 >>>>>>> ac4fb4a (partially working)
+=======
+├── 📂 src/                     # 💻 Source code
+│   ├── rephrasely.py          # 🚀 Main application
+│   ├── settings_ui.py         # 🎛️ Preferences interface
+│   └── cocoa_settings.py      # 🍎 macOS UI components
+├── 📂 docs/                    # 📖 Documentation
+│   ├── DISTRIBUTION.md         # Build system & releases
+│   ├── INSTALLATION.md         # Setup instructions
+│   ├── UI_GUIDE.md            # Settings interface guide
+│   ├── UNINSTALL.md           # Removal instructions
+│   └── SETUP_GITHUB_RELEASES.md # Release automation
+├── 📂 scripts/                # 🔨 Build & automation scripts
+│   ├── build_app.py           # Main app builder
+│   ├── setup.py              # Environment setup
+│   ├── run.sh                 # Quick run script
+│   ├── test_build.sh          # Build testing
+│   ├── test_dmg_creation.sh   # DMG testing
+│   ├── create_github_release.sh # Release creation
+│   └── manual_release.sh      # Manual release trigger
+├── 📂 test_scripts/           # 🧪 Testing & debugging
+│   ├── debug_test.py          # Debug utilities
+│   ├── test_setup.py          # Setup testing
+│   ├── test_settings_migration.py # Settings migration test
+│   └── test_ui.py             # UI testing
+├── 📂 config/                 # ⚙️ Configuration files
+│   ├── example_settings.json  # 📝 Sample configuration
+│   └── settings.json          # ⚙️ User preferences (auto-created)
+├── 📂 assets/                 # Icons & resources
+│   └── dmg_background.png     # DMG installer background
+├── 📂 dist/                   # 📦 Built artifacts
+│   ├── app/                   # Built application
+│   ├── dmg/                   # DMG installers
+│   └── archives/              # Release archives
+├── 📂 .venv/                  # 🐍 Python virtual environment
+├── 📂 .github/                # ⚙️ GitHub workflows
+│   └── workflows/
+│       └── release.yml        # Automated releases
+├── requirements.txt           # 📋 Dependencies
+└── README.md                  # 📚 Project documentation
+```
+>>>>>>> f68e635 (trying out signing)

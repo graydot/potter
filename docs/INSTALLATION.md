@@ -114,7 +114,7 @@ create-dmg \
 ### App Won't Launch
 1. **Check permissions**: Make sure Rephrasely.app has accessibility permissions
 2. **Security settings**: Go to Security & Privacy and click "Open Anyway"
-3. **Rebuild if needed**: Run `./.venv/bin/python build_app.py` again
+3. **Rebuild if needed**: Run `./.venv/bin/python scripts/build_app.py` again
 
 ### "App is damaged" Error
 This happens with unsigned apps:

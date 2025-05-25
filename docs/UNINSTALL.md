@@ -45,7 +45,7 @@ rm -rf rephrasely
 rm -rf ~/Library/Application\ Support/Rephrasely/
 
 # Remove settings file (for Python script)
-rm -f ~/Workspace/rephrasely/settings.json  # if it exists
+rm -f ~/Workspace/rephrasely/config/settings.json  # if it exists
 ```
 
 #### Log Files:

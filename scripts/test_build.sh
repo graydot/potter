@@ -37,30 +37,30 @@ pip install --quiet -r requirements.txt
 pip install --quiet pyinstaller
 
 # Use existing build_app.py for the actual build
-echo "🚀 Building app using build_app.py..."
+echo "�� Building app using scripts/build_app.py..."
 
-if [[ -f "build_app.py" ]]; then
-    python build_app.py
+if [[ -f "scripts/build_app.py" ]]; then
+    python scripts/build_app.py
 else
-    echo "❌ build_app.py not found!"
+    echo "❌ scripts/build_app.py not found!"
     echo "   This script relies on the existing build_app.py for building"
     exit 1
 fi
 
-# Check if the build succeeded
-if [[ -d "dist/Rephrasely.app" ]]; then
+# Test if build was successful
+if [[ -d "dist/app/Rephrasely.app" ]]; then
     echo "✅ Build successful!"
     echo ""
-    echo "📱 App Location: dist/Rephrasely.app"
+    echo "📱 App Location: dist/app/Rephrasely.app"
     
     # Calculate size
-    APP_SIZE=$(du -sh "dist/Rephrasely.app" | cut -f1)
+    APP_SIZE=$(du -sh "dist/app/Rephrasely.app" | cut -f1)
     echo "📏 App Size: $APP_SIZE"
     
     echo ""
     echo "🧪 Test Options:"
-    echo "   • Test directly: open dist/Rephrasely.app"
-    echo "   • Test in place: cd dist && open Rephrasely.app"
+    echo "   • Test directly: open dist/app/Rephrasely.app"
+    echo "   • Test in place: cd dist/app && open Rephrasely.app"
     echo "   • Test functionality: Run the app and try the hotkey"
     echo ""
     echo "💡 Tips:"
@@ -68,7 +68,7 @@ if [[ -d "dist/Rephrasely.app" ]]; then
     echo "   • Use this to verify changes before creating a release"
     echo "   • For releases, use: ./scripts/manual_release.sh"
 else
-    echo "❌ Build failed - app not found in dist/"
+    echo "❌ Build failed - app not found in dist/app/"
     exit 1
 fi
 

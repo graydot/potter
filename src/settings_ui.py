@@ -13,7 +13,7 @@ import threading
 class SettingsManager:
     """Manages saving and loading of user settings"""
     
-    def __init__(self, settings_file="settings.json"):
+    def __init__(self, settings_file="config/settings.json"):
         self.settings_file = settings_file
         self.default_settings = {
             "prompts": {

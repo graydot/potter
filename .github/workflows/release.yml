@@ -1,144 +1,247 @@
-name: 🚀 Auto Release
+name: Build and Release
 
 on:
   push:
-    branches: [ main, master ]
-    paths: 
-      - 'distribution/**'
+    tags:
+      - 'v*'
   workflow_dispatch:
-
-permissions:
-  contents: write
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      target:
+        description: 'Build target'
+        required: true
+        default: 'github'
+        type: choice
+        options:
+        - github
+        - appstore
+        - both
 
 jobs:
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
+  build-github:
+    if: ${{ github.event.inputs.target == 'github' || github.event.inputs.target == 'both' || github.event.inputs.target == '' }}
+    runs-on: macos-latest
     
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        fetch-depth: 0
-        
-    - name: 📋 Get version and build info
-      id: build_info
+        python-version: '3.11'
+    
+    - name: Install dependencies
       run: |
-        # Extract version from git tags or use timestamp
-        if git describe --tags --exact-match 2>/dev/null; then
-          VERSION=$(git describe --tags --exact-match)
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Import certificates
+      env:
+        DEVELOPER_ID_APPLICATION_P12: ${{ secrets.DEVELOPER_ID_APPLICATION_P12 }}
+        DEVELOPER_ID_INSTALLER_P12: ${{ secrets.DEVELOPER_ID_INSTALLER_P12 }}
+        CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
+      run: |
+        # Create temporary keychain
+        KEYCHAIN_NAME="build.keychain"
+        KEYCHAIN_PASSWORD="temp-password"
+        
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+        security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+        
+        # Import certificates
+        if [ ! -z "$DEVELOPER_ID_APPLICATION_P12" ]; then
+          echo "$DEVELOPER_ID_APPLICATION_P12" | base64 --decode > app-cert.p12
+          security import app-cert.p12 -k "$KEYCHAIN_NAME" -P "$CERTIFICATES_PASSWORD" -T /usr/bin/codesign
+          rm app-cert.p12
+        fi
+        
+        if [ ! -z "$DEVELOPER_ID_INSTALLER_P12" ]; then
+          echo "$DEVELOPER_ID_INSTALLER_P12" | base64 --decode > installer-cert.p12
+          security import installer-cert.p12 -k "$KEYCHAIN_NAME" -P "$CERTIFICATES_PASSWORD" -T /usr/bin/productbuild
+          rm installer-cert.p12
+        fi
+        
+        # Set partition list for codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+    
+    - name: Configure signing identities
+      env:
+        DEVELOPER_ID_NAME: ${{ secrets.DEVELOPER_ID_NAME }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        if [ ! -z "$DEVELOPER_ID_NAME" ]; then
+          echo "DEVELOPER_ID_APPLICATION=Developer ID Application: $DEVELOPER_ID_NAME" >> $GITHUB_ENV
+          echo "DEVELOPER_ID_INSTALLER=Developer ID Installer: $DEVELOPER_ID_NAME" >> $GITHUB_ENV
+          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> $GITHUB_ENV
+        fi
+    
+    - name: Build signed app
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        ASC_PROVIDER: ${{ secrets.ASC_PROVIDER }}
+      run: |
+        if [ -z "$DEVELOPER_ID_APPLICATION" ]; then
+          echo "No signing certificates - building unsigned"
+          python scripts/build_app.py --target github --skip-signing
         else
-          VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
-          echo "Creating new tag: $VERSION"
-          git tag $VERSION
-          git push origin $VERSION
+          echo "Building with code signing and notarization"
+          python scripts/build_app.py --target github
         fi
-        
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        
-        # Get build info if available
-        if [ -f "distribution/BUILD_INFO.md" ]; then
-          echo "build_info<<EOF" >> $GITHUB_OUTPUT
-          cat distribution/BUILD_INFO.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        fi
-        
-        # Get app size
-        if [ -f "distribution/Rephrasely.app.zip" ]; then
-          ZIP_SIZE=$(du -h "distribution/Rephrasely.app.zip" | cut -f1)
-          echo "zip_size=$ZIP_SIZE" >> $GITHUB_OUTPUT
-        fi
-        
-        if [ -d "distribution/Rephrasely.app" ]; then
-          APP_SIZE=$(du -sh "distribution/Rephrasely.app" | cut -f1)
-          echo "app_size=$APP_SIZE" >> $GITHUB_OUTPUT
-        fi
-        
-        echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        echo "build_date=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
-
-    - name: 📝 Generate Release Notes
-      id: release_notes
+    
+    - name: Create DMG
       run: |
-        cat > release_notes.md << 'EOF'
-        # 🎉 Rephrasely macOS App
-        
-        **AI-powered text processing directly from your menu bar**
-        
-        ## 📦 Download
-        
-        Download the ready-to-use macOS application below:
-        
-        **[⬇️ Download Rephrasely.app.zip](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.build_info.outputs.version }}/Rephrasely.app.zip)** (${{ steps.build_info.outputs.zip_size }})
-        
-        **[⬇️ Download Rephrasely.app (Direct)](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.build_info.outputs.version }}/Rephrasely.app.tar.gz)** (${{ steps.build_info.outputs.app_size }})
-        
-        > 💡 **Tip**: Download the ZIP if you prefer, or the direct .app for easier installation
-        
-        ## 🚀 Features
-        
-        - ✅ **Global Hotkey**: Process text from any app (default: Cmd+Shift+R)
-        - ✅ **Multiple AI Prompts**: Rephrase, summarize, expand, casual/formal tone
-        - ✅ **Custom Prompts**: Create your own with different output formats
-        - ✅ **Native macOS UI**: Clean preferences interface
-        - ✅ **Menu Bar Integration**: Always accessible from your menu bar
-        - ✅ **Auto-paste**: Automatically replaces selected text
-        
-        ## 📱 Installation
-        
-        1. Download `Rephrasely.app.zip`
-        2. Extract and move `Rephrasely.app` to `/Applications`
-        3. Double-click to launch (grant permissions when prompted)
-        4. Add your OpenAI API key in preferences
-        
-        ## ⚡ Quick Start
-        
-        1. Select any text in any application
-        2. Press `Cmd+Shift+R` (or your custom hotkey)
-        3. Watch as AI processes and replaces your text!
-        
-        ## ⚙️ Configuration
-        
-        Right-click the menu bar icon → "Preferences" to:
-        - Customize hotkeys and AI models
-        - Add/edit custom prompts
-        - Configure output formats (text, images, PDF)
-        - Set up startup options
-        
-        ## 🔧 Requirements
-        
-        - macOS 10.14 (Mojave) or later
-        - OpenAI API key
-        
-        ---
-        
-        **Build Info:**
-        - Version: ${{ steps.build_info.outputs.version }}
-        - Commit: ${{ steps.build_info.outputs.commit_hash }}
-        - Built: ${{ steps.build_info.outputs.build_date }}
-        
-        EOF
-        
-        echo "notes_file=release_notes.md" >> $GITHUB_OUTPUT
-
-    - name: 🏷️ Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.build_info.outputs.version }}
-        name: "Rephrasely ${{ steps.build_info.outputs.version }}"
-        body_path: release_notes.md
-        files: |
-          distribution/Rephrasely.app.zip
-          distribution/BUILD_INFO.md
-          distribution/Rephrasely.app.tar.gz
-        draft: false
-        prerelease: false
-        make_latest: true
+        ./scripts/test_dmg_creation.sh
+    
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: ✅ Release Complete
+      with:
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        release_name: Rephrasely ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## What's New
+          
+          - Enhanced AI-powered text processing
+          - Native macOS interface with proper code signing
+          - Improved security and Gatekeeper compatibility
+          
+          ## Installation
+          
+          1. Download `Rephrasely-${{ steps.version.outputs.VERSION }}.dmg`
+          2. Open the DMG file
+          3. Drag Rephrasely.app to your Applications folder
+          4. Launch Rephrasely and configure your OpenAI API key
+          
+          ## System Requirements
+          
+          - macOS 10.14 or later
+          - OpenAI API key (get one at https://platform.openai.com/api-keys)
+        draft: false
+        prerelease: false
+    
+    - name: Upload DMG
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/dmg/Rephrasely-${{ steps.version.outputs.VERSION }}.dmg
+        asset_name: Rephrasely-${{ steps.version.outputs.VERSION }}.dmg
+        asset_content_type: application/octet-stream
+    
+    - name: Cleanup keychain
+      if: always()
       run: |
-        echo "🎉 Release ${{ steps.build_info.outputs.version }} created successfully!"
-        echo "📱 App size: ${{ steps.build_info.outputs.app_size }}"
-        echo "🔗 Download URL: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.build_info.outputs.version }}/Rephrasely.app.zip" 
+        if security list-keychains | grep -q "build.keychain"; then
+          security delete-keychain build.keychain
+        fi
+
+  build-appstore:
+    if: ${{ github.event.inputs.target == 'appstore' || github.event.inputs.target == 'both' }}
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Import App Store certificates
+      env:
+        MAC_APP_STORE_P12: ${{ secrets.MAC_APP_STORE_P12 }}
+        MAC_INSTALLER_P12: ${{ secrets.MAC_INSTALLER_P12 }}
+        CERTIFICATES_PASSWORD: ${{ secrets.CERTIFICATES_PASSWORD }}
+      run: |
+        # Create temporary keychain
+        KEYCHAIN_NAME="appstore.keychain"
+        KEYCHAIN_PASSWORD="temp-password"
+        
+        security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+        security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+        
+        # Import certificates
+        if [ ! -z "$MAC_APP_STORE_P12" ]; then
+          echo "$MAC_APP_STORE_P12" | base64 --decode > appstore-app-cert.p12
+          security import appstore-app-cert.p12 -k "$KEYCHAIN_NAME" -P "$CERTIFICATES_PASSWORD" -T /usr/bin/codesign
+          rm appstore-app-cert.p12
+        fi
+        
+        if [ ! -z "$MAC_INSTALLER_P12" ]; then
+          echo "$MAC_INSTALLER_P12" | base64 --decode > appstore-installer-cert.p12
+          security import appstore-installer-cert.p12 -k "$KEYCHAIN_NAME" -P "$CERTIFICATES_PASSWORD" -T /usr/bin/productbuild
+          rm appstore-installer-cert.p12
+        fi
+        
+        # Set partition list
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+    
+    - name: Configure App Store signing
+      env:
+        MAC_APP_STORE_NAME: ${{ secrets.MAC_APP_STORE_NAME }}
+        MAC_INSTALLER_NAME: ${{ secrets.MAC_INSTALLER_NAME }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        if [ ! -z "$MAC_APP_STORE_NAME" ]; then
+          echo "MAC_APP_STORE_CERTIFICATE=3rd Party Mac Developer Application: $MAC_APP_STORE_NAME" >> $GITHUB_ENV
+          echo "MAC_INSTALLER_CERTIFICATE=3rd Party Mac Developer Installer: $MAC_INSTALLER_NAME" >> $GITHUB_ENV
+          echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> $GITHUB_ENV
+        fi
+    
+    - name: Setup App Store Connect API
+      env:
+        ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+        ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
+      run: |
+        if [ ! -z "$ASC_API_KEY_CONTENT" ]; then
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo "$ASC_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_$ASC_API_KEY_ID.p8
+          echo "ASC_API_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_$ASC_API_KEY_ID.p8" >> $GITHUB_ENV
+          echo "ASC_API_KEY_ID=$ASC_API_KEY_ID" >> $GITHUB_ENV
+          echo "ASC_API_ISSUER_ID=$ASC_API_ISSUER_ID" >> $GITHUB_ENV
+        fi
+    
+    - name: Build and upload to App Store
+      run: |
+        if [ -z "$MAC_APP_STORE_CERTIFICATE" ]; then
+          echo "No App Store certificates - cannot build for App Store"
+          exit 1
+        else
+          echo "Building for App Store with upload"
+          python scripts/build_app.py --target appstore
+        fi
+    
+    - name: Cleanup keychain
+      if: always()
+      run: |
+        if security list-keychains | grep -q "appstore.keychain"; then
+          security delete-keychain appstore.keychain
+        fi 
