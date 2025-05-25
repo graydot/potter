@@ -523,8 +523,7 @@ gh release create "$VERSION" \
     "$PROJECT_ROOT/dist/dmg/$DMG_NAME" \
     "$PROJECT_ROOT/dist/archives/INSTALLATION.md" \
     --title "Potter $VERSION" \
-    --notes-file "$PROJECT_ROOT/$RELEASE_NOTES_FILE" \
-    --discussion-category "Releases"
+    --notes-file "$PROJECT_ROOT/$RELEASE_NOTES_FILE"
 
 if [[ $? -eq 0 ]]; then
     echo "✅ GitHub release created successfully!"
