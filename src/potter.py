@@ -58,12 +58,12 @@ load_dotenv()
 # Determine the correct log file path based on execution context
 if getattr(sys, 'frozen', False):
     # Running as PyInstaller bundle - use user's home directory
-    log_file = os.path.expanduser('~/Library/Logs/rephrasely.log')
+    log_file = os.path.expanduser('~/Library/Logs/potter.log')
     # Ensure the Logs directory exists
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
 else:
     # Running as script - use current directory
-    log_file = 'rephrasely.log'
+    log_file = 'potter.log'
 
 # Configure logging
 logging.basicConfig(
@@ -79,7 +79,7 @@ logger = logging.getLogger(__name__)
 class SingleInstanceChecker:
     """Ensures only one instance of the application is running"""
     
-    def __init__(self, app_name="rephrasely"):
+    def __init__(self, app_name="potter"):
         self.app_name = app_name
         self.pid_file = os.path.expanduser(f"~/.{app_name}.pid")
         self.is_running = False
@@ -173,7 +173,7 @@ class RephrasleyService:
     def check_single_instance(self):
         """Check if this is the only instance running"""
         if self.instance_checker.is_already_running():
-            print("❌ Another instance of Rephrasely is already running!")
+            print("❌ Another instance of Potter is already running!")
             print("💡 Check your menu bar - the app may already be active.")
             print("💡 If you don't see it, try quitting all instances and running again.")
             sys.exit(1)

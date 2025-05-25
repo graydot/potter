@@ -1192,10 +1192,10 @@ class SettingsWindow(NSWindowController):
         import sys
         if getattr(sys, 'frozen', False):
             # Running as PyInstaller bundle
-            return os.path.expanduser('~/Library/Logs/rephrasely.log')
+            return os.path.expanduser('~/Library/Logs/potter.log')
         else:
             # Running as script
-            return 'rephrasely.log'
+            return 'potter.log'
     
     def loadLogs(self):
         """Load logs from file"""
@@ -1625,20 +1625,20 @@ class SettingsWindow(NSWindowController):
                 else:
                     # Command failed
                     error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-                    self.showPermissionResetError(f"Failed to reset permissions: {error_msg}")
+                    self.show_permission_reset_error(f"Failed to reset permissions: {error_msg}")
                     
             except subprocess.TimeoutExpired:
-                self.showPermissionResetError("Permission reset timed out. Please try again.")
+                self.show_permission_reset_error("Permission reset timed out. Please try again.")
             except FileNotFoundError:
-                self.showPermissionResetError("tccutil command not found. This feature requires macOS 10.11 or later.")
+                self.show_permission_reset_error("tccutil command not found. This feature requires macOS 10.11 or later.")
             except Exception as e:
-                self.showPermissionResetError(f"Unexpected error: {str(e)}")
+                self.show_permission_reset_error(f"Unexpected error: {str(e)}")
                 
         except Exception as e:
             print(f"Debug - Error in resetPermissions: {e}")
-            self.showPermissionResetError(f"Failed to reset permissions: {str(e)}")
+            self.show_permission_reset_error(f"Failed to reset permissions: {str(e)}")
     
-    def showPermissionResetError(self, message):
+    def show_permission_reset_error(self, message):
         """Show permission reset error dialog"""
         alert = NSAlert.alloc().init()
         alert.setMessageText_("Permission Reset Failed")
@@ -1680,7 +1680,7 @@ class SettingsWindow(NSWindowController):
                         1.0, self, "quitApp:", None, False
                     )
                 else:
-                    self.showPermissionResetError("Could not find app bundle path for restart.")
+                    self.show_permission_reset_error("Could not find app bundle path for restart.")
             else:
                 # Running as script - just show message
                 alert = NSAlert.alloc().init()
