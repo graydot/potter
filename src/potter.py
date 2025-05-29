@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Rephrasely - macOS Global Text Rephrasing Service
+Potter - macOS Global Text Rephrasing Service
 A background service that listens for global hotkeys and rephrases text using ChatGPT
 """
 
@@ -391,8 +391,8 @@ class RephrasleyService:
                 # Get current permission status  
                 permissions = self.get_permission_status()
                 
-                # Determine what entity has permission (Python vs Rephrasely app)
-                permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+                # Determine what entity has permission (Python vs Potter app)
+                permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Python"
                 
                 # Create menu items
                 menu_items = [
@@ -632,7 +632,7 @@ class RephrasleyService:
             else:
                 print("⚠️  Accessibility permission required!")
                 print("   Needed for: global hotkey monitoring only")
-                print("   Rephrasely will process text already in your clipboard")
+                print("   Potter will process text already in your clipboard")
                 print("   Please grant permission in System Settings > Privacy & Security > Accessibility")
                 print("   The app will continue running and check for permissions periodically")
                 
@@ -654,7 +654,7 @@ class RephrasleyService:
                     permissions = self.get_permission_status()
                     if permissions["accessibility"]:
                         logger.info("✅ Accessibility permission granted! Keyboard listener should now work")
-                        self.show_notification("Permissions Granted", "Accessibility permission detected! Rephrasely is now fully functional.", is_error=False)
+                        self.show_notification("Permissions Granted", "Accessibility permission detected! Potter is now fully functional.", is_error=False)
                         
                         # Refresh the tray icon to show updated permission status
                         self.refresh_tray_icon()
@@ -840,8 +840,8 @@ class RephrasleyService:
         # Get current permission status
         permissions = self.get_permission_status()
         
-        # Determine what entity has permission (Python vs Rephrasely app)
-        permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+        # Determine what entity has permission (Python vs Potter app)
+        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Python"
         
         # Create menu
         menu_items = [
@@ -896,7 +896,7 @@ class RephrasleyService:
         ])
         
         menu = pystray.Menu(*menu_items)
-        self.tray_icon = pystray.Icon("Rephrasely", image, "Rephrasely - AI Text Processor", menu)
+        self.tray_icon = pystray.Icon("Potter", image, "Potter - AI Text Processor", menu)
     
     def check_and_show_permissions(self):
         """Check permissions and show status or open settings"""
@@ -906,7 +906,7 @@ class RephrasleyService:
         
         if accessibility_granted:
             # All permissions granted
-            self.show_notification("Permissions Status", "✅ All permissions granted. Rephrasely is fully functional!", is_error=False)
+            self.show_notification("Permissions Status", "✅ All permissions granted. Potter is fully functional!", is_error=False)
         else:
             # Essential permission missing - show settings
             logger.info("Essential permissions missing - opening settings")
@@ -950,7 +950,7 @@ class RephrasleyService:
     
     def quit_app(self, icon=None, item=None):
         """Quit the application"""
-        logger.info("Shutting down Rephrasely...")
+        logger.info("Shutting down Potter...")
         self.is_running = False
         
         if self.listener:
@@ -1241,7 +1241,7 @@ class RephrasleyService:
             
             # Show welcome alert first
             alert = NSAlert.alloc().init()
-            alert.setMessageText_("Welcome to Rephrasely!")
+            alert.setMessageText_("Welcome to Potter!")
             alert.setInformativeText_("Please configure your OpenAI API key and preferences to get started. You can get an API key from https://platform.openai.com/api-keys")
             alert.setAlertStyle_(NSAlertStyleInformational)
             alert.addButtonWithTitle_("Open Settings")
@@ -1332,7 +1332,7 @@ class RephrasleyService:
 
 def main():
     """Main entry point"""
-    print("🔄 Rephrasely - Global Text Rephrasing Service")
+    print("🔄 Potter - AI Text Rephrasing Service")
     print("=" * 50)
     
     # Initialize NSApplication for macOS app bundle compatibility

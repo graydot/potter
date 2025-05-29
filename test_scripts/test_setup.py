@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for Rephrasely setup
+Test script for Potter setup
 Verifies that all dependencies are working and files are in the right place
 """
 
@@ -36,17 +36,16 @@ def test_dependencies():
     """Test if all required modules can be imported"""
     print("\n📦 Testing dependencies...")
     
-    required_modules = [
-        ('openai', 'openai'),
-        ('pyperclip', 'pyperclip'),
-        ('pynput', 'pynput'),
-        ('pystray', 'pystray'),
-        ('PIL', 'Pillow'),
-        ('tkinter', 'tkinter (built-in)')
+    dependencies_to_test = [
+        ('openai', 'OpenAI'),
+        ('pyperclip', 'clipboard access'),
+        ('pynput', 'keyboard monitoring'),
+        ('pystray', 'system tray'),
+        ('PIL', 'image processing (Pillow)'),
     ]
     
     all_good = True
-    for module_name, display_name in required_modules:
+    for module_name, display_name in dependencies_to_test:
         try:
             __import__(module_name)
             print(f"  ✅ {display_name}")
@@ -61,10 +60,8 @@ def test_app_files():
     print("\n📁 Testing source files...")
     
     files_to_check = [
-        "../src/rephrasely.py",
-        "../src/settings_ui.py", 
-        "../src/cocoa_settings.py",
-        "../requirements.txt"
+        "src/potter.py",
+        "src/cocoa_settings.py",
     ]
     
     all_exist = True
@@ -97,7 +94,7 @@ def test_clipboard():
         import pyperclip
         
         # Test writing to clipboard
-        test_text = "Rephrasely test"
+        test_text = "Potter test"
         pyperclip.copy(test_text)
         
         # Test reading from clipboard
@@ -116,7 +113,7 @@ def test_clipboard():
 
 def main():
     """Run all tests"""
-    print("🧪 Rephrasely Setup Test")
+    print("🧪 Potter Setup Test")
     print("=" * 50)
     
     all_passed = True
@@ -146,10 +143,10 @@ def main():
     print("\n" + "=" * 50)
     if all_passed:
         print("🎉 All tests passed!")
-        print("\n✅ Your Rephrasely setup is ready!")
+        print("\n✅ Your Potter setup is ready!")
         print("\nNext steps:")
         print("1. Build the app: python scripts/build_app.py")
-        print("2. Install: cp -r dist/app/Rephrasely.app /Applications/")
+        print("2. Install: cp -r dist/app/Potter.app /Applications/")
         print("3. Launch and configure API key in app settings")
         print("4. Test with Cmd+Shift+R")
     else:

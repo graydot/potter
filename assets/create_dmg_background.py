@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DMG Background Image Generator for Rephrasely
+DMG Background Image Generator for Potter
 Creates a professional-looking background for the DMG installer
 """
 
@@ -46,7 +46,7 @@ def create_dmg_background():
     accent_color = '#3498db'
     
     # Draw title
-    title_text = "Rephrasely"
+    title_text = "Potter"
     title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
     title_width = title_bbox[2] - title_bbox[0]
     title_x = (width - title_width) // 2
@@ -62,7 +62,7 @@ def create_dmg_background():
     draw.text((subtitle_x, subtitle_y), subtitle_text, fill=secondary_color, font=subtitle_font)
     
     # Draw instruction text
-    instruction_text = "Drag Rephrasely to Applications to install"
+    instruction_text = "Drag Potter to Applications to install"
     instruction_bbox = draw.textbbox((0, 0), instruction_text, font=instruction_font)
     instruction_width = instruction_bbox[2] - instruction_bbox[0]
     instruction_x = (width - instruction_width) // 2

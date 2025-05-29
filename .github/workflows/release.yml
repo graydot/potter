@@ -115,7 +115,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.version.outputs.VERSION }}
-        release_name: Rephrasely ${{ steps.version.outputs.VERSION }}
+        release_name: Potter ${{ steps.version.outputs.VERSION }}
         body: |
           ## What's New
           
@@ -125,10 +125,10 @@ jobs:
           
           ## Installation
           
-          1. Download `Rephrasely-${{ steps.version.outputs.VERSION }}.dmg`
+          1. Download `Potter-${{ steps.version.outputs.VERSION }}.dmg`
           2. Open the DMG file
-          3. Drag Rephrasely.app to your Applications folder
-          4. Launch Rephrasely and configure your OpenAI API key
+          3. Drag Potter.app to your Applications folder
+          4. Launch Potter and configure your OpenAI API key
           
           ## System Requirements
           
@@ -143,8 +143,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/dmg/Rephrasely-${{ steps.version.outputs.VERSION }}.dmg
-        asset_name: Rephrasely-${{ steps.version.outputs.VERSION }}.dmg
+        asset_path: ./dist/dmg/Potter-${{ steps.version.outputs.VERSION }}.dmg
+        asset_name: Potter-${{ steps.version.outputs.VERSION }}.dmg
         asset_content_type: application/octet-stream
     
     - name: Cleanup keychain

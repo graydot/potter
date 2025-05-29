@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Setup Git Hooks for Rephrasely
+# Setup Git Hooks for Potter
 # This script installs the pre-commit hook for GitHub releases
 
-echo "🔧 Setting up Git Hooks for Rephrasely"
+echo "🔧 Setting up Git Hooks for Potter"
 echo "======================================"
 
 # Get project root
@@ -15,7 +15,7 @@ echo "📂 Project root: $PROJECT_ROOT"
 # Check if we're in a git repository
 if [[ ! -d ".git" ]]; then
     echo "❌ Error: Not in a git repository"
-    echo "   Please run this script from the root of the Rephrasely git repository"
+    echo "   Please run this script from the root of the Potter git repository"
     exit 1
 fi
 

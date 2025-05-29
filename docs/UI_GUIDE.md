@@ -227,7 +227,7 @@ You can manually edit the JSON file for advanced configurations:
 - **Restart app** if needed
 
 ### UI Not Opening
-- Ensure **tkinter is available** (built into Python)
+- Ensure **PyObjC is available** for native macOS integration
 - Check **Console.app** for error messages
 - Try **restarting Rephrasely.app**
 

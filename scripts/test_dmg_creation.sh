@@ -3,9 +3,9 @@
 # Creates professional DMG installers for GitHub releases
 
 # Configuration
-APP_NAME="Rephrasely"
+APP_NAME="Potter"
 DMG_DIR="dist/dmg"
-APP_PATH="dist/app/Rephrasely.app"
+APP_PATH="dist/app/Potter.app"
 BACKGROUND_IMAGE="assets/dmg_background.png"
 
 # Get version from git tags or use default
@@ -15,7 +15,7 @@ else
     VERSION="1.0.0"
 fi
 
-DMG_NAME="Rephrasely-${VERSION}.dmg"
+DMG_NAME="Potter-${VERSION}.dmg"
 TEMP_DMG="${DMG_DIR}/temp_${DMG_NAME}"
 FINAL_DMG="${DMG_DIR}/${DMG_NAME}"
 

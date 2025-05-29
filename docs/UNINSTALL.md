@@ -8,7 +8,7 @@ This guide will help you completely remove Rephrasely from your macOS system.
 First, make sure Rephrasely is not running:
 ```bash
 # Stop the Python script version
-pkill -f "python.*rephrasely.py"
+pkill -f "python.*potter.py"
 
 # Stop the bundled app version
 pkill -f "Rephrasely"
@@ -137,7 +137,7 @@ You can also use this one-liner to remove most files:
 echo "🗑️  Removing Rephrasely..."
 
 # Stop processes
-pkill -f "python.*rephrasely.py" 2>/dev/null
+pkill -f "python.*potter.py" 2>/dev/null
 pkill -f "Rephrasely" 2>/dev/null
 
 # Remove app files

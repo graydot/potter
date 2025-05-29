@@ -19,7 +19,7 @@ Thumbs.db
 
 # Log files
 *.log
-rephrasely.log
+potter.log
 
 # Python cache
 __pycache__/
@@ -54,7 +54,7 @@ MANIFEST
 venv/
 env/
 ENV/
-rephrasely-env/
+potter-env/
 env.bak/
 venv.bak/
 

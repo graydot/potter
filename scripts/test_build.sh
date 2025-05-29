@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Rephrasely Test Build Script
+# Potter Test Build Script
 # Simple local build for testing before creating releases
 
 set -e  # Exit on any error
 
-echo "🔨 Rephrasely Test Build"
+echo "🔨 Potter Test Build"
 echo "========================="
 
 # Get the project root directory
@@ -48,19 +48,19 @@ else
 fi
 
 # Test if build was successful
-if [[ -d "dist/app/Rephrasely.app" ]]; then
+if [[ -d "dist/app/Potter.app" ]]; then
     echo "✅ Build successful!"
     echo ""
-    echo "📱 App Location: dist/app/Rephrasely.app"
+    echo "📱 App Location: dist/app/Potter.app"
     
     # Calculate size
-    APP_SIZE=$(du -sh "dist/app/Rephrasely.app" | cut -f1)
+    APP_SIZE=$(du -sh "dist/app/Potter.app" | cut -f1)
     echo "📏 App Size: $APP_SIZE"
     
     echo ""
     echo "🧪 Test Options:"
-    echo "   • Test directly: open dist/app/Rephrasely.app"
-    echo "   • Test in place: cd dist/app && open Rephrasely.app"
+    echo "   • Test directly: open dist/app/Potter.app"
+    echo "   • Test in place: cd dist/app && open Potter.app"
     echo "   • Test functionality: Run the app and try the hotkey"
     echo ""
     echo "💡 Tips:"

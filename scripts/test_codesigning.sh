@@ -92,11 +92,11 @@ if [ ! -z "$DEVELOPER_ID" ]; then
         echo "✅ GitHub release build successful"
         
         # Check if app was actually signed
-        if codesign --verify --deep --strict dist/app/Rephrasely.app 2>/dev/null; then
+        if codesign --verify --deep --strict dist/app/Potter.app 2>/dev/null; then
             echo "✅ App is properly signed"
             
             # Get signing details
-            SIGNING_INFO=$(codesign -dv dist/app/Rephrasely.app 2>&1)
+            SIGNING_INFO=$(codesign -dv dist/app/Potter.app 2>&1)
             echo "📝 Signing details:"
             echo "$SIGNING_INFO" | grep "Authority="
             echo "$SIGNING_INFO" | grep "TeamIdentifier="

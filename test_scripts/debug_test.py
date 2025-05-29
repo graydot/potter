@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Debug test script for Rephrasely dependencies
+Debug test script for Potter dependencies
 """
 
-print("🔍 Testing Rephrasely dependencies...")
+print("🔍 Testing Potter dependencies...")
 
 try:
     print("1. Testing six...")

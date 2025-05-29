@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Native macOS Settings UI for Rephrasely using PyObjC/Cocoa
+Native macOS Settings UI for Potter using PyObjC/Cocoa
 Built from scratch for reliability
 """
 
@@ -23,7 +23,7 @@ class SettingsManager:
         if settings_file is None:
             if getattr(sys, 'frozen', False):
                 # Running as PyInstaller bundle - use user's Application Support directory
-                settings_dir = os.path.expanduser('~/Library/Application Support/Rephrasely')
+                settings_dir = os.path.expanduser('~/Library/Application Support/Potter')
                 os.makedirs(settings_dir, exist_ok=True)
                 self.settings_file = os.path.join(settings_dir, 'settings.json')
             else:
@@ -65,45 +65,16 @@ class SettingsManager:
         self.settings = self.load_settings()
     
     def load_settings(self) -> Dict[str, Any]:
-        """Load settings from file"""
+        """Load settings from file, create default if not exists"""
         try:
             if os.path.exists(self.settings_file):
                 with open(self.settings_file, 'r') as f:
                     loaded = json.load(f)
                     settings = self.default_settings.copy()
                     
-                    # Handle prompts separately to ensure proper structure
-                    if "prompts" in loaded:
-                        if isinstance(loaded["prompts"], dict):
-                            # Migrate old format
-                            print("🔄 Migrating prompts from old format to new format...")
-                            old_prompts = loaded["prompts"]
-                            new_prompts = []
-                            
-                            for name, text in old_prompts.items():
-                                new_prompts.append({
-                                    "name": name,
-                                    "text": text
-                                })
-                            
-                            settings["prompts"] = new_prompts
-                            print("✅ Successfully migrated prompts to new format")
-                        elif isinstance(loaded["prompts"], list):
-                            # Check if it's the correct new format
-                            if loaded["prompts"] and isinstance(loaded["prompts"][0], dict):
-                                settings["prompts"] = loaded["prompts"]
-                            else:
-                                # It's a list of strings or wrong format, use defaults
-                                print("⚠️ Invalid prompts format, using defaults")
-                                settings["prompts"] = self.default_settings["prompts"]
-                        else:
-                            # Unknown format, use defaults
-                            settings["prompts"] = self.default_settings["prompts"]
-                    
-                    # Update other settings normally
+                    # Update settings with loaded values
                     for key, value in loaded.items():
-                        if key != "prompts":  # We handled prompts above
-                            settings[key] = value
+                        settings[key] = value
                     
                     return settings
             else:
@@ -163,12 +134,12 @@ class SettingsManager:
     def show_success(self, message="Operation completed successfully"):
         """Show success notification if enabled"""
         if self.get("show_notifications", False):
-            self.show_notification("Rephrasely", message, is_error=False)
+            self.show_notification("Potter", message, is_error=False)
     
     def show_error(self, error_message):
         """Show error notification if enabled"""
         if self.get("show_notifications", False):
-            self.show_notification("Rephrasely Error", error_message, is_error=True)
+            self.show_notification("Potter Error", error_message, is_error=True)
 
 
 class HotkeyField(NSTextField):
@@ -619,7 +590,7 @@ class SettingsWindow(NSWindowController):
             False
         )
         
-        window.setTitle_("Rephrasely Settings")
+        window.setTitle_("Potter Settings")
         window.setLevel_(NSNormalWindowLevel)
         
         # Set delegate to handle window events including ESC key
@@ -834,7 +805,7 @@ class SettingsWindow(NSWindowController):
         
         self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 220, 400, 25))
         self.startup_checkbox.setButtonType_(NSButtonTypeSwitch)
-        self.startup_checkbox.setTitle_("Launch Rephrasely at startup")
+        self.startup_checkbox.setTitle_("Launch Potter at startup")
         self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
         view.addSubview_(self.startup_checkbox)
         
@@ -850,9 +821,9 @@ class SettingsWindow(NSWindowController):
         # Check permissions from the main app if available
         permissions_status = self.get_permissions_status()
         
-        # Determine what entity has permission (Python vs Rephrasely app)
+        # Determine what entity has permission (Python vs Potter app)
         import sys
-        permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Python"
         
         # Accessibility permission status
         self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 125, 480, 20))
@@ -1403,10 +1374,10 @@ class SettingsWindow(NSWindowController):
     def get_permissions_status(self):
         """Get current permissions status from the main app"""
         try:
-            # Try to import from rephrasely module to check permissions
-            rephrasely_module = sys.modules.get('__main__')
-            if rephrasely_module and hasattr(rephrasely_module, 'service'):
-                return rephrasely_module.service.get_permission_status()
+            # Try to import from potter module to check permissions
+            potter_module = sys.modules.get('__main__')
+            if potter_module and hasattr(potter_module, 'service'):
+                return potter_module.service.get_permission_status()
             
             # Fallback: try to check permissions directly using the same improved method as main app
             try:
@@ -1535,9 +1506,9 @@ class SettingsWindow(NSWindowController):
         # Get updated permissions
         permissions_status = self.get_permissions_status()
         
-        # Determine what entity has permission (Python vs Rephrasely app)
+        # Determine what entity has permission (Python vs Potter app)
         import sys
-        permission_entity = "Rephrasely.app" if getattr(sys, 'frozen', False) else "Python"
+        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Python"
         
         # Update accessibility status
         if permissions_status.get('accessibility', False):
@@ -1573,9 +1544,9 @@ class SettingsWindow(NSWindowController):
         
         # Also refresh the main app's tray icon if available
         try:
-            rephrasely_module = sys.modules.get('__main__')
-            if rephrasely_module and hasattr(rephrasely_module, 'service') and hasattr(rephrasely_module.service, 'refresh_tray_icon'):
-                rephrasely_module.service.refresh_tray_icon()
+            potter_module = sys.modules.get('__main__')
+            if potter_module and hasattr(potter_module, 'service') and hasattr(potter_module.service, 'refresh_tray_icon'):
+                potter_module.service.refresh_tray_icon()
                 print("Debug - Triggered tray icon refresh")
         except Exception as e:
             print(f"Debug - Could not refresh tray icon: {e}")

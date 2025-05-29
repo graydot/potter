@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rephrasely runner script - automatically uses virtual environment
+# Potter runner script - automatically uses virtual environment
 
 # Get the directory of this script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -11,7 +11,7 @@ if [ ! -d "$DIR/.venv" ]; then
 fi
 
 # Activate virtual environment and run the app
-echo "🔄 Starting Rephrasely..."
+echo "🔄 Starting Potter..."
 echo "ℹ️  Note: Configure your OpenAI API key in the app settings"
 source "$DIR/.venv/bin/activate"
-python "$DIR/src/rephrasely.py"
+python "$DIR/src/potter.py"

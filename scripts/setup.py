@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for Rephrasely - macOS Global Text Rephrasing Service
+Setup script for Potter - macOS Global Text Rephrasing Service
 """
 
 import os
@@ -79,7 +79,7 @@ def install_dependencies():
 def create_run_script():
     """Create a convenience script to run the app with the virtual environment"""
     script_content = '''#!/bin/bash
-# Rephrasely runner script - automatically uses virtual environment
+# Potter runner script - automatically uses virtual environment
 
 # Get the directory of this script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -91,10 +91,10 @@ if [ ! -d "$DIR/.venv" ]; then
 fi
 
 # Activate virtual environment and run the app
-echo "🔄 Starting Rephrasely..."
+echo "🔄 Starting Potter..."
 echo "ℹ️  Note: Configure your OpenAI API key in the app settings"
 source "$DIR/.venv/bin/activate"
-python "$DIR/src/rephrasely.py"
+python "$DIR/src/potter.py"
 '''
     
     try:
@@ -122,7 +122,7 @@ def check_permissions():
 
 def main():
     """Main setup function"""
-    print("🔄 Rephrasely Setup")
+    print("🔄 Potter Setup")
     print("=" * 50)
     
     # Check system requirements
@@ -153,10 +153,10 @@ def main():
     print("   python scripts/build_app.py")
     print()
     print("2. Install the app:")
-    print("   cp -r dist/app/Rephrasely.app /Applications/")
+    print("   cp -r dist/app/Potter.app /Applications/")
     print()
     print("3. Launch and configure:")
-    print("   • Open Rephrasely.app from Applications")
+    print("   • Open Potter.app from Applications")
     print("   • Configure your OpenAI API key in app settings")
     print("   • Grant accessibility permissions when prompted")
     print()
