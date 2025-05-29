@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Settings UI availability check
 try:
-    from cocoa_settings import SettingsManager
+    from cocoa_settings import SettingsManager, show_settings
     SETTINGS_UI_AVAILABLE = True
 except ImportError:
     SETTINGS_UI_AVAILABLE = False
@@ -316,11 +316,12 @@ class PotterService:
         
         try:
             logger.info("Opening settings window...")
-            # Create settings window
-            self.settings_window = self.settings_manager.show_settings_window()
+            self.settings_window = show_settings(self.settings_manager)
             logger.info("Settings window opened successfully")
         except Exception as e:
             logger.error(f"Failed to show settings window: {e}")
+            import traceback
+            traceback.print_exc()
             self.notification_manager.show_error("Failed to open settings")
     
     def _set_processing_state(self, processing: bool):

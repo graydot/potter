@@ -474,6 +474,10 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
         # Clean up entitlements file
         if os.path.exists(entitlements_file):
             os.remove(entitlements_file)
+    else:
+        # For unsigned development builds, remove quarantine attributes
+        # so the app can run without permission prompts
+        remove_quarantine_attributes(app_path)
     
     print("✅ Potter.app created at:", os.path.abspath(app_path))
     
@@ -665,6 +669,32 @@ def fix_info_plist(app_path):
         f.write(info_plist_content)
     
     print("✅ Fixed Info.plist for double-click launching")
+
+def remove_quarantine_attributes(app_path):
+    """Remove quarantine attributes from the app to allow unsigned apps to run"""
+    print("🔓 Removing quarantine attributes for development build...")
+    
+    try:
+        # Remove quarantine attribute from the app bundle
+        result = subprocess.run([
+            'xattr', '-dr', 'com.apple.quarantine', app_path
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("✅ Quarantine attributes removed - app should run without permission prompts")
+            return True
+        else:
+            # Check if it's just because there were no quarantine attributes
+            if "No such xattr" in result.stderr or result.stderr.strip() == "":
+                print("✅ No quarantine attributes found (app was built locally)")
+                return True
+            else:
+                print(f"⚠️  Could not remove quarantine attributes: {result.stderr}")
+                return False
+                
+    except Exception as e:
+        print(f"⚠️  Error removing quarantine attributes: {e}")
+        return False
 
 def main():
     """Main build process with CLI support"""
