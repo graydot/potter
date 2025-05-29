@@ -158,4 +158,4 @@ Once set up, you'll have a professional distribution system that automatically h
 - File hosting
 - User downloads
 
-Your users will be able to download Rephrasely directly from your GitHub Releases page! 🚀 
+Your users will be able to download Potter directly from your GitHub Releases page! 🚀 

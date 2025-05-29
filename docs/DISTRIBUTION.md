@@ -1,10 +1,10 @@
-# Rephrasely Distribution System
+# Potter Distribution System
 
-This document describes how Rephrasely handles building and distributing releases via GitHub Releases.
+This document describes how Potter handles building and distributing releases via GitHub Releases.
 
 ## Overview
 
-Rephrasely now uses **GitHub Releases** for distribution instead of local build files. This provides:
+Potter now uses **GitHub Releases** for distribution instead of local build files. This provides:
 
 - ✅ **Centralized Distribution**: All releases available on GitHub
 - ✅ **Version Management**: Automatic tagging and release notes
@@ -15,8 +15,8 @@ Rephrasely now uses **GitHub Releases** for distribution instead of local build 
 ## Quick Start
 
 ### For Users (Downloading)
-1. Go to [GitHub Releases](https://github.com/YOUR_USERNAME/rephrasely/releases)
-2. Download `Rephrasely.app.zip` from the latest release
+1. Go to [GitHub Releases](https://github.com/YOUR_USERNAME/potter/releases)
+2. Download `Potter.app.zip` from the latest release
 3. Extract and drag to Applications folder
 4. Follow installation instructions included in the release
 
@@ -88,16 +88,16 @@ git commit -m "Prepare for release"
 ### Generated Files
 ```
 distribution/
-├── Rephrasely.app/          # macOS app bundle
-├── Rephrasely.app.zip       # Compressed app (recommended)
-├── Rephrasely.app.tar.gz    # Alternative compression
+├── Potter.app/          # macOS app bundle
+├── Potter.app.zip       # Compressed app (recommended)
+├── Potter.app.tar.gz    # Alternative compression
 └── INSTALLATION.md          # User installation guide
 ```
 
 ### Release Assets
 Each GitHub release includes:
-- `Rephrasely.app.zip` (recommended download)
-- `Rephrasely.app.tar.gz` (alternative format)
+- `Potter.app.zip` (recommended download)
+- `Potter.app.tar.gz` (alternative format)
 - `INSTALLATION.md` (setup instructions)
 
 ## Version Management

@@ -1,15 +1,15 @@
-# 🎛️ Rephrasely Settings UI Guide
+# 🎛️ Potter Settings UI Guide
 
-**Complete guide to customizing your Rephrasely experience**
+**Complete guide to customizing your Potter experience**
 
 ## 🚀 Quick Start
 
-### Opening the Settings
-1. **Launch Rephrasely.app** from Applications
-2. **Right-click** the blue "R" icon in your menu bar
-3. **Select "Preferences..."**
+### Opening Settings
+1. **Launch Potter.app** from Applications
+2. **Right-click** the menu bar icon (⚙️)
+3. Select **"Settings"** from the dropdown
 
-Or use the keyboard shortcut: `Cmd+,` (while Rephrasely is focused)
+Or use the keyboard shortcut: `Cmd+,` (while Potter is focused)
 
 ## 📝 Prompts Tab - Customize Your AI
 
@@ -191,7 +191,7 @@ Rephrase: "Rewrite this in formal academic style with proper citations and schol
 ## 🔧 Advanced Configuration
 
 ### Settings File Location
-Your settings are saved in: `~/Applications/Rephrasely.app/Contents/MacOS/settings.json`
+Your settings are saved in: `~/Applications/Potter.app/Contents/MacOS/settings.json`
 
 ### Manual Settings Editing
 You can manually edit the JSON file for advanced configurations:
@@ -229,7 +229,7 @@ You can manually edit the JSON file for advanced configurations:
 ### UI Not Opening
 - Ensure **PyObjC is available** for native macOS integration
 - Check **Console.app** for error messages
-- Try **restarting Rephrasely.app**
+- Try **restarting Potter.app**
 
 ### Prompts Not Working
 - **Test with simple prompts** first
@@ -281,4 +281,4 @@ You can manually edit the JSON file for advanced configurations:
 
 ---
 
-**Master your Rephrasely settings and transform your text processing workflow! 🚀** 
+**Master your Potter settings and transform your text processing workflow! 🚀** 

@@ -54,7 +54,7 @@ class SettingsManager:
                     "text": "Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness."
                 }
             ],
-            "hotkey": "cmd+shift+r",
+            "hotkey": "cmd+shift+a",
             "model": "gpt-3.5-turbo",
             "max_tokens": 1000,
             "temperature": 0.7,
@@ -775,7 +775,7 @@ class SettingsWindow(NSWindowController):
         self.hotkey_field = HotkeyField.alloc().initWithFrame_manager_(
             NSMakeRect(150, 320, 200, 25), self.settings_manager
         )
-        self.hotkey_field.setStringValue_(self.settings_manager.get("hotkey", "cmd+shift+r"))
+        self.hotkey_field.setStringValue_(self.settings_manager.get("hotkey", "cmd+shift+a"))
         self.hotkey_field.reset_callback = self.updateResetButton
         view.addSubview_(self.hotkey_field)
         
@@ -821,9 +821,8 @@ class SettingsWindow(NSWindowController):
         # Check permissions from the main app if available
         permissions_status = self.get_permissions_status()
         
-        # Determine what entity has permission (Python vs Potter app)
-        import sys
-        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Python"
+        # Determine what entity has permission (only check for Potter.app)
+        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "this development session"
         
         # Accessibility permission status
         self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 125, 480, 20))
@@ -1506,9 +1505,8 @@ class SettingsWindow(NSWindowController):
         # Get updated permissions
         permissions_status = self.get_permissions_status()
         
-        # Determine what entity has permission (Python vs Potter app)
-        import sys
-        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Python"
+        # Determine what entity has permission (only check for Potter.app)
+        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "this development session"
         
         # Update accessibility status
         if permissions_status.get('accessibility', False):

@@ -1,120 +1,42 @@
 #!/bin/bash
 
 # Potter Pre-commit Hook
-# Runs tests to verify functionality before commit
+# This hook runs comprehensive tests before allowing commits
 
-set -e  # Exit on any error
+# Color output functions
+red() { echo -e "\033[31m$1\033[0m"; }
+green() { echo -e "\033[32m$1\033[0m"; }
+yellow() { echo -e "\033[33m$1\033[0m"; }
+blue() { echo -e "\033[34m$1\033[0m"; }
 
-echo "🧪 Potter Pre-commit Test Hook"
-echo "=================================================="
+echo "$(blue '🔍 Potter Pre-commit Hook')"
+echo "Running comprehensive tests..."
 
-# Get the current branch
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-echo "📍 Current branch: $BRANCH"
-
-# Check if any significant files changed
-PYTHON_FILES_CHANGED=$(git diff --cached --name-only | grep -E '\.(py)$' | wc -l)
-CONFIG_FILES_CHANGED=$(git diff --cached --name-only | grep -E '(requirements\.txt|\.spec|setup\.py)' | wc -l)
-
-echo "📋 Files changed: $PYTHON_FILES_CHANGED Python, $CONFIG_FILES_CHANGED config"
-
-# Run tests if Python files or config files changed
-if [[ $PYTHON_FILES_CHANGED -gt 0 ]] || [[ $CONFIG_FILES_CHANGED -gt 0 ]]; then
-    echo ""
-    echo "🔍 Running pre-commit tests..."
-    
-    # Set up test environment
-    TEST_DIR="test_scripts"
-    FAILED_TESTS=0
-    
-    # Run setup validation test
-    echo ""
-    echo "1️⃣ Testing setup and dependencies..."
-    if ! python "$TEST_DIR/test_setup.py"; then
-        echo "❌ Setup test failed"
-        FAILED_TESTS=$((FAILED_TESTS + 1))
-    else
-        echo "✅ Setup test passed"
-    fi
-    
-    # Run debug/dependency test
-    echo ""
-    echo "2️⃣ Testing dependencies..."
-    if ! python "$TEST_DIR/debug_test.py"; then
-        echo "❌ Dependency test failed"
-        FAILED_TESTS=$((FAILED_TESTS + 1))
-    else
-        echo "✅ Dependency test passed"
-    fi
-    
-    # Run UI test (if available)
-    if [[ -f "$TEST_DIR/test_ui.py" ]]; then
-        echo ""
-        echo "3️⃣ Testing UI components..."
-        if ! python "$TEST_DIR/test_ui.py"; then
-            echo "❌ UI test failed"
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-        else
-            echo "✅ UI test passed"
-        fi
-    fi
-    
-    # Run settings migration test (if available)
-    if [[ -f "$TEST_DIR/test_settings_migration.py" ]]; then
-        echo ""
-        echo "4️⃣ Testing settings migration..."
-        if ! python "$TEST_DIR/test_settings_migration.py"; then
-            echo "❌ Settings migration test failed"
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-        else
-            echo "✅ Settings migration test passed"
-        fi
-    fi
-    
-    # Basic Python syntax check for changed files
-    echo ""
-    echo "4️⃣ Checking Python syntax..."
-    CHANGED_PY_FILES=$(git diff --cached --name-only | grep -E '\.(py)$')
-    SYNTAX_ERRORS=0
-    
-    for file in $CHANGED_PY_FILES; do
-        if [[ -f "$file" ]]; then
-            if ! python -m py_compile "$file" 2>/dev/null; then
-                echo "❌ Syntax error in: $file"
-                SYNTAX_ERRORS=$((SYNTAX_ERRORS + 1))
-            fi
-        fi
-    done
-    
-    if [[ $SYNTAX_ERRORS -gt 0 ]]; then
-        echo "❌ Found $SYNTAX_ERRORS Python syntax error(s)"
-        FAILED_TESTS=$((FAILED_TESTS + 1))
-    else
-        echo "✅ Python syntax check passed"
-    fi
-    
-    # Final result
-    echo ""
-    echo "=================================================="
-    if [[ $FAILED_TESTS -gt 0 ]]; then
-        echo "❌ $FAILED_TESTS test(s) failed. Please fix issues before committing."
-        exit 1
-    else
-        echo "✅ All tests passed! Proceeding with commit."
-    fi
+# Run the test runner
+if python scripts/test_runner.py; then
+    echo "$(green '✅ All tests passed!')"
 else
-    echo "ℹ️  No Python or config files changed - skipping tests"
+    echo "$(red '❌ Tests failed - commit blocked')"
+    echo "Run 'python scripts/test_runner.py' to see detailed results"
+    exit 1
 fi
 
-# Helpful reminders for release branches
-if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
-    echo ""
-    echo "💡 Committing to $BRANCH branch:"
-    echo "   • Consider creating a release after this commit"
-    echo "   • Update version numbers if needed"
-    echo "   • Check CHANGELOG.md is updated"
+# Check for Python file changes to offer release creation
+PYTHON_CHANGED=$(git diff --cached --name-only | grep -E '\.(py)$' | wc -l)
+
+if [[ $PYTHON_CHANGED -gt 0 ]]; then
+    echo "$(yellow '📦 Python files changed.')"
+    read -p "$(yellow 'Create a GitHub release? (y/N): ')" CREATE_RELEASE
+    
+    if [[ "$CREATE_RELEASE" =~ ^[Yy]$ ]]; then
+        echo "$(blue '🚀 Creating GitHub release...')"
+        if ./scripts/create_github_release.sh; then
+            echo "$(green '✅ Release created successfully!')"
+        else
+            echo "$(red '❌ Release creation failed')"
+            echo "Commit will proceed, but please check the release manually"
+        fi
+    fi
 fi
 
-echo ""
-echo "🎉 Pre-commit hook completed successfully!"
-exit 0 
+echo "$(green '✅ Pre-commit hook completed successfully')" 

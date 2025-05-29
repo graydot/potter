@@ -70,7 +70,16 @@ BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 
 # If no tags exist, ask user for version
 if [[ "$VERSION" == *"-"* ]] || [[ "$VERSION" == "v1.0.0-dev" ]]; then
-    echo "🏷️  No tags found. What version should this be?"
+    # Get the last tagged version for reference
+    LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+    
+    echo "🏷️  No current version tag found."
+    if [[ "$LAST_TAG" != "none" ]]; then
+        echo "   Last tagged version: $LAST_TAG"
+    else
+        echo "   No previous tags found - this will be the first release"
+    fi
+    echo "   What version should this be?"
     echo "   Examples: v1.0.0, v1.0.1, v2.0.0-beta"
     read -p "Version: " USER_VERSION
     

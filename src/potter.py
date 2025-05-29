@@ -216,7 +216,7 @@ class RephrasleyService:
                 self.prompts[prompt["name"]] = prompt["text"]
             
             # Parse hotkey
-            hotkey_str = self.settings_manager.get("hotkey", "cmd+shift+r")
+            hotkey_str = self.settings_manager.get("hotkey", "cmd+shift+a")
             self.hotkey_combo = self.parse_hotkey(hotkey_str)
             
             # AI model settings
@@ -233,7 +233,7 @@ class RephrasleyService:
                 'friendly': 'Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging.',
                 'polish': 'Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness.'
             }
-            self.hotkey_combo = {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
+            self.hotkey_combo = {Key.cmd, Key.shift, keyboard.KeyCode.from_char('a')}
             self.model = "gpt-3.5-turbo"
             self.max_tokens = 1000
             self.temperature = 0.7
@@ -261,10 +261,10 @@ class RephrasleyService:
                 elif len(part) == 1:
                     keys.add(keyboard.KeyCode.from_char(part))
             
-            return keys if keys else {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
+            return keys if keys else {Key.cmd, Key.shift, keyboard.KeyCode.from_char('a')}
         except Exception as e:
             logger.error(f"Failed to parse hotkey '{hotkey_str}': {e}")
-            return {Key.cmd, Key.shift, keyboard.KeyCode.from_char('r')}
+            return {Key.cmd, Key.shift, keyboard.KeyCode.from_char('a')}
 
     def normalize_key(self, key):
         """Normalize pynput key objects to our string representation"""
@@ -1014,8 +1014,8 @@ class RephrasleyService:
     def format_hotkey(self):
         """Format hotkey combination for display"""
         if self.settings_manager:
-            return self.settings_manager.get("hotkey", "Cmd+Shift+R")
-        return "Cmd+Shift+R"
+            return self.settings_manager.get("hotkey", "Cmd+Shift+A")
+        return "Cmd+Shift+A"
 
     def show_notification(self, title, message, is_error=False):
         """Show notification if enabled"""

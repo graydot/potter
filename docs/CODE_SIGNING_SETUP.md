@@ -1,6 +1,6 @@
 # 🔐 Code Signing Setup Guide
 
-This guide covers setting up code signing for Rephrasely to distribute signed DMGs and publish to the App Store.
+This guide covers setting up code signing for Potter to distribute signed DMGs and publish to the App Store.
 
 ## 📋 Prerequisites
 
@@ -45,8 +45,8 @@ This guide covers setting up code signing for Rephrasely to distribute signed DM
 Create a script to set environment variables:
 
 ```bash
-# Create ~/.rephrasely_signing.env
-cat > ~/.rephrasely_signing.env << 'EOF'
+# Create ~/.potter_signing.env
+cat > ~/.potter_signing.env << 'EOF'
 # Apple Developer Configuration
 export APPLE_TEAM_ID="YOUR_TEAM_ID"
 
@@ -70,7 +70,7 @@ export ASC_API_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_ABCD123456.
 EOF
 
 # Load environment (add to your shell profile)
-source ~/.rephrasely_signing.env
+source ~/.potter_signing.env
 ```
 
 ### Step 4: Setup App-Specific Password (for Notarization)
@@ -78,7 +78,7 @@ source ~/.rephrasely_signing.env
 1. **Go to [appleid.apple.com](https://appleid.apple.com)**
 2. **Sign in with your Apple ID**
 3. **In Security section, click "Generate Password"**
-4. **Label**: "Rephrasely Notarization"
+4. **Label**: "Potter Notarization"
 5. **Copy the generated password** (format: abcd-efgh-ijkl-mnop)
 6. **Add to environment**: `export APPLE_APP_PASSWORD="abcd-efgh-ijkl-mnop"`
 
@@ -87,7 +87,7 @@ source ~/.rephrasely_signing.env
 1. **Go to [App Store Connect](https://appstoreconnect.apple.com)**
 2. **Users and Access → Keys**
 3. **Generate API Key**:
-   - **Name**: "Rephrasely CI/CD"
+   - **Name**: "Potter CI/CD"
    - **Access**: "App Manager" 
    - **Download the key file** (AuthKey_KEYID.p8)
 4. **Store securely**:
@@ -102,7 +102,7 @@ source ~/.rephrasely_signing.env
 ### GitHub Release Build (Signed DMG)
 ```bash
 # Load signing environment
-source ~/.rephrasely_signing.env
+source ~/.potter_signing.env
 
 # Build signed app with notarization
 python scripts/build_app.py --target github
@@ -114,7 +114,7 @@ python scripts/build_app.py --target github
 ### App Store Build
 ```bash
 # Load signing environment
-source ~/.rephrasely_signing.env
+source ~/.potter_signing.env
 
 # Build and upload to App Store
 python scripts/build_app.py --target appstore
@@ -267,14 +267,14 @@ security set-keychain-settings -t 7200 -l ~/Library/Keychains/login.keychain-db
 
 ```bash
 # Verify app signature
-codesign --verify --deep --strict --verbose=2 dist/app/Rephrasely.app
+codesign --verify --deep --strict --verbose=2 dist/app/Potter.app
 
 # Check Gatekeeper assessment
-spctl --assess --type execute --verbose dist/app/Rephrasely.app
+spctl --assess --type execute --verbose dist/app/Potter.app
 
 # Verify notarization (after notarization)
-spctl --assess --type execute --verbose dist/app/Rephrasely.app
-stapler validate dist/app/Rephrasely.app
+spctl --assess --type execute --verbose dist/app/Potter.app
+stapler validate dist/app/Potter.app
 ```
 
 ## 📚 Additional Resources
