@@ -557,8 +557,83 @@ class PromptDialog(NSWindowController):
         return NSApp.runModalForWindow_(self.window())
 
 
+# Helper functions for creating UI elements (outside class to avoid PyObjC conflicts)
+def create_section_header(title, y_position):
+    """Create a modern section header"""
+    header = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_position, 620, 35))
+    header.setStringValue_(title)
+    header.setFont_(NSFont.boldSystemFontOfSize_(24))
+    header.setBezeled_(False)
+    header.setDrawsBackground_(False)
+    header.setEditable_(False)
+    header.setTextColor_(NSColor.labelColor())
+    return header
+
+def create_section_separator(y_position):
+    """Create a visual separator"""
+    separator = NSView.alloc().initWithFrame_(NSMakeRect(40, y_position, 620, 1))
+    separator.setWantsLayer_(True)
+    separator.layer().setBackgroundColor_(NSColor.separatorColor().CGColor())
+    return separator
+
+def create_modern_switch(frame, title, initial_state=False):
+    """Create a modern switch control - returns (container, switch)"""
+    container = NSView.alloc().initWithFrame_(frame)
+    
+    # Label
+    label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 5, frame.size.width - 60, 20))
+    label.setStringValue_(title)
+    label.setBezeled_(False)
+    label.setDrawsBackground_(False)
+    label.setEditable_(False)
+    label.setFont_(NSFont.systemFontOfSize_(14))
+    label.setTextColor_(NSColor.labelColor())
+    container.addSubview_(label)
+    
+    # Switch (try NSSwitch first, fallback to checkbox)
+    try:
+        switch = NSSwitch.alloc().initWithFrame_(NSMakeRect(frame.size.width - 50, 0, 50, 30))
+        switch.setState_(1 if initial_state else 0)
+    except Exception:
+        # Fallback for older macOS
+        switch = NSButton.alloc().initWithFrame_(NSMakeRect(frame.size.width - 50, 0, 50, 30))
+        switch.setButtonType_(NSButtonTypeSwitch)
+        switch.setState_(1 if initial_state else 0)
+    
+    container.addSubview_(switch)
+    
+    # Return both container and switch
+    return container, switch
+
+def create_sidebar_button(item, y_position):
+    """Create a modern sidebar button with icon"""
+    button = NSButton.alloc().initWithFrame_(NSMakeRect(10, y_position, 180, 40))
+    button.setTitle_(item["title"])
+    button.setTag_(item["tag"])
+    button.setButtonType_(NSButtonTypePushOnPushOff)
+    button.setBordered_(False)
+    button.setAlignment_(NSTextAlignmentLeft)
+    
+    # Set font and styling
+    button.setFont_(NSFont.systemFontOfSize_(14))
+    
+    # Try to set SF Symbol icon (fallback gracefully if not available)
+    try:
+        if hasattr(NSImage, 'imageWithSystemSymbolName_accessibilityDescription_'):
+            icon = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+                item["icon"], item["title"]
+            )
+            button.setImage_(icon)
+            button.setImagePosition_(NSImageLeft)
+    except:
+        # Fallback for older macOS versions
+        pass
+    
+    return button
+
+
 class SettingsWindow(NSWindowController):
-    """Main settings window"""
+    """Modern settings window with sidebar navigation"""
     
     def initWithSettingsManager_(self, settings_manager):
         self = objc.super(SettingsWindow, self).init()
@@ -574,546 +649,740 @@ class SettingsWindow(NSWindowController):
         self.reset_button = None
         self.conflict_label = None
         self.content_views = []
-        self.prompts_data = []  # Initialize prompts data
+        self.prompts_data = []
+        self.sidebar_items = []
+        self.split_view = None
+        self.sidebar_table = None
+        self.content_container = None
         
         self.createWindow()
         return self
     
     def createWindow(self):
-        """Create the main window"""
-        # Create window
-        frame = NSMakeRect(100, 100, 700, 600)
+        """Create the modern window with sidebar"""
+        # Create larger window for modern layout
+        frame = NSMakeRect(100, 100, 900, 650)
         window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             frame,
-            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable,
+            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable,
             NSBackingStoreBuffered,
             False
         )
         
         window.setTitle_("Potter Settings")
         window.setLevel_(NSNormalWindowLevel)
-        
-        # Set delegate to handle window events including ESC key
+        window.setMinSize_(NSMakeSize(800, 600))
         window.setDelegate_(self)
         
-        content_view = window.contentView()
+        # Create split view
+        self.split_view = NSSplitView.alloc().initWithFrame_(window.contentView().bounds())
+        self.split_view.setVertical_(True)
+        self.split_view.setDividerStyle_(NSSplitViewDividerStyleThin)
+        self.split_view.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
         
-        # Navigation buttons at top
-        self.general_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 550, 100, 30))
-        self.general_btn.setTitle_("General")
-        self.general_btn.setTag_(0)
-        self.general_btn.setTarget_(self)
-        self.general_btn.setAction_("switchSection:")
-        self.general_btn.setButtonType_(NSButtonTypePushOnPushOff)
-        self.general_btn.setBezelStyle_(NSBezelStyleRounded)
-        content_view.addSubview_(self.general_btn)
+        # Create sidebar
+        self.createSidebar()
         
-        self.prompts_btn = NSButton.alloc().initWithFrame_(NSMakeRect(130, 550, 100, 30))
-        self.prompts_btn.setTitle_("Prompts") 
-        self.prompts_btn.setTag_(1)
-        self.prompts_btn.setTarget_(self)
-        self.prompts_btn.setAction_("switchSection:")
-        self.prompts_btn.setButtonType_(NSButtonTypePushOnPushOff)
-        self.prompts_btn.setBezelStyle_(NSBezelStyleRounded)
-        content_view.addSubview_(self.prompts_btn)
+        # Create content area
+        self.createContentArea()
         
-        self.advanced_btn = NSButton.alloc().initWithFrame_(NSMakeRect(240, 550, 100, 30))
-        self.advanced_btn.setTitle_("Advanced")
-        self.advanced_btn.setTag_(2)
-        self.advanced_btn.setTarget_(self)
-        self.advanced_btn.setAction_("switchSection:")
-        self.advanced_btn.setButtonType_(NSButtonTypePushOnPushOff)
-        self.advanced_btn.setBezelStyle_(NSBezelStyleRounded)
-        content_view.addSubview_(self.advanced_btn)
+        # Add to split view
+        self.split_view.addSubview_(self.sidebar_container)
+        self.split_view.addSubview_(self.content_scroll_view)
         
-        self.logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(350, 550, 100, 30))
-        self.logs_btn.setTitle_("Logs")
-        self.logs_btn.setTag_(3)
-        self.logs_btn.setTarget_(self)
-        self.logs_btn.setAction_("switchSection:")
-        self.logs_btn.setButtonType_(NSButtonTypePushOnPushOff)
-        self.logs_btn.setBezelStyle_(NSBezelStyleRounded)
-        content_view.addSubview_(self.logs_btn)
+        # Set split view positions
+        self.split_view.setPosition_ofDividerAtIndex_(200, 0)
         
-        # Store buttons for easy access
-        self.section_buttons = [self.general_btn, self.prompts_btn, self.advanced_btn, self.logs_btn]
-        
-        # Content area
-        self.content_container = NSView.alloc().initWithFrame_(NSMakeRect(20, 80, 660, 460))
-        content_view.addSubview_(self.content_container)
+        window.contentView().addSubview_(self.split_view)
         
         # Create content views
         self.content_views = [
             self.createGeneralView(),
-            self.createPromptsView(),
+            self.createPromptsView(), 
             self.createAdvancedView(),
             self.createLogsView()
         ]
         
-        # Show general view initially and set button states
+        # Show initial section
         self.showSection_(0)
         
-        # Bottom buttons
-        cancel_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 20, 80, 30))
+        self.setWindow_(window)
+        
+        # Set default button now that window is available
+        if hasattr(self, 'save_button'):
+            try:
+                self.window().setDefaultButtonCell_(self.save_button.cell())
+            except Exception as e:
+                print(f"Warning: Could not set default button: {e}")
+    
+    def createSidebar(self):
+        """Create modern sidebar with icons"""
+        # Sidebar container
+        self.sidebar_container = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 200, 650))
+        self.sidebar_container.setAutoresizingMask_(NSViewHeightSizable)
+        
+        # Sidebar background
+        self.sidebar_container.setWantsLayer_(True)
+        if hasattr(NSColor, 'controlBackgroundColor'):
+            self.sidebar_container.layer().setBackgroundColor_(NSColor.controlBackgroundColor().CGColor())
+        else:
+            self.sidebar_container.layer().setBackgroundColor_(NSColor.windowBackgroundColor().CGColor())
+        
+        # Title
+        title_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 600, 160, 30))
+        title_label.setStringValue_("Settings")
+        title_label.setFont_(NSFont.boldSystemFontOfSize_(20))
+        title_label.setBezeled_(False)
+        title_label.setDrawsBackground_(False)
+        title_label.setEditable_(False)
+        title_label.setTextColor_(NSColor.labelColor())
+        self.sidebar_container.addSubview_(title_label)
+        
+        # Sidebar items data
+        self.sidebar_items = [
+            {"title": "General", "icon": "gear", "tag": 0},
+            {"title": "Prompts", "icon": "text.bubble", "tag": 1}, 
+            {"title": "Advanced", "icon": "slider.horizontal.3", "tag": 2},
+            {"title": "Logs", "icon": "doc.text", "tag": 3}
+        ]
+        
+        # Create sidebar buttons
+        self.sidebar_buttons = []
+        y_position = 540
+        
+        for item in self.sidebar_items:
+            button = create_sidebar_button(item, y_position)
+            button.setTarget_(self)
+            button.setAction_("switchSection:")
+            self.sidebar_buttons.append(button)
+            self.sidebar_container.addSubview_(button)
+            y_position -= 50
+        
+        # Footer with save/cancel buttons
+        self.createSidebarFooter()
+    
+    def createSidebarFooter(self):
+        """Create footer with save/cancel buttons"""
+        # Separator line
+        separator = NSView.alloc().initWithFrame_(NSMakeRect(20, 70, 160, 1))
+        separator.setWantsLayer_(True)
+        separator.layer().setBackgroundColor_(NSColor.separatorColor().CGColor())
+        self.sidebar_container.addSubview_(separator)
+        
+        # Cancel button
+        cancel_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 20, 70, 32))
         cancel_btn.setTitle_("Cancel")
         cancel_btn.setTarget_(self)
         cancel_btn.setAction_("cancel:")
         cancel_btn.setKeyEquivalent_("\x1b")
-        content_view.addSubview_(cancel_btn)
+        cancel_btn.setBezelStyle_(NSBezelStyleRounded)
+        self.sidebar_container.addSubview_(cancel_btn)
         
-        save_btn = NSButton.alloc().initWithFrame_(NSMakeRect(600, 20, 80, 30))
+        # Save button
+        save_btn = NSButton.alloc().initWithFrame_(NSMakeRect(100, 20, 70, 32))
         save_btn.setTitle_("Save")
         save_btn.setTarget_(self)
         save_btn.setAction_("save:")
         save_btn.setKeyEquivalent_("\r")
-        content_view.addSubview_(save_btn)
+        save_btn.setBezelStyle_(NSBezelStyleRounded)
+        save_btn.setButtonType_(NSButtonTypeMomentaryPushIn)
         
-        window.setDefaultButtonCell_(save_btn.cell())
-        self.setWindow_(window)
+        # Make save button blue (primary)
+        try:
+            save_btn.setControlTint_(NSBlueControlTint)
+        except:
+            pass
+        
+        self.sidebar_container.addSubview_(save_btn)
+        
+        # Store reference to save button for later default button setup
+        self.save_button = save_btn
+    
+    def createContentArea(self):
+        """Create scrollable content area"""
+        # Scroll view for content
+        self.content_scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(200, 0, 700, 650))
+        self.content_scroll_view.setHasVerticalScroller_(True)
+        self.content_scroll_view.setAutohidesScrollers_(True)
+        self.content_scroll_view.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        self.content_scroll_view.setBorderType_(NSNoBorder)
+        
+        # Content container
+        self.content_container = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 650))
+        self.content_scroll_view.setDocumentView_(self.content_container)
     
     def switchSection_(self, sender):
-        """Switch to a different section"""
+        """Switch to a different section with animation"""
         section = sender.tag()
         self.showSection_(section)
     
     def showSection_(self, section):
-        """Show the specified section"""
+        """Show the specified section with modern styling"""
         if section < 0 or section >= len(self.content_views):
             return
         
-        # Update button states to show which is active
-        for i, button in enumerate(self.section_buttons):
+        # Update sidebar button states
+        for i, button in enumerate(self.sidebar_buttons):
             if i == section:
-                # Active button styling
-                button.setState_(1)  # Pressed/selected state
-                button.setBezelStyle_(NSBezelStyleRounded)
+                button.setState_(1)
+                try:
+                    button.setControlTint_(NSBlueControlTint)
+                except:
+                    pass
             else:
-                # Inactive button styling  
-                button.setState_(0)  # Normal state
-                button.setBezelStyle_(NSBezelStyleRounded)
+                button.setState_(0)
+                try:
+                    button.setControlTint_(NSDefaultControlTint)
+                except:
+                    pass
         
         # Remove current content
-        for subview in self.content_container.subviews():
+        for subview in list(self.content_container.subviews()):
             subview.removeFromSuperview()
         
-        # Add new content
+        # Add new content with proper sizing
         view = self.content_views[section]
-        view.setFrame_(NSMakeRect(0, 0, 660, 460))
+        content_rect = self.content_container.bounds()
+        view.setFrame_(content_rect)
         self.content_container.addSubview_(view)
         
         self.current_section = section
         
-        # Set focus to appropriate field based on section
-        if section == 0 and hasattr(self, 'api_key_field'):  # General section
-            # Delay focus setting to ensure view is fully displayed
-            def set_focus():
-                print("Debug - Setting focus to API key field")
-                self.window().makeFirstResponder_(self.api_key_field)
-            
-            # Use performSelector to delay the focus setting
+        # Set focus appropriately
+        if section == 0 and hasattr(self, 'api_key_field'):
             NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                 0.1, self, "setApiKeyFocus:", None, False
             )
     
     def setApiKeyFocus_(self, timer):
-        """Set focus to API key field (called by timer)"""
+        """Set focus to API key field"""
         if hasattr(self, 'api_key_field') and self.current_section == 0:
-            print("Debug - Timer: Setting focus to API key field")
-            success = self.window().makeFirstResponder_(self.api_key_field)
-            print(f"Debug - Focus set result: {success}")
+            self.window().makeFirstResponder_(self.api_key_field)
     
     def createGeneralView(self):
-        """Create General settings view"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
+        """Create modern General settings view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 650))
         
-        # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
-        title.setStringValue_("General Settings")
-        title.setFont_(NSFont.boldSystemFontOfSize_(18))
-        title.setBezeled_(False)
-        title.setDrawsBackground_(False)
-        title.setEditable_(False)
-        title.setAlignment_(NSTextAlignmentCenter)
-        view.addSubview_(title)
+        y_pos = 580
         
-        # API Key section (most important for first-time users)
-        api_key_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 380, 120, 25))
-        api_key_label.setStringValue_("OpenAI API Key:")
+        # Section header
+        header = create_section_header("General Settings", y_pos)
+        view.addSubview_(header)
+        y_pos -= 50
+        
+        # Separator
+        separator = create_section_separator(y_pos)
+        view.addSubview_(separator)
+        y_pos -= 40
+        
+        # API Key section
+        api_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        api_section_label.setStringValue_("OpenAI Configuration")
+        api_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        api_section_label.setBezeled_(False)
+        api_section_label.setDrawsBackground_(False)
+        api_section_label.setEditable_(False)
+        api_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(api_section_label)
+        y_pos -= 35
+        
+        # API Key field
+        api_key_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
+        api_key_label.setStringValue_("API Key:")
         api_key_label.setBezeled_(False)
         api_key_label.setDrawsBackground_(False)
         api_key_label.setEditable_(False)
+        api_key_label.setFont_(NSFont.systemFontOfSize_(14))
         view.addSubview_(api_key_label)
         
-        # Use custom PasteableTextField to explicitly support paste operations
-        self.api_key_field = PasteableTextField.alloc().initWithFrame_(NSMakeRect(150, 380, 400, 25))
+        self.api_key_field = PasteableTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 450, 22))
         self.api_key_field.setStringValue_(self.settings_manager.get("openai_api_key", ""))
         self.api_key_field.setPlaceholderString_("sk-...")
-        # Ensure it can become first responder
-        self.api_key_field.setEnabled_(True)
-        self.api_key_field.setEditable_(True)
+        self.api_key_field.setFont_(NSFont.monospacedSystemFontOfSize_weight_(12, 0))
         view.addSubview_(self.api_key_field)
+        y_pos -= 30
         
-        # API key help text
-        api_help = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 355, 400, 20))
+        # API help text
+        api_help = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 450, 17))
         api_help.setStringValue_("Get your API key from https://platform.openai.com/api-keys")
         api_help.setBezeled_(False)
         api_help.setDrawsBackground_(False)
         api_help.setEditable_(False)
-        api_help.setTextColor_(NSColor.secondaryLabelColor())
         api_help.setFont_(NSFont.systemFontOfSize_(11))
+        api_help.setTextColor_(NSColor.secondaryLabelColor())
         view.addSubview_(api_help)
+        y_pos -= 50
         
         # Hotkey section
-        hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 320, 120, 25))
-        hotkey_label.setStringValue_("Global Hotkey:")
+        hotkey_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        hotkey_section_label.setStringValue_("Hotkey Configuration")
+        hotkey_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        hotkey_section_label.setBezeled_(False)
+        hotkey_section_label.setDrawsBackground_(False)
+        hotkey_section_label.setEditable_(False)
+        hotkey_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(hotkey_section_label)
+        y_pos -= 35
+        
+        # Hotkey field
+        hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
+        hotkey_label.setStringValue_("Hotkey:")
         hotkey_label.setBezeled_(False)
         hotkey_label.setDrawsBackground_(False)
         hotkey_label.setEditable_(False)
+        hotkey_label.setFont_(NSFont.systemFontOfSize_(14))
         view.addSubview_(hotkey_label)
         
-        # Hotkey field
         self.hotkey_field = HotkeyField.alloc().initWithFrame_manager_(
-            NSMakeRect(150, 320, 200, 25), self.settings_manager
+            NSMakeRect(160, y_pos, 200, 22), self.settings_manager
         )
         self.hotkey_field.setStringValue_(self.settings_manager.get("hotkey", "cmd+shift+a"))
-        self.hotkey_field.reset_callback = self.updateResetButton
         view.addSubview_(self.hotkey_field)
         
-        # Reset button - always create it, visibility controlled by updateResetButton
-        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(360, 320, 60, 25))
+        # Reset button
+        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(370, y_pos, 80, 22))
         self.reset_button.setTitle_("Reset")
         self.reset_button.setTarget_(self)
         self.reset_button.setAction_("resetHotkey:")
-        self.reset_button.setButtonType_(NSButtonTypeMomentaryPushIn)
+        self.reset_button.setBezelStyle_(NSBezelStyleRounded)
+        self.reset_button.setFont_(NSFont.systemFontOfSize_(12))
         view.addSubview_(self.reset_button)
+        y_pos -= 25
         
         # Conflict warning
-        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(150, 295, 400, 20))
+        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 450, 17))
+        self.conflict_label.setStringValue_("")
         self.conflict_label.setBezeled_(False)
         self.conflict_label.setDrawsBackground_(False)
         self.conflict_label.setEditable_(False)
-        self.conflict_label.setTextColor_(NSColor.systemRedColor())
         self.conflict_label.setFont_(NSFont.systemFontOfSize_(11))
+        self.conflict_label.setTextColor_(NSColor.systemRedColor())
         view.addSubview_(self.conflict_label)
+        y_pos -= 40
         
-        # Options
-        self.notifications_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 250, 400, 25))
-        self.notifications_checkbox.setButtonType_(NSButtonTypeSwitch)
-        self.notifications_checkbox.setTitle_("Show success/error notifications")
-        self.notifications_checkbox.setState_(1 if self.settings_manager.get("show_notifications", False) else 0)
-        view.addSubview_(self.notifications_checkbox)
+        # Preferences section
+        pref_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        pref_section_label.setStringValue_("Preferences")
+        pref_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        pref_section_label.setBezeled_(False)
+        pref_section_label.setDrawsBackground_(False)
+        pref_section_label.setEditable_(False)
+        pref_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(pref_section_label)
+        y_pos -= 40
         
-        self.startup_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, 220, 400, 25))
-        self.startup_checkbox.setButtonType_(NSButtonTypeSwitch)
-        self.startup_checkbox.setTitle_("Launch Potter at startup")
-        self.startup_checkbox.setState_(1 if self.settings_manager.get("launch_at_startup", False) else 0)
-        view.addSubview_(self.startup_checkbox)
+        # Modern switches
+        notifications_switch = create_modern_switch(
+            NSMakeRect(40, y_pos, 620, 30),
+            "Show notifications",
+            self.settings_manager.get("show_notifications", True)
+        )
+        view.addSubview_(notifications_switch[0])
+        self.notifications_switch = notifications_switch[1]
+        y_pos -= 50
         
-        # Permissions section
-        permissions_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 150, 620, 25))
-        permissions_label.setStringValue_("System Permissions:")
-        permissions_label.setFont_(NSFont.boldSystemFontOfSize_(14))
-        permissions_label.setBezeled_(False)
-        permissions_label.setDrawsBackground_(False)
-        permissions_label.setEditable_(False)
-        view.addSubview_(permissions_label)
+        startup_switch = create_modern_switch(
+            NSMakeRect(40, y_pos, 620, 30),
+            "Launch at startup",
+            self.settings_manager.get("launch_at_startup", False)
+        )
+        view.addSubview_(startup_switch[0])
+        self.startup_switch = startup_switch[1]
         
-        # Check permissions from the main app if available
+        # Set up callbacks
+        self.hotkey_field.reset_callback = self.updateResetButton
+        self.updateResetButton()
+        self.checkConflicts()
+        
+        return view
+    
+    def createPromptsView(self):
+        """Create modern Prompts settings view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 650))
+        
+        y_pos = 580
+        
+        # Section header
+        header = create_section_header("Prompts", y_pos)
+        view.addSubview_(header)
+        y_pos -= 50
+        
+        # Separator
+        separator = create_section_separator(y_pos)
+        view.addSubview_(separator)
+        y_pos -= 30
+        
+        # Description
+        desc_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 17))
+        desc_label.setStringValue_("Customize the AI prompts used for text processing")
+        desc_label.setBezeled_(False)
+        desc_label.setDrawsBackground_(False)
+        desc_label.setEditable_(False)
+        desc_label.setFont_(NSFont.systemFontOfSize_(13))
+        desc_label.setTextColor_(NSColor.secondaryLabelColor())
+        view.addSubview_(desc_label)
+        y_pos -= 40
+        
+        # Toolbar with buttons
+        toolbar_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 30))
+        
+        # Add button
+        add_btn = NSButton.alloc().initWithFrame_(NSMakeRect(0, 0, 80, 30))
+        add_btn.setTitle_("Add")
+        add_btn.setTarget_(self)
+        add_btn.setAction_("addPrompt:")
+        add_btn.setBezelStyle_(NSBezelStyleRounded)
+        add_btn.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(add_btn)
+        
+        # Edit button
+        edit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(90, 0, 80, 30))
+        edit_btn.setTitle_("Edit")
+        edit_btn.setTarget_(self)
+        edit_btn.setAction_("editPrompt:")
+        edit_btn.setBezelStyle_(NSBezelStyleRounded)
+        edit_btn.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(edit_btn)
+        
+        # Remove button
+        remove_btn = NSButton.alloc().initWithFrame_(NSMakeRect(180, 0, 80, 30))
+        remove_btn.setTitle_("Remove")
+        remove_btn.setTarget_(self)
+        remove_btn.setAction_("removePrompt:")
+        remove_btn.setBezelStyle_(NSBezelStyleRounded)
+        remove_btn.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(remove_btn)
+        
+        view.addSubview_(toolbar_container)
+        y_pos -= 40
+        
+        # Table view container
+        table_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, 60, 620, y_pos - 60))
+        table_container.setHasVerticalScroller_(True)
+        table_container.setAutohidesScrollers_(True)
+        table_container.setBorderType_(NSBezelBorder)
+        table_container.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        
+        # Create table view
+        self.prompts_table = NSTableView.alloc().initWithFrame_(table_container.bounds())
+        self.prompts_table.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        self.prompts_table.setDataSource_(self)
+        self.prompts_table.setDelegate_(self)
+        self.prompts_table.setRowHeight_(24)
+        self.prompts_table.setIntercellSpacing_(NSMakeSize(3, 2))
+        self.prompts_table.setUsesAlternatingRowBackgroundColors_(True)
+        self.prompts_table.setSelectionHighlightStyle_(NSTableViewSelectionHighlightStyleRegular)
+        
+        # Add columns
+        name_column = NSTableColumn.alloc().initWithIdentifier_("name")
+        name_column.headerCell().setStringValue_("Name")
+        name_column.setWidth_(120)
+        name_column.setMinWidth_(80)
+        name_column.setMaxWidth_(200)
+        name_column.setResizingMask_(NSTableColumnUserResizingMask)
+        self.prompts_table.addTableColumn_(name_column)
+        
+        text_column = NSTableColumn.alloc().initWithIdentifier_("text")
+        text_column.headerCell().setStringValue_("Prompt Text")
+        text_column.setWidth_(480)
+        text_column.setMinWidth_(200)
+        text_column.setResizingMask_(NSTableColumnAutoresizingMask | NSTableColumnUserResizingMask)
+        self.prompts_table.addTableColumn_(text_column)
+        
+        table_container.setDocumentView_(self.prompts_table)
+        view.addSubview_(table_container)
+        
+        # Load prompts data
+        self.prompts_data = list(self.settings_manager.get("prompts", []))
+        
+        return view
+    
+    def createAdvancedView(self):
+        """Create modern Advanced settings view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 650))
+        
+        y_pos = 580
+        
+        # Section header
+        header = create_section_header("Advanced Settings", y_pos)
+        view.addSubview_(header)
+        y_pos -= 50
+        
+        # Separator
+        separator = create_section_separator(y_pos)
+        view.addSubview_(separator)
+        y_pos -= 40
+        
+        # AI Model section
+        model_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        model_section_label.setStringValue_("AI Model Configuration")
+        model_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        model_section_label.setBezeled_(False)
+        model_section_label.setDrawsBackground_(False)
+        model_section_label.setEditable_(False)
+        model_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(model_section_label)
+        y_pos -= 35
+        
+        # Model selection
+        model_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
+        model_label.setStringValue_("Model:")
+        model_label.setBezeled_(False)
+        model_label.setDrawsBackground_(False)
+        model_label.setEditable_(False)
+        model_label.setFont_(NSFont.systemFontOfSize_(14))
+        view.addSubview_(model_label)
+        
+        self.model_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(160, y_pos, 200, 22))
+        self.model_popup.addItemWithTitle_("gpt-3.5-turbo")
+        self.model_popup.addItemWithTitle_("gpt-4")
+        self.model_popup.addItemWithTitle_("gpt-4-turbo")
+        self.model_popup.selectItemWithTitle_(self.settings_manager.get("model", "gpt-3.5-turbo"))
+        view.addSubview_(self.model_popup)
+        y_pos -= 35
+        
+        # Max tokens
+        tokens_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
+        tokens_label.setStringValue_("Max Tokens:")
+        tokens_label.setBezeled_(False)
+        tokens_label.setDrawsBackground_(False)
+        tokens_label.setEditable_(False)
+        tokens_label.setFont_(NSFont.systemFontOfSize_(14))
+        view.addSubview_(tokens_label)
+        
+        self.tokens_field = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 100, 22))
+        self.tokens_field.setStringValue_(str(self.settings_manager.get("max_tokens", 1000)))
+        self.tokens_field.setPlaceholderString_("1000")
+        view.addSubview_(self.tokens_field)
+        
+        tokens_help = NSTextField.alloc().initWithFrame_(NSMakeRect(270, y_pos, 300, 22))
+        tokens_help.setStringValue_("Maximum response length (1-4000)")
+        tokens_help.setBezeled_(False)
+        tokens_help.setDrawsBackground_(False)
+        tokens_help.setEditable_(False)
+        tokens_help.setFont_(NSFont.systemFontOfSize_(11))
+        tokens_help.setTextColor_(NSColor.secondaryLabelColor())
+        view.addSubview_(tokens_help)
+        y_pos -= 35
+        
+        # Temperature
+        temp_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
+        temp_label.setStringValue_("Temperature:")
+        temp_label.setBezeled_(False)
+        temp_label.setDrawsBackground_(False)
+        temp_label.setEditable_(False)
+        temp_label.setFont_(NSFont.systemFontOfSize_(14))
+        view.addSubview_(temp_label)
+        
+        self.temp_field = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 100, 22))
+        self.temp_field.setStringValue_(str(self.settings_manager.get("temperature", 0.7)))
+        self.temp_field.setPlaceholderString_("0.7")
+        view.addSubview_(self.temp_field)
+        
+        temp_help = NSTextField.alloc().initWithFrame_(NSMakeRect(270, y_pos, 300, 22))
+        temp_help.setStringValue_("Creativity level (0.0 = focused, 1.0 = creative)")
+        temp_help.setBezeled_(False)
+        temp_help.setDrawsBackground_(False)
+        temp_help.setEditable_(False)
+        temp_help.setFont_(NSFont.systemFontOfSize_(11))
+        temp_help.setTextColor_(NSColor.secondaryLabelColor())
+        view.addSubview_(temp_help)
+        y_pos -= 50
+        
+        # System Permissions section
+        permissions_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        permissions_section_label.setStringValue_("System Permissions")
+        permissions_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        permissions_section_label.setBezeled_(False)
+        permissions_section_label.setDrawsBackground_(False)
+        permissions_section_label.setEditable_(False)
+        permissions_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(permissions_section_label)
+        y_pos -= 35
+        
+        # Permission status
         permissions_status = self.get_permissions_status()
+        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "Development Session"
         
-        # Determine what entity has permission (only check for Potter.app)
-        permission_entity = "Potter.app" if getattr(sys, 'frozen', False) else "this development session"
-        
-        # Accessibility permission status
-        self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 125, 480, 20))
+        # Accessibility permission
+        self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 400, 22))
         if permissions_status.get('accessibility', False):
-            accessibility_text = f"Accessibility (Global Hotkeys): ✅ Granted to {permission_entity}"
+            accessibility_text = f"✅ Accessibility: Granted to {permission_entity}"
+            color = NSColor.systemGreenColor()
         else:
-            accessibility_text = f"Accessibility (Global Hotkeys): ❌ Required for {permission_entity}"
+            accessibility_text = f"❌ Accessibility: Required for {permission_entity}"
+            color = NSColor.systemRedColor()
+        
         self.accessibility_status.setStringValue_(accessibility_text)
         self.accessibility_status.setBezeled_(False)
         self.accessibility_status.setDrawsBackground_(False)
         self.accessibility_status.setEditable_(False)
-        if not permissions_status.get('accessibility', False):
-            self.accessibility_status.setTextColor_(NSColor.systemRedColor())
-        else:
-            self.accessibility_status.setTextColor_(NSColor.systemGreenColor())
+        self.accessibility_status.setFont_(NSFont.systemFontOfSize_(14))
+        self.accessibility_status.setTextColor_(color)
         view.addSubview_(self.accessibility_status)
         
-        # Accessibility permission button
-        self.accessibility_btn = NSButton.alloc().initWithFrame_(NSMakeRect(530, 125, 120, 20))
+        # Accessibility button
+        self.accessibility_btn = NSButton.alloc().initWithFrame_(NSMakeRect(450, y_pos, 120, 22))
         if not permissions_status.get('accessibility', False):
-            self.accessibility_btn.setTitle_("Grant Permission")
+            self.accessibility_btn.setTitle_("Open Settings")
             self.accessibility_btn.setTarget_(self)
             self.accessibility_btn.setAction_("openAccessibilitySettings:")
         else:
-            self.accessibility_btn.setTitle_("✅ Granted")
+            self.accessibility_btn.setTitle_("Granted")
             self.accessibility_btn.setEnabled_(False)
         self.accessibility_btn.setBezelStyle_(NSBezelStyleRounded)
-        self.accessibility_btn.setFont_(NSFont.systemFontOfSize_(11))
+        self.accessibility_btn.setFont_(NSFont.systemFontOfSize_(12))
         view.addSubview_(self.accessibility_btn)
+        y_pos -= 30
         
-        # Notification permission status
-        self.notification_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 100, 480, 20))
+        # Notification permission
+        self.notification_status = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 400, 22))
         notification_text, notification_color = self.get_notification_status()
         self.notification_status.setStringValue_(notification_text)
         self.notification_status.setBezeled_(False)
         self.notification_status.setDrawsBackground_(False)
         self.notification_status.setEditable_(False)
+        self.notification_status.setFont_(NSFont.systemFontOfSize_(14))
         self.notification_status.setTextColor_(notification_color)
         view.addSubview_(self.notification_status)
         
-        # Notification permission button
-        self.notification_btn = NSButton.alloc().initWithFrame_(NSMakeRect(530, 100, 120, 20))
+        # Notification button
+        self.notification_btn = NSButton.alloc().initWithFrame_(NSMakeRect(450, y_pos, 120, 22))
         if "❌" in notification_text:
             self.notification_btn.setTitle_("Open Settings")
             self.notification_btn.setTarget_(self)
             self.notification_btn.setAction_("openNotificationSettings:")
         else:
-            self.notification_btn.setTitle_("✅ Working")
+            self.notification_btn.setTitle_("Working")
             self.notification_btn.setEnabled_(False)
         self.notification_btn.setBezelStyle_(NSBezelStyleRounded)
-        self.notification_btn.setFont_(NSFont.systemFontOfSize_(11))
+        self.notification_btn.setFont_(NSFont.systemFontOfSize_(12))
         view.addSubview_(self.notification_btn)
+        y_pos -= 40
         
-        # General refresh permissions button
-        self.refresh_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(40, 75, 120, 25))
-        self.refresh_permissions_btn.setTitle_("Refresh Status")
-        self.refresh_permissions_btn.setTarget_(self)
-        self.refresh_permissions_btn.setAction_("refreshPermissions:")
-        self.refresh_permissions_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(self.refresh_permissions_btn)
+        # Permission actions
+        actions_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 30))
         
-        # Reset permissions button
-        self.reset_permissions_btn = NSButton.alloc().initWithFrame_(NSMakeRect(170, 75, 140, 25))
-        self.reset_permissions_btn.setTitle_("Reset Permissions")
-        self.reset_permissions_btn.setTarget_(self)
-        self.reset_permissions_btn.setAction_("resetPermissions:")
-        self.reset_permissions_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(self.reset_permissions_btn)
+        refresh_btn = NSButton.alloc().initWithFrame_(NSMakeRect(0, 0, 120, 30))
+        refresh_btn.setTitle_("Refresh Status")
+        refresh_btn.setTarget_(self)
+        refresh_btn.setAction_("refreshPermissions:")
+        refresh_btn.setBezelStyle_(NSBezelStyleRounded)
+        refresh_btn.setFont_(NSFont.systemFontOfSize_(13))
+        actions_container.addSubview_(refresh_btn)
         
-        # Update UI - this will set initial reset button visibility and check conflicts
-        self.updateResetButton()
+        reset_btn = NSButton.alloc().initWithFrame_(NSMakeRect(130, 0, 140, 30))
+        reset_btn.setTitle_("Reset Permissions")
+        reset_btn.setTarget_(self)
+        reset_btn.setAction_("resetPermissions:")
+        reset_btn.setBezelStyle_(NSBezelStyleRounded)
+        reset_btn.setFont_(NSFont.systemFontOfSize_(13))
+        actions_container.addSubview_(reset_btn)
         
-        return view
-    
-    def createPromptsView(self):
-        """Create Prompts view with dynamic table"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
-        
-        # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
-        title.setStringValue_("AI Prompts")
-        title.setFont_(NSFont.boldSystemFontOfSize_(18))
-        title.setBezeled_(False)
-        title.setDrawsBackground_(False)
-        title.setEditable_(False)
-        title.setAlignment_(NSTextAlignmentCenter)
-        view.addSubview_(title)
-        
-        # Instructions
-        instructions = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 390, 620, 20))
-        instructions.setStringValue_("Customize your AI prompts and output formats:")
-        instructions.setFont_(NSFont.systemFontOfSize_(12))
-        instructions.setBezeled_(False)
-        instructions.setDrawsBackground_(False)
-        instructions.setEditable_(False)
-        instructions.setTextColor_(NSColor.secondaryLabelColor())
-        view.addSubview_(instructions)
-        
-        # Create scroll view for table
-        scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, 80, 620, 300))
-        scroll_view.setHasVerticalScroller_(True)
-        scroll_view.setHasHorizontalScroller_(False)
-        scroll_view.setBorderType_(NSBezelBorder)
-        
-        # Create table view
-        self.prompts_table = NSTableView.alloc().initWithFrame_(scroll_view.contentView().bounds())
-        self.prompts_table.setUsesAlternatingRowBackgroundColors_(True)
-        self.prompts_table.setRowSizeStyle_(NSTableViewRowSizeStyleMedium)
-        self.prompts_table.setGridStyleMask_(NSTableViewSolidHorizontalGridLineMask)
-        
-        # Create columns
-        # Name column
-        name_column = NSTableColumn.alloc().initWithIdentifier_("name")
-        name_column.headerCell().setStringValue_("Name")
-        name_column.setWidth_(120)
-        name_column.setMinWidth_(80)
-        name_column.setMaxWidth_(150)
-        name_column.setEditable_(True)
-        self.prompts_table.addTableColumn_(name_column)
-        
-        # Prompt text column
-        text_column = NSTableColumn.alloc().initWithIdentifier_("text")
-        text_column.headerCell().setStringValue_("Prompt Text")
-        text_column.setWidth_(480)
-        text_column.setMinWidth_(300)
-        text_column.setEditable_(True)
-        self.prompts_table.addTableColumn_(text_column)
-        
-        # Get prompts and ensure correct format
-        prompts = self.settings_manager.get("prompts", [])
-        print(f"Debug - prompts in table: {prompts}")
-        
-        # Store prompts data - make a copy to avoid reference issues
-        self.prompts_data = list(prompts) if prompts else []
-        
-        # Set up table data source
-        self.prompts_table.setDataSource_(self)
-        self.prompts_table.setDelegate_(self)
-        
-        # Force reload to show data
-        self.prompts_table.reloadData()
-        
-        scroll_view.setDocumentView_(self.prompts_table)
-        view.addSubview_(scroll_view)
-        
-        # Add button
-        add_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 40, 80, 30))
-        add_btn.setTitle_("Add")
-        add_btn.setTarget_(self)
-        add_btn.setAction_("addPrompt:")
-        add_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(add_btn)
-        
-        # Remove button
-        remove_btn = NSButton.alloc().initWithFrame_(NSMakeRect(110, 40, 80, 30))
-        remove_btn.setTitle_("Remove")
-        remove_btn.setTarget_(self)
-        remove_btn.setAction_("removePrompt:")
-        remove_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(remove_btn)
-        
-        # Edit button
-        edit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(200, 40, 80, 30))
-        edit_btn.setTitle_("Edit")
-        edit_btn.setTarget_(self)
-        edit_btn.setAction_("editPrompt:")
-        edit_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(edit_btn)
-        
-        return view
-    
-    def createAdvancedView(self):
-        """Create Advanced view"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
-        
-        # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
-        title.setStringValue_("Advanced Settings")
-        title.setFont_(NSFont.boldSystemFontOfSize_(18))
-        title.setBezeled_(False)
-        title.setDrawsBackground_(False)
-        title.setEditable_(False)
-        title.setAlignment_(NSTextAlignmentCenter)
-        view.addSubview_(title)
-        
-        # AI Model
-        model_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 370, 100, 25))
-        model_label.setStringValue_("AI Model:")
-        model_label.setBezeled_(False)
-        model_label.setDrawsBackground_(False)
-        model_label.setEditable_(False)
-        view.addSubview_(model_label)
-        
-        self.model_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(130, 370, 200, 25))
-        self.model_popup.addItemsWithTitles_(["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"])
-        current_model = self.settings_manager.get("model", "gpt-3.5-turbo")
-        self.model_popup.selectItemWithTitle_(current_model)
-        view.addSubview_(self.model_popup)
-        
-        # Max Tokens
-        tokens_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 330, 100, 25))
-        tokens_label.setStringValue_("Max Tokens:")
-        tokens_label.setBezeled_(False)
-        tokens_label.setDrawsBackground_(False)
-        tokens_label.setEditable_(False)
-        view.addSubview_(tokens_label)
-        
-        self.tokens_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 330, 100, 25))
-        self.tokens_field.setStringValue_(str(self.settings_manager.get("max_tokens", 1000)))
-        view.addSubview_(self.tokens_field)
-        
-        # Temperature
-        temp_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 290, 100, 25))
-        temp_label.setStringValue_("Temperature:")
-        temp_label.setBezeled_(False)
-        temp_label.setDrawsBackground_(False)
-        temp_label.setEditable_(False)
-        view.addSubview_(temp_label)
-        
-        self.temp_field = NSTextField.alloc().initWithFrame_(NSMakeRect(130, 290, 100, 25))
-        self.temp_field.setStringValue_(str(self.settings_manager.get("temperature", 0.7)))
-        view.addSubview_(self.temp_field)
+        view.addSubview_(actions_container)
         
         return view
     
     def createLogsView(self):
-        """Create Logs view with real-time log monitoring"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 660, 460))
+        """Create modern Logs view"""
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 650))
         
-        # Title
-        title = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 420, 660, 30))
-        title.setStringValue_("Application Logs")
-        title.setFont_(NSFont.boldSystemFontOfSize_(18))
-        title.setBezeled_(False)
-        title.setDrawsBackground_(False)
-        title.setEditable_(False)
-        title.setAlignment_(NSTextAlignmentCenter)
-        view.addSubview_(title)
+        y_pos = 580
         
-        # Controls row
-        controls_y = 380
+        # Section header
+        header = create_section_header("Application Logs", y_pos)
+        view.addSubview_(header)
+        y_pos -= 50
         
-        # Auto-scroll checkbox
-        self.auto_scroll_checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(20, controls_y, 120, 25))
-        self.auto_scroll_checkbox.setButtonType_(NSButtonTypeSwitch)
-        self.auto_scroll_checkbox.setTitle_("Auto-scroll")
-        self.auto_scroll_checkbox.setState_(1)  # Default to enabled
-        view.addSubview_(self.auto_scroll_checkbox)
+        # Separator
+        separator = create_section_separator(y_pos)
+        view.addSubview_(separator)
+        y_pos -= 30
         
-        # Refresh logs button
-        refresh_logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(150, controls_y, 100, 25))
-        refresh_logs_btn.setTitle_("Refresh")
-        refresh_logs_btn.setTarget_(self)
-        refresh_logs_btn.setAction_("refreshLogs:")
-        refresh_logs_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(refresh_logs_btn)
+        # Description
+        desc_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 17))
+        desc_label.setStringValue_("View application logs for debugging and troubleshooting")
+        desc_label.setBezeled_(False)
+        desc_label.setDrawsBackground_(False)
+        desc_label.setEditable_(False)
+        desc_label.setFont_(NSFont.systemFontOfSize_(13))
+        desc_label.setTextColor_(NSColor.secondaryLabelColor())
+        view.addSubview_(desc_label)
+        y_pos -= 30
         
-        # Clear logs button
-        clear_logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(260, controls_y, 100, 25))
-        clear_logs_btn.setTitle_("Clear View")
-        clear_logs_btn.setTarget_(self)
-        clear_logs_btn.setAction_("clearLogsView:")
-        clear_logs_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(clear_logs_btn)
+        # Toolbar with controls
+        toolbar_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 30))
+        
+        # Filter popup
+        filter_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 5, 50, 20))
+        filter_label.setStringValue_("Filter:")
+        filter_label.setBezeled_(False)
+        filter_label.setDrawsBackground_(False)
+        filter_label.setEditable_(False)
+        filter_label.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(filter_label)
+        
+        self.log_filter_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(55, 0, 120, 30))
+        self.log_filter_popup.addItemWithTitle_("All")
+        self.log_filter_popup.addItemWithTitle_("Error")
+        self.log_filter_popup.addItemWithTitle_("Warning")
+        self.log_filter_popup.addItemWithTitle_("Info")
+        self.log_filter_popup.addItemWithTitle_("Debug")
+        self.log_filter_popup.setTarget_(self)
+        self.log_filter_popup.setAction_("filterLogs:")
+        toolbar_container.addSubview_(self.log_filter_popup)
+        
+        # Refresh button
+        refresh_btn = NSButton.alloc().initWithFrame_(NSMakeRect(185, 0, 80, 30))
+        refresh_btn.setTitle_("Refresh")
+        refresh_btn.setTarget_(self)
+        refresh_btn.setAction_("refreshLogs:")
+        refresh_btn.setBezelStyle_(NSBezelStyleRounded)
+        refresh_btn.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(refresh_btn)
+        
+        # Clear button
+        clear_btn = NSButton.alloc().initWithFrame_(NSMakeRect(275, 0, 80, 30))
+        clear_btn.setTitle_("Clear")
+        clear_btn.setTarget_(self)
+        clear_btn.setAction_("clearLogsView:")
+        clear_btn.setBezelStyle_(NSBezelStyleRounded)
+        clear_btn.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(clear_btn)
         
         # Open log file button
-        open_log_btn = NSButton.alloc().initWithFrame_(NSMakeRect(370, controls_y, 120, 25))
-        open_log_btn.setTitle_("Open Log File")
-        open_log_btn.setTarget_(self)
-        open_log_btn.setAction_("openLogFile:")
-        open_log_btn.setBezelStyle_(NSBezelStyleRounded)
-        view.addSubview_(open_log_btn)
+        open_btn = NSButton.alloc().initWithFrame_(NSMakeRect(365, 0, 100, 30))
+        open_btn.setTitle_("Open File")
+        open_btn.setTarget_(self)
+        open_btn.setAction_("openLogFile:")
+        open_btn.setBezelStyle_(NSBezelStyleRounded)
+        open_btn.setFont_(NSFont.systemFontOfSize_(13))
+        toolbar_container.addSubview_(open_btn)
         
-        # Log level filter
-        level_label = NSTextField.alloc().initWithFrame_(NSMakeRect(500, controls_y, 60, 25))
-        level_label.setStringValue_("Filter:")
-        level_label.setBezeled_(False)
-        level_label.setDrawsBackground_(False)
-        level_label.setEditable_(False)
-        level_label.setAlignment_(NSTextAlignmentRight)
-        view.addSubview_(level_label)
+        view.addSubview_(toolbar_container)
+        y_pos -= 40
         
-        self.log_level_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(570, controls_y, 80, 25))
-        self.log_level_popup.addItemsWithTitles_(["All", "ERROR", "WARNING", "INFO", "DEBUG"])
-        self.log_level_popup.selectItemWithTitle_("All")
-        self.log_level_popup.setTarget_(self)
-        self.log_level_popup.setAction_("filterLogs:")
-        view.addSubview_(self.log_level_popup)
+        # Logs scroll view
+        logs_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, 60, 620, y_pos - 60))
+        logs_container.setHasVerticalScroller_(True)
+        logs_container.setAutohidesScrollers_(True)
+        logs_container.setBorderType_(NSBezelBorder)
+        logs_container.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        
+        # Create text view for logs
+        self.logs_text = NSTextView.alloc().initWithFrame_(logs_container.contentView().bounds())
+        self.logs_text.setEditable_(False)
+        self.logs_text.setSelectable_(True)
+        self.logs_text.setFont_(NSFont.monospacedSystemFontOfSize_weight_(11, 0))
+        self.logs_text.setTextColor_(NSColor.labelColor())
+        self.logs_text.setBackgroundColor_(NSColor.textBackgroundColor())
+        self.logs_text.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        
+        logs_container.setDocumentView_(self.logs_text)
+        view.addSubview_(logs_container)
         
         # Status label
-        self.log_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 350, 620, 20))
+        self.log_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 30, 620, 17))
         self.log_status_label.setStringValue_("Loading logs...")
         self.log_status_label.setBezeled_(False)
         self.log_status_label.setDrawsBackground_(False)
@@ -1122,37 +1391,13 @@ class SettingsWindow(NSWindowController):
         self.log_status_label.setTextColor_(NSColor.secondaryLabelColor())
         view.addSubview_(self.log_status_label)
         
-        # Create scroll view for logs
-        scroll_view = NSScrollView.alloc().initWithFrame_(NSMakeRect(20, 20, 620, 320))
-        scroll_view.setHasVerticalScroller_(True)
-        scroll_view.setHasHorizontalScroller_(True)
-        scroll_view.setBorderType_(NSBezelBorder)
-        scroll_view.setAutohidesScrollers_(False)
-        
-        # Create text view for logs
-        self.logs_text_view = NSTextView.alloc().initWithFrame_(scroll_view.contentView().bounds())
-        self.logs_text_view.setEditable_(False)
-        self.logs_text_view.setSelectable_(True)
-        self.logs_text_view.setFont_(NSFont.fontWithName_size_("Monaco", 11))  # Monospace font
-        self.logs_text_view.setString_("Loading logs...")
-        self.logs_text_view.setTextContainerInset_(NSMakeSize(5, 5))
-        
-        # Enable word wrapping
-        self.logs_text_view.textContainer().setWidthTracksTextView_(True)
-        self.logs_text_view.textContainer().setContainerSize_(NSMakeSize(scroll_view.contentSize().width, 1e7))
-        
-        scroll_view.setDocumentView_(self.logs_text_view)
-        view.addSubview_(scroll_view)
-        
-        # Initialize log monitoring
+        # Initialize log monitoring variables
         self.log_timer = None
-        self.last_log_size = 0
         self.full_log_content = ""
+        self.last_log_size = 0
         
         # Load initial logs
         self.loadLogs()
-        
-        # Start monitoring timer (check every 2 seconds)
         self.startLogMonitoring()
         
         return view
@@ -1173,7 +1418,7 @@ class SettingsWindow(NSWindowController):
             log_file_path = self.getLogFilePath()
             
             if not os.path.exists(log_file_path):
-                self.logs_text_view.setString_("Log file not found at: " + log_file_path)
+                self.logs_text.setString_("Log file not found at: " + log_file_path)
                 self.log_status_label.setStringValue_("Log file not found")
                 return
             
@@ -1200,15 +1445,15 @@ class SettingsWindow(NSWindowController):
                 
         except Exception as e:
             error_msg = f"Error loading logs: {str(e)}"
-            self.logs_text_view.setString_(error_msg)
+            self.logs_text.setString_(error_msg)
             self.log_status_label.setStringValue_(error_msg)
     
     def filterLogsContent(self):
         """Filter log content based on selected level"""
-        if not hasattr(self, 'log_level_popup'):
+        if not hasattr(self, 'log_filter_popup'):
             return
         
-        selected_level = str(self.log_level_popup.titleOfSelectedItem())
+        selected_level = str(self.log_filter_popup.titleOfSelectedItem())
         
         if selected_level == "All":
             filtered_content = self.full_log_content
@@ -1218,7 +1463,7 @@ class SettingsWindow(NSWindowController):
             filtered_lines = [line for line in lines if selected_level in line]
             filtered_content = '\n'.join(filtered_lines)
         
-        self.logs_text_view.setString_(filtered_content)
+        self.logs_text.setString_(filtered_content)
         
         # Auto-scroll to bottom if enabled
         if hasattr(self, 'auto_scroll_checkbox') and self.auto_scroll_checkbox.state():
@@ -1228,11 +1473,11 @@ class SettingsWindow(NSWindowController):
         """Scroll the log view to the bottom"""
         try:
             # Get the text view's content
-            text_length = len(self.logs_text_view.string())
+            text_length = len(self.logs_text.string())
             if text_length > 0:
                 # Scroll to the end
                 end_range = NSMakeRange(text_length, 0)
-                self.logs_text_view.scrollRangeToVisible_(end_range)
+                self.logs_text.scrollRangeToVisible_(end_range)
         except Exception as e:
             print(f"Error scrolling to bottom: {e}")
     
@@ -1276,7 +1521,7 @@ class SettingsWindow(NSWindowController):
     
     def clearLogsView_(self, sender):
         """Clear the logs view (not the actual log file)"""
-        self.logs_text_view.setString_("")
+        self.logs_text.setString_("")
         self.log_status_label.setStringValue_("Log view cleared")
     
     def openLogFile_(self, sender):
@@ -1791,110 +2036,78 @@ class SettingsWindow(NSWindowController):
             prompt["text"] = str(value)
     
     def save_(self, sender):
-        """Save settings"""
+        """Save settings to file"""
         print("Debug - Save button clicked")
         
         try:
-            settings = self.settings_manager.settings.copy()
-            print("Debug - Copied existing settings")
+            # Create new settings dict
+            new_settings = self.settings_manager.settings.copy()
             
-            # General settings with validation
-            if hasattr(self, 'api_key_field') and self.api_key_field:
-                api_key = str(self.api_key_field.stringValue()).strip()
-                settings["openai_api_key"] = api_key
-                print(f"Debug - API key saved: {'sk-...' if api_key.startswith('sk-') else f'Invalid format: {api_key[:10]}...'}")
+            # Get values from UI controls
+            if hasattr(self, 'api_key_field'):
+                new_settings["openai_api_key"] = str(self.api_key_field.stringValue()).strip()
+                print(f"Debug - API key field value: {new_settings['openai_api_key'][:10] if new_settings['openai_api_key'] else 'None'}...")
             
-            if hasattr(self, 'hotkey_field') and self.hotkey_field:
-                hotkey = str(self.hotkey_field.stringValue()).strip()
-                if hotkey:  # Only save if not empty
-                    settings["hotkey"] = hotkey
-                    print(f"Debug - Hotkey saved: {hotkey}")
+            if hasattr(self, 'hotkey_field'):
+                new_settings["hotkey"] = str(self.hotkey_field.stringValue()).strip()
+                print(f"Debug - Hotkey: {new_settings['hotkey']}")
             
-            if hasattr(self, 'notifications_checkbox') and self.notifications_checkbox:
-                settings["show_notifications"] = bool(self.notifications_checkbox.state())
-                print(f"Debug - Notifications: {settings['show_notifications']}")
+            if hasattr(self, 'model_popup'):
+                new_settings["model"] = str(self.model_popup.titleOfSelectedItem())
+                print(f"Debug - Model: {new_settings['model']}")
             
-            if hasattr(self, 'startup_checkbox') and self.startup_checkbox:
-                settings["launch_at_startup"] = bool(self.startup_checkbox.state())
-                print(f"Debug - Launch at startup: {settings['launch_at_startup']}")
+            if hasattr(self, 'tokens_field'):
+                try:
+                    tokens_str = str(self.tokens_field.stringValue()).strip()
+                    new_settings["max_tokens"] = int(tokens_str) if tokens_str else 1000
+                except ValueError:
+                    new_settings["max_tokens"] = 1000
+                print(f"Debug - Max tokens: {new_settings['max_tokens']}")
             
-            # Prompts - get from table data
+            if hasattr(self, 'temp_field'):
+                try:
+                    temp_str = str(self.temp_field.stringValue()).strip()
+                    new_settings["temperature"] = float(temp_str) if temp_str else 0.7
+                except ValueError:
+                    new_settings["temperature"] = 0.7
+                print(f"Debug - Temperature: {new_settings['temperature']}")
+            
+            # Handle modern switches
+            if hasattr(self, 'notifications_switch'):
+                new_settings["show_notifications"] = bool(self.notifications_switch.state())
+                print(f"Debug - Notifications: {new_settings['show_notifications']}")
+            
+            if hasattr(self, 'startup_switch'):
+                new_settings["launch_at_startup"] = bool(self.startup_switch.state())
+                print(f"Debug - Launch at startup: {new_settings['launch_at_startup']}")
+            
+            # Handle prompts data
             if hasattr(self, 'prompts_data') and self.prompts_data:
-                settings["prompts"] = self.prompts_data
-                print(f"Debug - Prompts saved: {len(self.prompts_data)} items")
+                new_settings["prompts"] = list(self.prompts_data)
+                print(f"Debug - Prompts count: {len(new_settings['prompts'])}")
             
-            # Advanced settings with validation
-            if hasattr(self, 'model_popup') and self.model_popup:
-                model = str(self.model_popup.titleOfSelectedItem())
-                if model:  # Only save if not empty
-                    settings["model"] = model
-                    print(f"Debug - Model saved: {model}")
+            print(f"Debug - About to save settings: {list(new_settings.keys())}")
             
-            if hasattr(self, 'tokens_field') and self.tokens_field:
-                try:
-                    tokens = int(self.tokens_field.stringValue())
-                    if tokens > 0:  # Validate positive number
-                        settings["max_tokens"] = tokens
-                        print(f"Debug - Max tokens: {tokens}")
-                except (ValueError, TypeError):
-                    settings["max_tokens"] = 1000  # Default fallback
-                    print("Debug - Invalid max_tokens, using default 1000")
+            # Save settings
+            success = self.settings_manager.save_settings(new_settings)
             
-            if hasattr(self, 'temp_field') and self.temp_field:
-                try:
-                    temp = float(self.temp_field.stringValue())
-                    if 0.0 <= temp <= 2.0:  # Validate range
-                        settings["temperature"] = temp
-                        print(f"Debug - Temperature: {temp}")
-                except (ValueError, TypeError):
-                    settings["temperature"] = 0.7  # Default fallback
-                    print("Debug - Invalid temperature, using default 0.7")
-            
-            # Attempt to save
-            print("Debug - Attempting to save settings...")
-            save_success = self.settings_manager.save_settings(settings)
-            print(f"Debug - Save result: {save_success}")
-            
-            if save_success:
+            if success:
                 print("Debug - Settings saved successfully")
                 
-                # Call callback if provided
-                callback_success = True
+                # Call the callback if provided
                 if hasattr(self, 'on_settings_changed') and self.on_settings_changed:
-                    try:
-                        print("Debug - Calling settings change callback...")
-                        self.on_settings_changed(settings)
-                        print("Debug - Settings change callback executed successfully")
-                    except Exception as e:
-                        print(f"Debug - Callback error (non-critical): {e}")
-                        callback_success = False
+                    print("Debug - Calling on_settings_changed callback")
+                    self.on_settings_changed(new_settings)
                 
-                # Close the window - force close regardless of callback success
+                # Show success notification
+                self.settings_manager.show_success("Settings saved successfully")
+                
+                # Close the window
+                print("Debug - Attempting to close window")
                 try:
-                    print("Debug - Attempting to close settings window...")
-                    window = self.window()
-                    if window:
-                        print("Debug - Window exists, about to call close()...")
-                        
-                        # Before closing, make sure NSApplication won't terminate
-                        try:
-                            from AppKit import NSApplication
-                            app = NSApplication.sharedApplication()
-                            print(f"Debug - NSApp activation policy before close: {app.activationPolicy()}")
-                            print(f"Debug - NSApp delegate before close: {app.delegate()}")
-                            
-                            # Ensure delegate is still set and working
-                            if app.delegate():
-                                print("Debug - NSApplication delegate is set")
-                            else:
-                                print("Debug - WARNING: NSApplication delegate is None!")
-                                
-                        except Exception as e:
-                            print(f"Debug - Error checking NSApplication state: {e}")
-                        
-                        print("Debug - Calling window.close()...")
-                        window.close()
-                        print("Debug - Window.close() called successfully")
+                    if hasattr(self, 'window') and self.window():
+                        print("Debug - Closing window via self.window()")
+                        self.window().close()
                     else:
                         print("Debug - Warning: Window is None")
                 except Exception as e:

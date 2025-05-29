@@ -190,6 +190,48 @@ def test_startup_opens_settings_no_api_key():
         return False
 
 
+def test_settings_ui_integration():
+    """Test that settings UI can actually be created and opened (real integration test)"""
+    print("\n🧪 Testing settings UI integration...")
+    
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+        
+        from cocoa_settings import SettingsManager, show_settings
+        
+        # Create settings manager
+        settings_manager = SettingsManager()
+        
+        # Test that show_settings can be called without crashing
+        try:
+            # This should not crash during initialization
+            settings_window = show_settings(settings_manager)
+            
+            # Verify window was created
+            if settings_window and settings_window.window():
+                print("✅ Settings window created successfully")
+                
+                # Close the window
+                settings_window.window().close()
+                return True
+            else:
+                print("❌ Settings window creation returned None")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Settings window creation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+            
+    except Exception as e:
+        print(f"❌ Settings UI integration test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def test_settings_persistence():
     """Test settings saving and loading"""
     print("\n🧪 Testing settings persistence...")
@@ -217,6 +259,7 @@ def run_all_tests():
         test_text_processor,
         test_hotkey_manager,
         test_startup_opens_settings_no_api_key,
+        test_settings_ui_integration,
         test_settings_persistence,
     ]
     

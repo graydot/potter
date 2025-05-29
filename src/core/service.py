@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
 """
-Potter Main Service Module
-The main service that orchestrates all components
+Potter Service - Main orchestrator
+Coordinates all components and handles the application lifecycle
 """
 
-import os
 import logging
-import threading
 import time
-from typing import Dict, Optional, Callable
+import threading
+from typing import Dict
 
-# Import our modular components
-from utils.instance_checker import SingleInstanceChecker
-from utils.openai_client import OpenAIClientManager, validate_api_key_format, get_api_key_from_env
+# Core components
 from core.permissions import PermissionManager
 from core.hotkeys import HotkeyManager
 from core.text_processor import TextProcessor
 from ui.tray_icon import TrayIconManager
 from ui.notifications import NotificationManager
+from utils.instance_checker import SingleInstanceChecker
+from utils.openai_client import OpenAIClientManager, get_api_key_from_env, validate_api_key_format
 
-logger = logging.getLogger(__name__)
-
-# Settings UI availability check
+# Settings UI (optional)
 try:
-    from cocoa_settings import SettingsManager, show_settings
+    from cocoa_settings import SettingsManager
     SETTINGS_UI_AVAILABLE = True
 except ImportError:
     SETTINGS_UI_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 class PotterService:
@@ -185,16 +184,27 @@ class PotterService:
             logger.error("Failed to create PID file")
             return False
         
-        # Check/request permissions
+        # Check/request permissions and API setup
         permissions = self.permission_manager.get_permission_status()
         
-        # Show first launch welcome if needed
-        if not self.openai_manager.is_available():
+        # Check if API key is available
+        api_key_available = self.openai_manager.is_available()
+        needs_setup = False
+        
+        # Determine what setup is needed
+        if not api_key_available:
+            logger.info("No valid API key found - showing setup")
             self.notification_manager.show_api_key_needed()
-            if self.settings_manager:
-                self._show_preferences()
+            needs_setup = True
         elif not permissions["accessibility"]:
+            logger.info("Accessibility permission needed - showing setup")
             self.permission_manager.request_permissions(show_preferences_callback=self._show_preferences)
+            needs_setup = True
+        
+        # Show preferences if any setup is needed
+        if needs_setup and self.settings_manager:
+            logger.info("Opening settings for initial setup...")
+            self._show_preferences()
         
         # Start components
         self.is_running = True
@@ -312,17 +322,97 @@ class PotterService:
         
         if self.settings_window:
             logger.debug("Settings window already open")
-            return
+            # Bring existing window to front
+            try:
+                self.settings_window.window().makeKeyAndOrderFront_(None)
+            except Exception:
+                # Window might be invalid, create new one
+                self.settings_window = None
         
+        if not self.settings_window:
+            try:
+                logger.info("Opening settings window...")
+                # Import the show_settings function
+                from cocoa_settings import show_settings
+                
+                # Create settings window with callback
+                self.settings_window = show_settings(
+                    self.settings_manager, 
+                    on_settings_changed=self._on_settings_changed
+                )
+                
+                # Set up window close callback to clear reference
+                if self.settings_window and self.settings_window.window():
+                    # Store original close method
+                    original_close = self.settings_window.window().close
+                    
+                    def close_with_cleanup():
+                        self.settings_window = None
+                        return original_close()
+                    self.settings_window.window().close = close_with_cleanup
+                
+                logger.info("Settings window opened successfully")
+            except Exception as e:
+                logger.error(f"Failed to show settings window: {e}")
+                import traceback
+                traceback.print_exc()
+                self.notification_manager.show_error("Failed to open settings")
+                self.settings_window = None
+    
+    def _on_settings_changed(self, new_settings):
+        """Handle settings changes from settings window"""
         try:
-            logger.info("Opening settings window...")
-            self.settings_window = show_settings(self.settings_manager)
-            logger.info("Settings window opened successfully")
+            logger.info("Settings changed, updating components...")
+            
+            # Save settings
+            if self.settings_manager:
+                self.settings_manager.save_settings(new_settings)
+            
+            # Update OpenAI client if API key changed
+            api_key = new_settings.get("openai_api_key", "")
+            if api_key and api_key != self.openai_manager.api_key:
+                logger.info("API key updated, reinitializing OpenAI client...")
+                self.openai_manager.update_api_key(api_key)
+                self.text_processor.update_settings()
+            
+            # Update hotkey if changed
+            hotkey = new_settings.get("hotkey", "cmd+shift+a")
+            if hotkey != self.hotkey_manager.current_hotkey:
+                logger.info(f"Hotkey updated to: {hotkey}")
+                self.hotkey_manager.update_hotkey(hotkey)
+            
+            # Update prompts if changed
+            prompts = new_settings.get("prompts", [])
+            if prompts:
+                prompt_dict = {p["name"]: p["text"] for p in prompts}
+                self.text_processor.update_prompts(prompt_dict)
+            
+            # Update notifications setting
+            notifications_enabled = new_settings.get("show_notifications", True)
+            self.notification_manager.set_notifications_enabled(notifications_enabled)
+            
+            # Update tray icon menu
+            permissions = self.permission_manager.get_permission_status()
+            self.tray_icon_manager.update_menu(
+                current_mode=self.text_processor.get_current_mode(),
+                available_modes=self.text_processor.get_available_modes(),
+                permissions=permissions,
+                notifications_enabled=notifications_enabled
+            )
+            
+            # Clear settings window reference (window will close automatically)
+            self.settings_window = None
+            
+            # Show success notification
+            self.notification_manager.show_info("Settings updated successfully")
+            
+            logger.info("Settings update completed")
+            
         except Exception as e:
-            logger.error(f"Failed to show settings window: {e}")
+            logger.error(f"Error updating settings: {e}")
             import traceback
             traceback.print_exc()
-            self.notification_manager.show_error("Failed to open settings")
+            self.notification_manager.show_error("Failed to update settings")
     
     def _set_processing_state(self, processing: bool):
         """Set processing state and update UI"""
