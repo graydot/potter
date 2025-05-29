@@ -86,17 +86,17 @@ def main():
     
     # 2. Run setup test
     print_section("SETUP TEST")
-    if not run_command("python test_scripts/test_setup.py", "Setup test"):
+    if not run_command("python tests/test_setup.py", "Setup test"):
         all_tests_passed = False
     
     # 3. Run debug test
     print_section("DEBUG TEST")
-    if not run_command("python test_scripts/debug_test.py", "Debug test"):
+    if not run_command("python tests/debug_test.py", "Debug test"):
         all_tests_passed = False
     
     # 4. Run UI test (non-interactive)
     print_section("UI TEST")
-    if not run_command("python test_scripts/test_ui.py --non-interactive", "UI test"):
+    if not run_command("python tests/test_ui.py --non-interactive", "UI test"):
         all_tests_passed = False
     
     # Final result
@@ -110,4 +110,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main() # Test reorganization
