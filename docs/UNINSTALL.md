@@ -34,7 +34,7 @@ rm -rf ~/Downloads/Potter.app
 ```bash
 # Navigate to and remove the project directory
 cd ~/Workspace  # or wherever you cloned it
-rm -rf rephrasely  # Note: directory name may still be rephrasely
+rm -rf potter  # Note: directory name depends on how you cloned it
 ```
 
 ### 3. Remove Application Data
@@ -45,14 +45,14 @@ rm -rf rephrasely  # Note: directory name may still be rephrasely
 rm -rf ~/Library/Application\ Support/Potter/
 
 # Remove settings file (for Python script)
-rm -f ~/Workspace/rephrasely/config/settings.json  # if it exists
+rm -f ~/Workspace/potter/config/settings.json  # if it exists
 ```
 
 #### Log Files:
 ```bash
 # Remove log files
 rm -f ~/Library/Logs/potter.log
-rm -f ~/Workspace/rephrasely/potter.log  # if using script version
+rm -f ~/Workspace/potter/potter.log  # if using script version
 ```
 
 #### PID Files:
@@ -90,7 +90,7 @@ If you installed dependencies globally:
 pip uninstall openai pyperclip pystray pynput pillow python-dotenv
 
 # If you used a virtual environment, just delete it:
-rm -rf ~/Workspace/rephrasely/venv  # or wherever your venv was
+rm -rf ~/Workspace/potter/venv  # or wherever your venv was
 ```
 
 ### 7. Remove from PATH (if modified)
@@ -152,7 +152,7 @@ rm -f ~/.potter.pid 2>/dev/null
 rm -rf ~/Library/Caches/com.potter.app/ 2>/dev/null
 
 # Remove source code (be careful with this!)
-# rm -rf ~/Workspace/rephrasely 2>/dev/null
+# rm -rf ~/Workspace/potter 2>/dev/null
 
 echo "✅ Potter removed! Please manually remove accessibility permissions in System Settings."
 ```
