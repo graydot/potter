@@ -16,8 +16,8 @@ sys.path.insert(0, str(src_path))
 from core.service import PotterService
 
 # Configure logging - use appropriate location for app bundle vs development
-if hasattr(sys, '_MEIPASS'):
-    # Running as app bundle - log to user's home directory
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller bundle - log to user's home directory
     log_path = Path.home() / 'Library' / 'Logs' / 'potter.log'
 else:
     # Running from source - log to project directory

@@ -15,440 +15,11 @@ from AppKit import *
 from UserNotifications import *
 import time
 
+# Import the proper SettingsManager from the settings module
+from settings.settings_manager import SettingsManager
 
-class SettingsManager:
-    """Enhanced settings manager with multi-LLM support"""
-    
-    def __init__(self, settings_file=None):
-        print("Debug - Initializing SettingsManager...")
-        
-        # Determine appropriate settings file location
-        if settings_file is None:
-            if getattr(sys, 'frozen', False):
-                # Running as PyInstaller bundle - use user's Application Support directory
-                settings_dir = os.path.expanduser('~/Library/Application Support/Potter')
-                try:
-                    os.makedirs(settings_dir, exist_ok=True)
-                    print(f"Debug - Created/verified app support directory: {settings_dir}")
-                except Exception as e:
-                    print(f"Debug - Error creating app support directory: {e}")
-                    
-                self.settings_file = os.path.join(settings_dir, 'settings.json')
-                self.state_file = os.path.join(settings_dir, 'state.json')
-                self.first_run_file = os.path.join(settings_dir, 'first_run_tracking.json')
-                print(f"Debug - Running as app bundle, settings dir: {settings_dir}")
-                print(f"Debug - Settings file path: {self.settings_file}")
-            else:
-                # Running as script - use config directory and ensure it exists
-                config_dir = "config"
-                os.makedirs(config_dir, exist_ok=True)
-                self.settings_file = os.path.join(config_dir, "settings.json")
-                self.state_file = os.path.join(config_dir, "state.json")
-                self.first_run_file = os.path.join(config_dir, "first_run_tracking.json")
-                print(f"Debug - Running as development script, config dir: {config_dir}")
-        else:
-            self.settings_file = settings_file
-            self.state_file = settings_file.replace('settings.json', 'state.json')
-            self.first_run_file = settings_file.replace('settings.json', 'first_run_tracking.json')
-            # Ensure the directory for custom settings file exists
-            settings_dir = os.path.dirname(self.settings_file)
-            if settings_dir:
-                os.makedirs(settings_dir, exist_ok=True)
-            print(f"Debug - Using custom settings file: {settings_file}")
-        
-        print(f"Debug - Settings file will be: {self.settings_file}")
-        print(f"Debug - Settings file exists: {os.path.exists(self.settings_file)}")
-        
-        # Check if we can write to the settings directory
-        settings_dir = os.path.dirname(self.settings_file)
-        if settings_dir:
-            try:
-                test_file = os.path.join(settings_dir, 'test_write.tmp')
-                with open(test_file, 'w') as f:
-                    f.write('test')
-                os.remove(test_file)
-                print(f"Debug - Settings directory is writable: {settings_dir}")
-            except Exception as e:
-                print(f"Debug - Settings directory write test failed: {e}")
-        else:
-            print("Debug - Settings file is in current directory")
-        
-        # LLM Provider configurations
-        self.llm_providers = {
-            "openai": {
-                "name": "OpenAI", 
-                "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"],
-                "api_key_prefix": "sk-",
-                "help_url": "https://platform.openai.com/api-keys"
-            },
-            "anthropic": {
-                "name": "Anthropic",
-                "models": ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
-                "api_key_prefix": "sk-ant-",
-                "help_url": "https://console.anthropic.com/settings/keys"
-            },
-            "gemini": {
-                "name": "Google Gemini",
-                "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
-                "api_key_prefix": "AIza",
-                "help_url": "https://makersuite.google.com/app/apikey"
-            }
-        }
-        print(f"Debug - Configured {len(self.llm_providers)} LLM providers")
-        
-        # Default settings and state
-        self.default_settings = {
-            "prompts": [
-                {
-                    "name": "summarize", 
-                    "text": "Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way."
-                },
-                {
-                    "name": "formal",
-                    "text": "Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication."
-                },
-                {
-                    "name": "casual",
-                    "text": "Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact."
-                },
-                {
-                    "name": "friendly",
-                    "text": "Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging."
-                },
-                {
-                    "name": "polish",
-                    "text": "Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness."
-                }
-            ],
-            "hotkey": "cmd+shift+a",
-            "llm_provider": "openai",
-            "model": "gpt-3.5-turbo",
-            "show_notifications": True,
-            "launch_at_startup": False,
-            "openai_api_key": "",
-            "anthropic_api_key": "",
-            "gemini_api_key": ""
-        }
-        
-        self.default_state = {
-            "api_key_validation": {
-                "openai": {"valid": None, "last_check": None, "error": None},
-                "anthropic": {"valid": None, "last_check": None, "error": None},
-                "gemini": {"valid": None, "last_check": None, "error": None}
-            },
-            "os_permissions": {
-                "notifications_enabled": None,
-                "launch_at_startup_enabled": None,
-                "last_check": None
-            }
-        }
-        
-        print("Debug - Loading settings and state...")
-        self.settings = self.load_settings()
-        self.state = self.load_state()
-        
-        # Log current configuration
-        current_provider = self.get_current_provider()
-        api_key = self.get_current_api_key()
-        has_api_key = len(api_key.strip()) > 0
-        print(f"Debug - Settings loaded: provider={current_provider}, has_api_key={has_api_key}, "
-              f"prompts={len(self.get('prompts', []))}")
-        print("Debug - SettingsManager initialization complete")
-    
-    def load_state(self) -> Dict[str, Any]:
-        """Load application state from file"""
-        try:
-            if os.path.exists(self.state_file):
-                with open(self.state_file, 'r') as f:
-                    loaded = json.load(f)
-                    state = self.default_state.copy()
-                    
-                    # Deep merge loaded state
-                    for key, value in loaded.items():
-                        if key in state and isinstance(state[key], dict) and isinstance(value, dict):
-                            state[key].update(value)
-                        else:
-                            state[key] = value
-                    
-                    return state
-            else:
-                return self.default_state.copy()
-        except Exception as e:
-            print(f"Error loading state: {e}")
-            return self.default_state.copy()
-    
-    def save_state(self, state: Dict[str, Any]) -> bool:
-        """Save application state to file"""
-        try:
-            self.state = state
-            with open(self.state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Error saving state: {e}")
-            return False
-    
-    def get_current_provider(self) -> str:
-        """Get the currently selected LLM provider"""
-        return self.get("llm_provider", "openai")
-    
-    def get_current_api_key(self) -> str:
-        """Get the API key for the current provider"""
-        provider = self.get_current_provider()
-        return self.get(f"{provider}_api_key", "")
-    
-    def set_api_key_validation(self, provider: str, valid: bool, error: str = None):
-        """Set API key validation state for a provider"""
-        if "api_key_validation" not in self.state:
-            self.state["api_key_validation"] = {}
-        
-        if provider not in self.state["api_key_validation"]:
-            self.state["api_key_validation"][provider] = {}
-        
-        import time
-        self.state["api_key_validation"][provider].update({
-            "valid": valid,
-            "last_check": time.time(),
-            "error": error
-        })
-        self.save_state(self.state)
-    
-    def get_api_key_validation(self, provider: str) -> Dict[str, Any]:
-        """Get API key validation state for a provider"""
-        if "api_key_validation" not in self.state:
-            return {"valid": None, "last_check": None, "error": None}
-        
-        return self.state["api_key_validation"].get(provider, {
-            "valid": None, "last_check": None, "error": None
-        })
-    
-    def get_os_notification_status(self) -> bool:
-        """Get actual OS notification permission status"""
-        try:
-            center = NSUserNotificationCenter.defaultUserNotificationCenter()
-            
-            # Check if we can deliver notifications
-            test_notification = NSUserNotification.alloc().init()
-            test_notification.setTitle_("Test")
-            test_notification.setInformativeText_("Test notification")
-            
-            # Try to get delivery settings
-            if hasattr(center, 'notificationSettings'):
-                settings = center.notificationSettings()
-                if hasattr(settings, 'authorizationStatus'):
-                    # macOS 10.14+
-                    status = settings.authorizationStatus()
-                    return status == 2  # UNAuthorizationStatusAuthorized
-            
-            # Fallback: check if notifications are enabled in general
-            try:
-                # This is a heuristic - if we can deliver and it's not explicitly denied
-                return True  # Assume enabled unless explicitly denied
-            except:
-                return False
-                
-        except Exception as e:
-            print(f"Error checking notification status: {e}")
-            return False
-    
-    def get_os_startup_status(self) -> bool:
-        """Get actual OS launch at startup status"""
-        try:
-            # Check if the app is in login items
-            result = subprocess.run([
-                'osascript', '-e',
-                'tell application "System Events" to get the name of every login item'
-            ], capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                login_items = result.stdout.strip()
-                return "Potter" in login_items
-            return False
-            
-        except Exception as e:
-            print(f"Error checking startup status: {e}")
-            return False
-    
-    def load_settings(self) -> Dict[str, Any]:
-        """Load settings from file, create default if not exists"""
-        try:
-            if os.path.exists(self.settings_file):
-                print(f"Debug - Loading settings from: {self.settings_file}")
-                with open(self.settings_file, 'r') as f:
-                    loaded = json.load(f)
-                    settings = self.default_settings.copy()
-                    
-                    # Update settings with loaded values
-                    for key, value in loaded.items():
-                        settings[key] = value
-                    
-                    print(f"Debug - Loaded settings: prompts={len(settings.get('prompts', []))}, provider={settings.get('llm_provider')}")
-                    return settings
-            else:
-                print(f"Debug - Settings file not found at {self.settings_file}, creating with defaults")
-                # Create default settings file immediately
-                if self.save_settings(self.default_settings):
-                    print(f"Debug - Created default settings file with {len(self.default_settings['prompts'])} prompts")
-                else:
-                    print("Debug - Failed to create default settings file")
-                return self.default_settings.copy()
-        except Exception as e:
-            print(f"Error loading settings: {e}")
-            return self.default_settings.copy()
-    
-    def save_settings(self, settings: Dict[str, Any]) -> bool:
-        """Save settings to file"""
-        try:
-            self.settings = settings
-            with open(self.settings_file, 'w') as f:
-                json.dump(settings, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Error saving settings: {e}")
-            return False
-    
-    def get(self, key: str, default=None):
-        """Get a setting value"""
-        return self.settings.get(key, default)
-    
-    def is_first_launch(self) -> bool:
-        """Check if this is the first launch (no settings file exists or no API key)"""
-        # Check if settings file exists
-        if not os.path.exists(self.settings_file):
-            return True
-        
-        # Check if OpenAI API key is configured (in settings or environment)
-        api_key_in_settings = self.get("openai_api_key", "").strip()
-        api_key_in_env = os.getenv('OPENAI_API_KEY', "").strip()
-        
-        if not api_key_in_settings and not api_key_in_env:
-            return True
-        
-        return False
-    
-    def is_first_launch_for_build(self) -> bool:
-        """Check if this is the first launch for this specific build"""
-        try:
-            from utils.instance_checker import load_build_id
-            current_build = load_build_id()
-            current_build_id = current_build.get("build_id", "unknown")
-            
-            if not os.path.exists(self.first_run_file):
-                return True
-            
-            with open(self.first_run_file, 'r') as f:
-                first_run_data = json.load(f)
-            
-            # Check if this build ID has been launched before
-            launched_builds = first_run_data.get("launched_builds", [])
-            return current_build_id not in launched_builds
-            
-        except Exception as e:
-            print(f"Error checking first launch: {e}")
-            return True  # Default to first launch to be safe
-    
-    def mark_build_launched(self):
-        """Mark this build as having been launched"""
-        try:
-            from utils.instance_checker import load_build_id
-            current_build = load_build_id()
-            current_build_id = current_build.get("build_id", "unknown")
-            
-            # Load existing data or create new
-            first_run_data = {"launched_builds": [], "permission_requests": {}}
-            if os.path.exists(self.first_run_file):
-                with open(self.first_run_file, 'r') as f:
-                    first_run_data = json.load(f)
-            
-            # Add this build to launched builds
-            if current_build_id not in first_run_data.get("launched_builds", []):
-                first_run_data.setdefault("launched_builds", []).append(current_build_id)
-            
-            # Save updated data
-            with open(self.first_run_file, 'w') as f:
-                json.dump(first_run_data, f, indent=2)
-                
-        except Exception as e:
-            print(f"Error marking build launched: {e}")
-    
-    def has_declined_permission(self, permission_type: str) -> bool:
-        """Check if user has previously declined a permission"""
-        try:
-            if not os.path.exists(self.first_run_file):
-                return False
-            
-            with open(self.first_run_file, 'r') as f:
-                first_run_data = json.load(f)
-            
-            permission_requests = first_run_data.get("permission_requests", {})
-            return permission_requests.get(permission_type, {}).get("declined", False)
-            
-        except Exception as e:
-            print(f"Error checking permission decline: {e}")
-            return False
-    
-    def mark_permission_declined(self, permission_type: str):
-        """Mark that user has declined a permission"""
-        try:
-            # Load existing data or create new
-            first_run_data = {"launched_builds": [], "permission_requests": {}}
-            if os.path.exists(self.first_run_file):
-                with open(self.first_run_file, 'r') as f:
-                    first_run_data = json.load(f)
-            
-            # Mark permission as declined
-            first_run_data.setdefault("permission_requests", {})[permission_type] = {
-                "declined": True,
-                "timestamp": time.time()
-            }
-            
-            # Save updated data
-            with open(self.first_run_file, 'w') as f:
-                json.dump(first_run_data, f, indent=2)
-                
-        except Exception as e:
-            print(f"Error marking permission declined: {e}")
-    
-    def should_show_settings_on_startup(self) -> bool:
-        """Determine if settings should be shown on startup"""
-        # Show settings if this is first time for this build OR no API key is set up
-        is_first_launch = self.is_first_launch_for_build()
-        current_provider = self.get_current_provider()
-        api_key = self.get(f"{current_provider}_api_key", "").strip()
-        
-        # Also check environment variable as fallback
-        if not api_key and current_provider == "openai":
-            api_key = os.getenv('OPENAI_API_KEY', "").strip()
-        
-        return is_first_launch or not api_key  # Changed from AND to OR
-    
-    def show_notification(self, title, message, is_error=False):
-        """Show a macOS notification"""
-        try:
-            notification = NSUserNotification.alloc().init()
-            notification.setTitle_(title)
-            notification.setInformativeText_(message)
-            
-            if is_error:
-                notification.setSoundName_("Funk")  # Error sound
-            else:
-                notification.setSoundName_("Glass")  # Success sound
-            
-            center = NSUserNotificationCenter.defaultUserNotificationCenter()
-            center.deliverNotification_(notification)
-            
-        except Exception as e:
-            print(f"Failed to show notification: {e}")
-    
-    def show_success(self, message="Operation completed successfully"):
-        """Show success notification if enabled"""
-        if self.get("show_notifications", False):
-            self.show_notification("Potter", message, is_error=False)
-    
-    def show_error(self, error_message):
-        """Show error notification if enabled"""
-        if self.get("show_notifications", False):
-            self.show_notification("Potter Error", error_message, is_error=True)
+
+# Removed duplicate SettingsManager class - now using proper import from settings.settings_manager
 
 
 class HotkeyCapture(NSView):
@@ -847,6 +418,7 @@ class PromptDialog(NSWindowController):
         self.result = None
         self.callback = None
         self.response_code = None  # Track response for modal operation
+        self.name_validator = None  # Callback to validate name for duplicates
         
         print(f"Debug - Creating prompt dialog, is_edit={is_edit}, prompt={self.prompt}")
         self.createDialog()
@@ -1090,6 +662,14 @@ class PromptDialog(NSWindowController):
                 print("Debug - Validation failed: empty text")
                 self.showTextError_("Please enter the prompt text")
                 has_errors = True
+            
+            # Check for duplicate names if validator is provided
+            if self.name_validator:
+                duplicate_error = self.name_validator(name)
+                if duplicate_error:
+                    print(f"Debug - Validation failed: {duplicate_error}")
+                    self.showNameError_(duplicate_error)
+                    has_errors = True
             
             # If there are validation errors, don't proceed
             if has_errors:
@@ -1482,34 +1062,16 @@ class SettingsWindow(NSWindowController):
         cancel_btn.setBezelStyle_(NSBezelStyleRounded)
         self.sidebar_container.addSubview_(cancel_btn)
         
-        # Save button
-        save_btn = NSButton.alloc().initWithFrame_(NSMakeRect(100, 90, 70, 32))
-        save_btn.setTitle_("Save")
-        save_btn.setTarget_(self)
-        save_btn.setAction_("save:")
-        save_btn.setKeyEquivalent_("\r")
-        save_btn.setBezelStyle_(NSBezelStyleRounded)
-        save_btn.setButtonType_(NSButtonTypeMomentaryPushIn)
-        
-        # Make save button blue (primary)
-        try:
-            save_btn.setControlTint_(NSBlueControlTint)
-        except:
-            pass
-        
-        self.sidebar_container.addSubview_(save_btn)
-        
-        # Quit button - moved below Cancel and Save
-        quit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 50, 150, 32))
+        # Quit button - positioned where Save button was (next to Cancel)
+        quit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(100, 90, 80, 32))
         quit_btn.setTitle_("Quit Potter")
         quit_btn.setTarget_(self)
-        quit_btn.setAction_("quitApp:")
+        quit_btn.setAction_("quitApplication:")
         quit_btn.setBezelStyle_(NSBezelStyleRounded)
         quit_btn.setFont_(NSFont.systemFontOfSize_(13))
         self.sidebar_container.addSubview_(quit_btn)
         
-        # Store reference to save button for later default button setup
-        self.save_button = save_btn
+        # Save button removed - using auto-save instead
     
     def createContentArea(self):
         """Create scrollable content area"""
@@ -1675,18 +1237,36 @@ class SettingsWindow(NSWindowController):
         api_key_label.setFont_(NSFont.systemFontOfSize_(14))
         view.addSubview_(api_key_label)
         
-        self.api_key_field = PasteableTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 350, 22))
+        self.api_key_field = PasteableTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 300, 22))
         self.api_key_field.setFont_(NSFont.monospacedSystemFontOfSize_weight_(12, 0))
+        self.api_key_field.setDelegate_(self)  # Set delegate for text change notifications
+        # Add text change notification observer
+        NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self, "apiKeyTextChanged:", "NSControlTextDidChangeNotification", self.api_key_field
+        )
         view.addSubview_(self.api_key_field)
         
-        # API Key validation status
-        self.api_validation_label = NSTextField.alloc().initWithFrame_(NSMakeRect(520, y_pos, 140, 22))
+        # Verify & Save button
+        self.verify_api_button = NSButton.alloc().initWithFrame_(NSMakeRect(470, y_pos, 100, 22))
+        self.verify_api_button.setTitle_("Verify & Save")
+        self.verify_api_button.setTarget_(self)
+        self.verify_api_button.setAction_("verifyAndSaveApiKey:")
+        self.verify_api_button.setBezelStyle_(NSBezelStyleRounded)
+        self.verify_api_button.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.verify_api_button)
+        
+        # API Key validation status (moved down)
+        self.api_validation_label = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos - 25, 400, 20))
         self.api_validation_label.setBezeled_(False)
         self.api_validation_label.setDrawsBackground_(False)
         self.api_validation_label.setEditable_(False)
         self.api_validation_label.setFont_(NSFont.systemFontOfSize_(11))
+        self.api_validation_label.setStringValue_("")
         view.addSubview_(self.api_validation_label)
-        y_pos -= 25
+        
+        # Spinner for verification (initially hidden)
+        self.verification_spinner = None
+        y_pos -= 50  # Extra space for validation label
         
         # API help text with clickable link
         help_text_label = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 120, 17))
@@ -1717,6 +1297,8 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(model_label)
         
         self.model_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(160, y_pos, 250, 22))
+        self.model_popup.setTarget_(self)
+        self.model_popup.setAction_("modelChanged:")
         view.addSubview_(self.model_popup)
         y_pos -= 50
         
@@ -1744,6 +1326,8 @@ class SettingsWindow(NSWindowController):
             NSMakeRect(160, y_pos, 300, 22), self.settings_manager
         )
         self.hotkey_field.setHotkeyString_(self.settings_manager.get("hotkey", "cmd+shift+a"))
+        # Set up auto-save callback for hotkey changes
+        self.hotkey_field.reset_callback = self.hotkeyChanged
         view.addSubview_(self.hotkey_field)
         
         # Reset button
@@ -1786,6 +1370,8 @@ class SettingsWindow(NSWindowController):
         )
         view.addSubview_(notifications_switch[0])
         self.notifications_switch = notifications_switch[1]
+        self.notifications_switch.setTarget_(self)
+        self.notifications_switch.setAction_("notificationsSwitchChanged:")
         y_pos -= 35  # Reduced spacing
         
         # Launch at startup switch with OS sync
@@ -1797,6 +1383,8 @@ class SettingsWindow(NSWindowController):
         )
         view.addSubview_(startup_switch[0])
         self.startup_switch = startup_switch[1]
+        self.startup_switch.setTarget_(self)
+        self.startup_switch.setAction_("startupSwitchChanged:")
         y_pos -= 50
         
         # System Permissions section
@@ -2027,6 +1615,237 @@ class SettingsWindow(NSWindowController):
             provider_id = selected_item.representedObject()
             self.settings_manager.settings["llm_provider"] = provider_id
             self.updateProviderUI()
+            
+            # Auto-save change
+            self.autoSaveCurrentSettings()
+            print(f"Debug - Auto-saved provider change to: {provider_id}")
+
+    def modelChanged_(self, sender):
+        """Handle model selection change"""
+        # Auto-save change
+        self.autoSaveCurrentSettings()
+        print(f"Debug - Auto-saved model change")
+
+    def notificationsSwitchChanged_(self, sender):
+        """Handle notifications switch change"""
+        notification_enabled = bool(sender.state())
+        
+        # Handle OS permissions when enabling notifications
+        if notification_enabled:
+            if not self.settings_manager.get_os_notification_status():
+                self.requestNotificationPermission_(None)
+        
+        # Auto-save change
+        self.autoSaveCurrentSettings()
+        print(f"Debug - Auto-saved notifications change to: {notification_enabled}")
+
+    def startupSwitchChanged_(self, sender):
+        """Handle startup switch change"""
+        startup_enabled = bool(sender.state())
+        
+        # Update OS startup setting
+        self.updateStartupSetting_(startup_enabled)
+        
+        # Auto-save change
+        self.autoSaveCurrentSettings()
+        print(f"Debug - Auto-saved startup change to: {startup_enabled}")
+
+    def hotkeyChanged(self):
+        """Handle hotkey change and auto-save"""
+        if hasattr(self, 'hotkey_field'):
+            # Auto-save hotkey change
+            current_settings = self.settings_manager.get_all_settings()
+            current_settings["hotkey"] = self.hotkey_field.getHotkeyString()
+            success = self.settings_manager.save_settings(current_settings)
+            print(f"Debug - Auto-saved hotkey change: {success}")
+            
+            # Update reset button state
+            self.updateResetButton()
+
+    def apiKeyTextChanged_(self, notification):
+        """Handle API key text changes for real-time validation"""
+        try:
+            if not hasattr(self, 'api_key_field'):
+                return
+                
+            api_key = str(self.api_key_field.stringValue()).strip()
+            current_provider = self.get_current_provider()
+            
+            # Clear red background on text change
+            self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
+            
+            if not api_key:
+                self._update_api_validation_display("", None)
+                return
+            
+            # Basic format validation based on provider
+            provider_info = self.settings_manager.llm_providers.get(current_provider, {})
+            expected_prefix = provider_info.get("api_key_prefix", "")
+            
+            if expected_prefix and not api_key.startswith(expected_prefix):
+                self._update_api_validation_display(f"⚠️ {current_provider.title()} API keys should start with '{expected_prefix}'", False)
+                self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
+            elif len(api_key) < 20:  # Basic length check
+                self._update_api_validation_display("⚠️ API key seems too short", False)
+                self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
+            else:
+                self._update_api_validation_display("✓ Format looks valid - click 'Verify & Save' to test", None)
+                self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
+                
+            # Auto-save as user types (delayed)
+            if hasattr(self, 'api_key_save_timer'):
+                self.api_key_save_timer.invalidate()
+            
+            # Save after 1 second of no typing
+            self.api_key_save_timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                1.0, self, "delayedApiKeySave:", None, False
+            )
+            
+        except Exception as e:
+            print(f"Error in apiKeyTextChanged: {e}")
+    
+    def delayedApiKeySave_(self, timer):
+        """Save API key after delay"""
+        try:
+            if not hasattr(self, 'api_key_field'):
+                return
+                
+            api_key = str(self.api_key_field.stringValue()).strip()
+            current_provider = self.get_current_provider()
+            
+            # Auto-save the key
+            settings = self.settings_manager.get_all_settings()
+            settings[f"{current_provider}_api_key"] = api_key
+            self.settings_manager.save_settings(settings)
+            
+        except Exception as e:
+            print(f"Error in delayed API key save: {e}")
+
+    def verifyAndSaveApiKey_(self, sender):
+        """Verify API key with real API call and save if valid"""
+        api_key = str(self.api_key_field.stringValue()).strip()
+        if not api_key:
+            self._update_api_validation_display("Please enter an API key", False)
+            self.api_key_field.setBackgroundColor_(NSColor.systemRedColor().colorWithAlphaComponent_(0.2))
+            return
+        
+        # Get current provider
+        current_provider = self.settings_manager.get("llm_provider", "openai")
+        
+        # Clear any background color and show verifying state
+        self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
+        self.verify_api_button.setEnabled_(False)
+        self.verify_api_button.setTitle_("Verifying...")
+        self._update_api_validation_display("🔄 Verifying API key...", None)
+        
+        # Start verification in background
+        self._start_api_verification(api_key, current_provider)
+
+    def _update_api_validation_display(self, message, is_valid):
+        """Show API validation message with appropriate styling"""
+        self.api_validation_label.setStringValue_(message)
+        
+        if is_valid is None:  # Neutral/loading state
+            self.api_validation_label.setTextColor_(NSColor.secondaryLabelColor())
+        elif is_valid:  # Success
+            self.api_validation_label.setTextColor_(NSColor.systemGreenColor())
+        else:  # Error
+            self.api_validation_label.setTextColor_(NSColor.systemRedColor())
+
+    def _start_api_verification(self, api_key, provider):
+        """Start API verification in background thread"""
+        import threading
+        
+        def verify_in_background():
+            try:
+                # Only OpenAI verification is currently supported
+                if provider == "openai":
+                    from utils.openai_client import OpenAIClientManager
+                    client = OpenAIClientManager(api_key)
+                    # Make a minimal test call
+                    result = client.process_text("test", "respond with just 'ok'", max_tokens=5)
+                    success = result is not None and "ok" in result.lower()
+                elif provider == "anthropic":
+                    # TODO: Implement Anthropic API verification
+                    # For now, just do basic format validation
+                    success = api_key.startswith("sk-ant-") and len(api_key) > 20
+                    result = "Format validation only - full verification not yet implemented"
+                elif provider == "gemini":
+                    # TODO: Implement Gemini API verification  
+                    # For now, just do basic format validation
+                    success = api_key.startswith("AIza") and len(api_key) > 20
+                    result = "Format validation only - full verification not yet implemented"
+                else:
+                    # Unknown provider
+                    success = False
+                    result = None
+                
+                # Update UI on main thread
+                def update_ui():
+                    self._handle_api_verification_result(success, provider, api_key)
+                
+                # Schedule UI update on main thread
+                self.performSelectorOnMainThread_withObject_waitUntilDone_("_updateUIFromVerification:", update_ui, False)
+                
+            except Exception as e:
+                print(f"Debug - API verification error: {e}")
+                # Update UI with error on main thread  
+                def update_ui_error():
+                    self._handle_api_verification_result(False, provider, api_key, str(e))
+                
+                self.performSelectorOnMainThread_withObject_waitUntilDone_("_updateUIFromVerification:", update_ui_error, False)
+        
+        # Start background thread
+        thread = threading.Thread(target=verify_in_background)
+        thread.daemon = True
+        thread.start()
+
+    def _update_ui_from_verification(self, update_func):
+        """Helper to update UI from background thread"""
+        if update_func:
+            update_func()
+    
+    def _updateUIFromVerification_(self, update_func):
+        """Objective-C compatible selector for main thread updates"""
+        self._update_ui_from_verification(update_func)
+
+    def _handle_api_verification_result(self, success, provider, api_key, error_msg=None):
+        """Handle API verification result and update UI"""
+        # Reset button state
+        self.verify_api_button.setEnabled_(True)
+        self.verify_api_button.setTitle_("Verify & Save")
+        
+        if success:
+            # Save the API key
+            current_settings = self.settings_manager.get_all_settings()
+            current_settings[f"{provider}_api_key"] = api_key
+            save_success = self.settings_manager.save_settings(current_settings)
+            
+            if save_success:
+                self._update_api_validation_display("✅ API key verified and saved!", True)
+                # Clear the temporary green message after 3 seconds
+                self._schedule_validation_clear()
+            else:
+                self._update_api_validation_display("❌ Verification passed but failed to save", False)
+        else:
+            error_msg = error_msg or "Invalid API key"
+            self._update_api_validation_display(f"❌ {error_msg}", False)
+
+    def _schedule_validation_clear(self):
+        """Clear validation message after delay"""
+        def clear_message():
+            if hasattr(self, 'api_validation_label'):
+                self.api_validation_label.setStringValue_("")
+        
+        # Schedule clearing after 3 seconds
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            3.0, self, "clearValidationMessage:", None, False
+        )
+
+    def clearValidationMessage_(self, timer):
+        """Clear the validation message"""
+        if hasattr(self, 'api_validation_label'):
+            self.api_validation_label.setStringValue_("")
     
     def updateProviderUI(self):
         """Update UI elements based on selected provider"""
@@ -2179,7 +1998,7 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(table_container)
         
         # OSX-style controls at bottom of table - adjusted for smaller table
-        controls_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 250, 620, 30))  # Moved up to match smaller table
+        controls_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 250, 620, 30))
         
         # + button (add)
         add_btn = NSButton.alloc().initWithFrame_(NSMakeRect(0, 5, 30, 20))
@@ -2529,12 +2348,15 @@ class SettingsWindow(NSWindowController):
     def getLogFilePath(self):
         """Get the path to the log file"""
         import sys
+        from pathlib import Path
         if getattr(sys, 'frozen', False):
-            # Running as PyInstaller bundle
-            return os.path.expanduser('~/Library/Logs/potter.log')
+            # Running as PyInstaller bundle - log to user's home directory
+            return str(Path.home() / 'Library' / 'Logs' / 'potter.log')
         else:
-            # Running as script
-            return 'potter.log'
+            # Running from source - log to project directory (src/potter.log)
+            # Get the src directory path
+            src_path = Path(__file__).parent
+            return str(src_path / 'potter.log')
     
     def loadLogs(self):
         """Load logs from file"""
@@ -2549,10 +2371,22 @@ class SettingsWindow(NSWindowController):
             # Get file size to track changes
             file_size = os.path.getsize(log_file_path)
             
-            # Read the file
+            # Read the file efficiently - only keep last 200 lines for performance
             with open(log_file_path, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
+                all_lines = f.readlines()
             
+            # Keep only the last 200 lines for performance
+            MAX_LINES = 200
+            total_lines_in_file = len(all_lines)
+            
+            if total_lines_in_file > MAX_LINES:
+                lines = all_lines[-MAX_LINES:]
+                truncated = True
+            else:
+                lines = all_lines
+                truncated = False
+            
+            content = ''.join(lines)
             self.full_log_content = content
             self.last_log_size = file_size
             
@@ -2560,12 +2394,15 @@ class SettingsWindow(NSWindowController):
             self.filterLogsContent()
             
             # Update status
-            line_count = len(content.splitlines()) if content else 0
-            self.log_status_label.setStringValue_(f"Loaded {line_count} log entries from {log_file_path}")
+            displayed_lines = len(lines)
             
-            # Auto-scroll to bottom if enabled
-            if hasattr(self, 'auto_scroll_checkbox') and self.auto_scroll_checkbox.state():
-                self.scrollToBottom()
+            if truncated:
+                self.log_status_label.setStringValue_(f"Showing last {displayed_lines} of {total_lines_in_file} log entries (performance limited)")
+            else:
+                self.log_status_label.setStringValue_(f"Loaded {displayed_lines} log entries from {log_file_path}")
+            
+            # Auto-scroll to bottom (enabled by default for logs)
+            self.scrollToBottom()
                 
         except Exception as e:
             error_msg = f"Error loading logs: {str(e)}"
@@ -2581,6 +2418,8 @@ class SettingsWindow(NSWindowController):
         
         if selected_level == "All":
             filtered_content = self.full_log_content
+            lines = self.full_log_content.splitlines()
+            filtered_lines_count = len(lines)
         else:
             # Better filtering logic - look for log level patterns
             lines = self.full_log_content.splitlines()
@@ -2601,19 +2440,26 @@ class SettingsWindow(NSWindowController):
                 if any(pattern in line for pattern in patterns):
                     filtered_lines.append(line)
             
+            # Apply same 200-line limit to filtered content for performance
+            MAX_LINES = 200
+            if len(filtered_lines) > MAX_LINES:
+                filtered_lines = filtered_lines[-MAX_LINES:]
+                
             filtered_content = '\n'.join(filtered_lines)
+            filtered_lines_count = len(filtered_lines)
             
             # Update status to show filter results
             if hasattr(self, 'log_status_label'):
                 total_lines = len(lines) if lines else 0
-                filtered_lines_count = len(filtered_lines)
-                self.log_status_label.setStringValue_(f"Showing {filtered_lines_count} of {total_lines} log entries (filtered by {selected_level})")
+                if len(filtered_lines) >= MAX_LINES:
+                    self.log_status_label.setStringValue_(f"Showing last {filtered_lines_count} of {filtered_lines_count}+ entries (filtered by {selected_level}, performance limited)")
+                else:
+                    self.log_status_label.setStringValue_(f"Showing {filtered_lines_count} of {total_lines} log entries (filtered by {selected_level})")
         
         self.logs_text.setString_(filtered_content)
         
-        # Auto-scroll to bottom if enabled
-        if hasattr(self, 'auto_scroll_checkbox') and self.auto_scroll_checkbox.state():
-            self.scrollToBottom()
+        # Auto-scroll to bottom (always enabled for real-time log viewing)
+        self.scrollToBottom()
     
     def scrollToBottom(self):
         """Scroll the log view to the bottom"""
@@ -3140,12 +2986,29 @@ class SettingsWindow(NSWindowController):
             print(f"Debug - Error restarting app: {e}")
             self.show_permission_reset_error(f"Failed to restart Potter: {str(e)}. Please restart manually.")
     
-    def quitApp_(self, sender):
+    def quitApplication_(self, sender):
         """Quit the Potter application"""
         try:
-            # Use safe exit instead of NSApplication.terminate to avoid OS freezes
-            import sys
-            sys.exit(0)
+            print("Debug - quitApplication_ called, attempting to quit...")
+            
+            # First close the settings window
+            if hasattr(self, 'window') and self.window():
+                print("Debug - Closing settings window...")
+                self.window().close()
+            
+            # Try to quit the main application
+            try:
+                from AppKit import NSApplication
+                app = NSApplication.sharedApplication()
+                print("Debug - Terminating NSApplication...")
+                app.terminate_(None)
+            except Exception as app_error:
+                print(f"Debug - NSApplication.terminate failed: {app_error}")
+                # Fallback to sys.exit
+                import sys
+                print("Debug - Calling sys.exit(0) as fallback...")
+                sys.exit(0)
+                
         except Exception as e:
             print(f"Debug - Error quitting app: {e}")
             # Remove unsafe fallback - just let the exception bubble up if sys.exit fails
@@ -3556,6 +3419,18 @@ class SettingsWindow(NSWindowController):
             # Pass other keys to superclass
             objc.super(SettingsWindow, self).keyDown_(event)
 
+    def validatePromptName_(self, name, exclude_index=None):
+        """Validate prompt name for duplicates. Returns error message or None if valid."""
+        if not hasattr(self, 'prompts_data') or not self.prompts_data:
+            return None
+        
+        for i, prompt in enumerate(self.prompts_data):
+            if exclude_index is not None and i == exclude_index:
+                continue
+            if prompt.get("name", "") == name:
+                return f"A prompt named '{name}' already exists."
+        return None
+
     def addPrompt_(self, sender):
         """Add a new prompt using dialog"""
         print("Debug - addPrompt_ called")
@@ -3563,24 +3438,19 @@ class SettingsWindow(NSWindowController):
         # Create and show dialog modally
         dialog = PromptDialog.alloc().initWithPrompt_isEdit_(None, False)
         
+        # Set up name validator
+        dialog.name_validator = lambda name: self.validatePromptName_(name)
+        
         def on_result(result):
             print(f"Debug - addPrompt callback called with result: {result}")
-            if result:  # User didn't cancel
-                # Check for duplicate names
-                existing_names = [p.get("name", "") for p in self.prompts_data]
-                if result["name"] in existing_names:
-                    print(f"Debug - Duplicate name detected: {result['name']}")
-                    alert = NSAlert.alloc().init()
-                    alert.setMessageText_("Duplicate Name")
-                    alert.setInformativeText_(f"A prompt named '{result['name']}' already exists.")
-                    alert.setAlertStyle_(NSAlertStyleWarning)
-                    alert.runModal()
-                    return
-                
+            if result:  # User didn't cancel and validation passed
                 # Add the new prompt
                 self.prompts_data.append(result)
                 self.prompts_table.reloadData()
                 self.updatePromptsCount()
+                
+                # Save to settings file immediately
+                self.savePromptsToSettings()
                 
                 # Select the new row
                 new_index = len(self.prompts_data) - 1
@@ -3638,6 +3508,10 @@ class SettingsWindow(NSWindowController):
             self.prompts_data.pop(selected_row)
             self.prompts_table.reloadData()
             self.updatePromptsCount()
+            
+            # Save to settings file immediately
+            self.savePromptsToSettings()
+            
             print(f"Debug - Removed prompt: {prompt_name}")
         else:
             print("Debug - Prompt removal cancelled")
@@ -3668,23 +3542,18 @@ class SettingsWindow(NSWindowController):
         # Create and show dialog modally
         dialog = PromptDialog.alloc().initWithPrompt_isEdit_(current_prompt, True)
         
+        # Set up name validator (excluding current index)
+        dialog.name_validator = lambda name: self.validatePromptName_(name, exclude_index=selected_row)
+        
         def on_result(result):
             print(f"Debug - editPrompt callback called with result: {result}")
-            if result:  # User didn't cancel
-                # Check for duplicate names (excluding current name)
-                existing_names = [p.get("name", "") for i, p in enumerate(self.prompts_data) if i != selected_row]
-                if result["name"] in existing_names:
-                    print(f"Debug - Duplicate name detected during edit: {result['name']}")
-                    alert = NSAlert.alloc().init()
-                    alert.setMessageText_("Duplicate Name")
-                    alert.setInformativeText_(f"A prompt named '{result['name']}' already exists.")
-                    alert.setAlertStyle_(NSAlertStyleWarning)
-                    alert.runModal()
-                    return
-                
+            if result:  # User didn't cancel and validation passed
                 # Update the prompt
                 self.prompts_data[selected_row] = result
                 self.prompts_table.reloadData()
+                
+                # Save to settings file immediately
+                self.savePromptsToSettings()
                 
                 # Keep selection
                 self.prompts_table.selectRowIndexes_byExtendingSelection_(
@@ -4008,6 +3877,65 @@ class SettingsWindow(NSWindowController):
         
         return is_first_launch or not api_key  # Changed from AND to OR
     
+    def autoSaveCurrentSettings(self):
+        """Auto-save current UI settings to file immediately"""
+        try:
+            # Get all current settings
+            current_settings = self.settings_manager.get_all_settings()
+            
+            # Update with current UI values
+            if hasattr(self, 'provider_popup'):
+                selected_item = self.provider_popup.selectedItem()
+                if selected_item:
+                    current_settings["llm_provider"] = selected_item.representedObject()
+            
+            if hasattr(self, 'model_popup'):
+                selected_model = self.model_popup.selectedItem()
+                if selected_model:
+                    current_settings["model"] = str(selected_model.title())
+            
+            if hasattr(self, 'notifications_switch'):
+                current_settings["show_notifications"] = bool(self.notifications_switch.state())
+            
+            if hasattr(self, 'startup_switch'):
+                current_settings["launch_at_startup"] = bool(self.startup_switch.state())
+            
+            # Save to file
+            success = self.settings_manager.save_settings(current_settings)
+            print(f"Debug - Auto-saved settings: {success}")
+            return success
+        except Exception as e:
+            print(f"Debug - Error auto-saving settings: {e}")
+            return False
+
+    def savePromptsToSettings(self):
+        """Save current prompts data to settings immediately"""
+        if not hasattr(self, 'prompts_data'):
+            return False
+        
+        try:
+            # Get current settings
+            current_settings = {}
+            for key in self.settings_manager.get_all_settings().keys():
+                current_settings[key] = self.settings_manager.get(key)
+            
+            # Update prompts
+            current_settings["prompts"] = []
+            for prompt in self.prompts_data:
+                if prompt.get("name") and prompt.get("text"):
+                    current_settings["prompts"].append({
+                        "name": prompt["name"],
+                        "text": prompt["text"]
+                    })
+            
+            # Save to file
+            success = self.settings_manager.save_settings(current_settings)
+            print(f"Debug - Saved {len(current_settings['prompts'])} prompts to settings: {success}")
+            return success
+        except Exception as e:
+            print(f"Debug - Error saving prompts to settings: {e}")
+            return False
+
     def updatePromptsCount(self):
         """Update the prompts count label"""
         if hasattr(self, 'prompts_count_label') and hasattr(self, 'prompts_data'):

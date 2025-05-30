@@ -379,13 +379,9 @@ class PotterService:
                 
                 # Set up window close callback to clear reference
                 if self.settings_window and self.settings_window.window():
-                    # Store original close method
-                    original_close = self.settings_window.window().close
-                    
-                    def close_with_cleanup():
-                        self.settings_window = None
-                        return original_close()
-                    self.settings_window.window().close = close_with_cleanup
+                    # Use proper delegate method instead of overriding close
+                    # We'll handle cleanup in the settings window itself or through delegate
+                    pass
                 
                 logger.info("Settings window opened successfully")
             except Exception as e:
