@@ -2099,9 +2099,9 @@ class SettingsWindow(NSWindowController):
     
     def createPromptsView(self):
         """Create modern Prompts settings view"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 900))  # Proper height
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 600))  # Proper height
         
-        y_pos = 850  # Start higher to reduce empty space
+        y_pos = 550  # Start higher to reduce empty space
         
         # Section header
         header = create_section_header("Prompts", y_pos)
@@ -2125,7 +2125,7 @@ class SettingsWindow(NSWindowController):
         y_pos -= 40
         
         # Toolbar with buttons - ensure they're visible
-        toolbar_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 30))
+        toolbar_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos, y_pos-40, 30))
         
         # Info label instead of action buttons at top
         info_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 5, 400, 20))
@@ -2141,7 +2141,7 @@ class SettingsWindow(NSWindowController):
         y_pos -= 40
         
         # Table view container - made even smaller
-        table_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, 200, 620, y_pos - 240))  # Much smaller table
+        table_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 200, 620, 200))  # Much smaller table
         table_container.setHasVerticalScroller_(True)
         table_container.setAutohidesScrollers_(True)
         table_container.setBorderType_(NSBezelBorder)
@@ -2179,7 +2179,7 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(table_container)
         
         # OSX-style controls at bottom of table - adjusted for smaller table
-        controls_container = NSView.alloc().initWithFrame_(NSMakeRect(40, 160, 620, 30))  # Moved up to match smaller table
+        controls_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 250, 620, 30))  # Moved up to match smaller table
         
         # + button (add)
         add_btn = NSButton.alloc().initWithFrame_(NSMakeRect(0, 5, 30, 20))
