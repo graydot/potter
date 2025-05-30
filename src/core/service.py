@@ -8,6 +8,7 @@ import logging
 import time
 import threading
 from typing import Dict
+import sys
 
 # Core components
 from core.permissions import PermissionManager
@@ -173,57 +174,85 @@ class PotterService:
     def start(self) -> bool:
         """Start the Potter service"""
         logger.info("🚀 Starting Potter service...")
+        logger.info(f"📍 Potter version: {getattr(self, 'version', 'unknown')}")
+        logger.info(f"🐍 Python version: {sys.version}")
+        logger.info(f"💻 Platform: {sys.platform}")
         
         # Check for existing instance
         if self.instance_checker.is_already_running():
-            logger.error("Another instance is already running")
+            logger.error("❌ Another instance is already running")
             return False
         
         # Create PID file
         if not self.instance_checker.create_pid_file():
-            logger.error("Failed to create PID file")
+            logger.error("❌ Failed to create PID file")
             return False
+        logger.info("✅ PID file created successfully")
         
         # Check/request permissions and API setup
+        logger.info("🔐 Checking permissions and API setup...")
         permissions = self.permission_manager.get_permission_status()
+        
+        # Log detailed permission status
+        for perm_name, perm_status in permissions.items():
+            status_icon = "✅" if perm_status else "❌"
+            logger.info(f"  {status_icon} {perm_name.title()} permission: {perm_status}")
         
         # Check if API key is available
         api_key_available = self.openai_manager.is_available()
+        api_status_icon = "✅" if api_key_available else "❌"
+        logger.info(f"  {api_status_icon} OpenAI API key: {'Available' if api_key_available else 'Not configured'}")
+        
         needs_setup = False
         
         # Determine what setup is needed
         if not api_key_available:
-            logger.info("No valid API key found - showing setup")
+            logger.info("⚠️  No valid API key found - showing setup")
             self.notification_manager.show_api_key_needed()
             needs_setup = True
         elif not permissions["accessibility"]:
-            logger.info("Accessibility permission needed - showing setup")
+            logger.info("⚠️  Accessibility permission needed - showing setup")
             self.permission_manager.request_permissions(show_preferences_callback=self._show_preferences)
             needs_setup = True
         
         # Show preferences if any setup is needed
         if needs_setup and self.settings_manager:
-            logger.info("Opening settings for initial setup...")
+            logger.info("⚙️  Opening settings for initial setup...")
             self._show_preferences()
         
         # Start components
+        logger.info("🔧 Starting core components...")
         self.is_running = True
         
         # Start hotkey listener
+        logger.info("⌨️  Starting hotkey listener...")
         self.hotkey_manager.start_listener()
+        hotkey = getattr(self.hotkey_manager, 'current_hotkey', 'unknown')
+        logger.info(f"  ✅ Hotkey listener active: {hotkey}")
         
         # Create and start tray icon
+        logger.info("🖼️  Creating tray icon...")
         self.tray_icon_manager.create_tray_icon(
             current_mode=self.text_processor.get_current_mode(),
             available_modes=self.text_processor.get_available_modes(),
             permissions=permissions,
             notifications_enabled=self.notification_manager.is_notifications_enabled()
         )
+        logger.info("  ✅ Tray icon created")
         
         # Start periodic checks
+        logger.info("⏰ Starting periodic background checks...")
         self.periodic_thread.start()
+        logger.info("  ✅ Background monitoring active")
+        
+        # Log final status
+        available_modes = self.text_processor.get_available_modes()
+        current_mode = self.text_processor.get_current_mode()
+        logger.info(f"🎯 Current mode: {current_mode}")
+        logger.info(f"📝 Available modes: {', '.join(available_modes)}")
         
         logger.info("✅ Potter service started successfully")
+        logger.info("🔄 Running main tray icon loop...")
         
         # Run tray icon (blocking)
         self.tray_icon_manager.run()
@@ -249,15 +278,18 @@ class PotterService:
     def _handle_hotkey_pressed(self):
         """Handle hotkey press"""
         if self.is_processing:
-            logger.debug("Already processing, ignoring hotkey")
+            logger.debug("⏭️  Already processing, ignoring hotkey")
             return
         
-        logger.info("🎯 Hotkey detected! Processing clipboard text...")
+        hotkey = getattr(self.hotkey_manager, 'current_hotkey', 'unknown')
+        logger.info(f"🎯 Hotkey detected ({hotkey})! Processing clipboard text...")
         
         # Show immediate feedback
         self.notification_manager.show_hotkey_detected()
+        logger.debug("📢 Hotkey detection notification sent")
         
         # Process text
+        logger.debug("🔄 Starting text processing...")
         success = self.text_processor.process_clipboard_text(
             notification_callback=self.notification_manager.show_notification,
             progress_callback=self._set_processing_state
@@ -265,7 +297,11 @@ class PotterService:
         
         if success:
             mode = self.text_processor.get_current_mode()
+            logger.info(f"✅ Text processing completed successfully (mode: {mode})")
             self.notification_manager.show_text_processed(mode)
+        else:
+            logger.warning("❌ Text processing failed")
+            logger.debug("🔍 Check previous logs for error details")
     
     def _handle_mode_change(self, mode: str):
         """Handle mode change from tray menu"""

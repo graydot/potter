@@ -76,6 +76,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Log application startup
+logger.info("🚀 Potter starting up...")
+logger.info(f"📁 Log file: {log_file}")
+logger.info(f"🐍 Python version: {sys.version}")
+logger.info(f"💻 Running as: {'App Bundle' if getattr(sys, 'frozen', False) else 'Development Script'}")
+logger.info(f"⚙️ Settings UI: {'Available' if SETTINGS_UI_AVAILABLE else 'Not Available'}")
+logger.info(f"🔐 macOS Permissions API: {'Available' if MACOS_PERMISSIONS_AVAILABLE else 'Not Available'}")
+
 class SingleInstanceChecker:
     """Ensures only one instance of the application is running"""
     
@@ -149,6 +157,8 @@ class SingleInstanceChecker:
 
 class PotterService:
     def __init__(self):
+        logger.info("🔧 Initializing PotterService...")
+        
         self.openai_client = None
         self.is_running = False
         self.hotkey_pressed = False
@@ -160,8 +170,10 @@ class PotterService:
         
         # Initialize settings manager
         if SETTINGS_UI_AVAILABLE:
+            logger.info("📝 Initializing settings manager...")
             self.settings_manager = SettingsManager()
         else:
+            logger.warning("⚠️  No settings manager available")
             self.settings_manager = None
         
         # Load configuration from settings or defaults
@@ -169,23 +181,31 @@ class PotterService:
         
         # Initialize OpenAI client (after settings are loaded)
         self.setup_openai()
+        
+        logger.info("✅ PotterService initialization complete")
     
     def check_single_instance(self):
         """Check if this is the only instance running"""
+        logger.info("🔍 Checking for existing instances...")
+        
         if self.instance_checker.is_already_running():
             print("❌ Another instance of Potter is already running!")
             print("💡 Check your menu bar - the app may already be active.")
             print("💡 If you don't see it, try quitting all instances and running again.")
+            logger.error("Another instance already running - exiting")
             sys.exit(1)
         
         if not self.instance_checker.create_pid_file():
             print("❌ Failed to create instance lock!")
+            logger.error("Failed to create instance lock - exiting")
             sys.exit(1)
         
         logger.info("✅ Single instance check passed")
     
     def load_settings(self):
         """Load settings from settings manager or use defaults"""
+        logger.info("📖 Loading application settings...")
+        
         if self.settings_manager:
             prompts_list = self.settings_manager.get("prompts", [
                 {
@@ -210,37 +230,42 @@ class PotterService:
                 }
             ])
             
-            # Convert list to dictionary for backwards compatibility
-            self.prompts = {}
-            for prompt in prompts_list:
-                self.prompts[prompt["name"]] = prompt["text"]
+            # Get hotkey and convert default settings
+            self.hotkey_str = self.settings_manager.get("hotkey", "cmd+shift+a")
+            self.current_prompt = self.settings_manager.get("current_prompt", "polish")
             
-            # Parse hotkey
-            hotkey_str = self.settings_manager.get("hotkey", "cmd+shift+a")
-            self.hotkey_combo = self.parse_hotkey(hotkey_str)
+            # Determine API key source and provider
+            self.llm_provider = self.settings_manager.get("llm_provider", "openai")
             
-            # AI model settings
-            self.model = self.settings_manager.get("model", "gpt-3.5-turbo")
-            self.max_tokens = self.settings_manager.get("max_tokens", 1000)
-            self.temperature = self.settings_manager.get("temperature", 0.7)
-            self.show_notifications = self.settings_manager.get("show_notifications", True)
+            # Log settings info
+            logger.info(f"🔑 LLM Provider: {self.llm_provider}")
+            logger.info(f"⌨️  Hotkey: {self.hotkey_str}")
+            logger.info(f"📝 Default prompt: {self.current_prompt}")
+            logger.info(f"📚 Loaded {len(prompts_list)} prompts")
+            
         else:
-            # Fallback to defaults
-            self.prompts = {
-                'summarize': 'Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way.',
-                'formal': 'Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication.',
-                'casual': 'Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact.',
-                'friendly': 'Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging.',
-                'polish': 'Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness.'
-            }
-            self.hotkey_combo = {Key.cmd, Key.shift, keyboard.KeyCode.from_char('a')}
-            self.model = "gpt-3.5-turbo"
-            self.max_tokens = 1000
-            self.temperature = 0.7
-            self.show_notifications = True
+            # Fallback defaults when settings manager is unavailable
+            prompts_list = [
+                {
+                    "name": "summarize", 
+                    "text": "Please provide a concise summary of the following text. Focus on the key points and main ideas."
+                }
+            ]
+            self.hotkey_str = "cmd+shift+a"
+            self.current_prompt = "summarize"
+            self.llm_provider = "openai"
+            
+            logger.warning("⚠️  Using fallback default settings")
         
+        # Convert prompts list to dictionary
+        self.prompts = {prompt["name"]: prompt["text"] for prompt in prompts_list}
+        
+        # Parse hotkey combination
+        self.hotkey_combo = self.parse_hotkey(self.hotkey_str)
         self.current_keys = set()
-        self.current_prompt = 'polish'
+        
+        logger.info(f"📋 Available prompt modes: {list(self.prompts.keys())}")
+        logger.info("✅ Settings loaded successfully")
     
     def parse_hotkey(self, hotkey_str):
         """Parse hotkey string into key combination set"""

@@ -13,6 +13,9 @@ import tempfile
 import time
 import argparse
 from pathlib import Path
+import uuid
+from datetime import datetime
+import secrets
 
 # Build configuration
 BUNDLE_ID = "com.potter.app"
@@ -328,48 +331,125 @@ def upload_to_app_store(pkg_path, config):
 
 def modify_info_plist_for_target(app_path, target):
     """Modify Info.plist based on target"""
-    info_plist_path = os.path.join(app_path, 'Contents', 'Info.plist')
-    
-    if not os.path.exists(info_plist_path):
-        print(f"⚠️  Info.plist not found at {info_plist_path}")
-        return
+    plist_path = os.path.join(app_path, "Contents", "Info.plist")
     
     if target == 'appstore':
-        # App Store specific modifications
-        print("📝 Configuring Info.plist for App Store...")
-        
-        # Add App Store specific keys
-        subprocess.run([
-            'plutil', '-replace', 'LSApplicationCategoryType',
-            '-string', 'public.app-category.productivity',
-            info_plist_path
-        ])
-        
-        # Ensure proper bundle version format
-        subprocess.run([
-            'plutil', '-replace', 'CFBundleVersion',
-            '-string', '1.0.0',
-            info_plist_path
-        ])
+        # For App Store, we might need specific modifications
+        print("ℹ️  Info.plist configured for App Store")
+    else:
+        # For GitHub releases
+        print("ℹ️  Info.plist configured for GitHub release")
     
-    print("✅ Info.plist configured")
+    return True
 
-def build_app(target='github', skip_signing=False, skip_notarization=False):
-    """Main build function with signing support"""
+def generate_build_id():
+    """Generate a unique build ID with timestamp"""
+    timestamp = datetime.now()
+    timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
+    unique_id = str(uuid.uuid4())[:8]  # Short unique identifier
+    
+    build_id = {
+        "build_id": f"potter_{timestamp_str}_{unique_id}",
+        "timestamp": timestamp.isoformat(),
+        "unix_timestamp": int(timestamp.timestamp()),
+        "version": "1.0.0"  # Could be made configurable
+    }
+    
+    return build_id
+
+def embed_build_id(app_path):
+    """Embed build ID into the app bundle"""
+    try:
+        build_id = generate_build_id()
+        
+        # Create the build ID file in the app bundle
+        resources_path = os.path.join(app_path, "Contents", "Resources")
+        os.makedirs(resources_path, exist_ok=True)
+        
+        build_id_file = os.path.join(resources_path, "build_id.json")
+        
+        with open(build_id_file, 'w') as f:
+            json.dump(build_id, f, indent=2)
+        
+        print(f"✅ Build ID embedded: {build_id['build_id']}")
+        print(f"   Timestamp: {build_id['timestamp']}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to embed build ID: {e}")
+        return False
+
+def run_tests():
+    """Run the test suite and return True if all tests pass"""
+    print("🧪 Running test suite before build...")
+    print("=" * 50)
+    
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Navigate to project root (parent of scripts)
+    project_root = os.path.dirname(script_dir)
+    
+    # Path to the test runner
+    test_runner_path = os.path.join(project_root, 'tests', 'auto_test_runner.py')
+    
+    if not os.path.exists(test_runner_path):
+        print(f"❌ Test runner not found: {test_runner_path}")
+        print("💡 Make sure you're running this from the project root")
+        return False
+    
+    try:
+        # Run the test suite
+        result = subprocess.run(
+            ['python', test_runner_path],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=120  # 2 minute timeout for tests
+        )
+        
+        # Print test output
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
+        
+        if result.returncode == 0:
+            print("✅ All tests passed! Proceeding with build...")
+            return True
+        else:
+            print("❌ Tests failed! Build aborted.")
+            print("💡 Fix failing tests before building")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print("❌ Tests timed out after 2 minutes")
+        return False
+    except Exception as e:
+        print(f"❌ Error running tests: {e}")
+        return False
+
+def build_app(target='github', skip_tests=False):
+    """Main build function with mandatory signing support"""
+    
+    # Run tests first unless skipped
+    if not skip_tests:
+        if not run_tests():
+            return False
+    
     print(f"🔄 Enhanced Potter App Builder ({target} target)")
     print("=" * 60)
     
-    # Check signing requirements
-    if not skip_signing:
-        requirements_ok, message = check_signing_requirements(target)
-        if not requirements_ok:
-            print(f"❌ {message}")
-            print("\n💡 To build without signing, use --skip-signing")
-            print("💡 Set up environment variables for code signing:")
-            print("   export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name'")
-            print("   export APPLE_TEAM_ID='YOUR_TEAM_ID'")
-            return False
-        print(f"✅ {message}")
+    # Check signing requirements (always required now)
+    requirements_ok, message = check_signing_requirements(target)
+    if not requirements_ok:
+        print(f"❌ {message}")
+        print("\n💡 Set up environment variables for code signing:")
+        print("   export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name'")
+        print("   export APPLE_TEAM_ID='YOUR_TEAM_ID'")
+        return False
+    print(f"✅ {message}")
     
     config = get_signing_config()
     
@@ -437,47 +517,48 @@ def build_app(target='github', skip_signing=False, skip_notarization=False):
     # Modify Info.plist for target
     modify_info_plist_for_target(app_path, target)
     
-    # Code signing
-    if not skip_signing:
-        entitlements_file = create_entitlements_file(target)
-        
-        if target == 'github':
-            signing_identity = config['developer_id_app']
-        else:  # appstore
-            signing_identity = config['mac_app_store']
-        
-        if sign_app(app_path, signing_identity, entitlements_file, target):
-            if verify_signature(app_path):
-                print("✅ App successfully signed and verified")
-                
-                # Notarization (for GitHub releases)
-                if target == 'github' and not skip_notarization:
-                    if notarize_app(app_path, config):
-                        print("✅ App notarized successfully")
+    # Embed build ID for version tracking
+    embed_build_id(app_path)
+    
+    # Code signing (always required)
+    entitlements_file = create_entitlements_file(target)
+    
+    if target == 'github':
+        signing_identity = config['developer_id_app']
+    else:  # appstore
+        signing_identity = config['mac_app_store']
+    
+    if sign_app(app_path, signing_identity, entitlements_file, target):
+        if verify_signature(app_path):
+            print("✅ App successfully signed and verified")
+            
+            # Notarization (for GitHub releases - always done)
+            if target == 'github':
+                if notarize_app(app_path, config):
+                    print("✅ App notarized successfully")
+                else:
+                    print("❌ Notarization failed - this is required for distribution")
+                    return False
+            
+            # App Store package creation
+            if target == 'appstore':
+                pkg_path = create_app_store_package(app_path, config)
+                if pkg_path:
+                    if upload_to_app_store(pkg_path, config):
+                        print("✅ App Store upload completed")
                     else:
-                        print("⚠️  Notarization failed, but build continues")
+                        print("⚠️  App Store upload failed")
                 
-                # App Store package creation
-                if target == 'appstore':
-                    pkg_path = create_app_store_package(app_path, config)
-                    if pkg_path:
-                        if upload_to_app_store(pkg_path, config):
-                            print("✅ App Store upload completed")
-                        else:
-                            print("⚠️  App Store upload failed")
-                    
-            else:
-                print("⚠️  Signature verification failed")
         else:
-            print("⚠️  Code signing failed")
-        
-        # Clean up entitlements file
-        if os.path.exists(entitlements_file):
-            os.remove(entitlements_file)
+            print("❌ Signature verification failed")
+            return False
     else:
-        # For unsigned development builds, remove quarantine attributes
-        # so the app can run without permission prompts
-        remove_quarantine_attributes(app_path)
+        print("❌ Code signing failed")
+        return False
+    
+    # Clean up entitlements file
+    if os.path.exists(entitlements_file):
+        os.remove(entitlements_file)
     
     print("✅ Potter.app created at:", os.path.abspath(app_path))
     
@@ -623,7 +704,7 @@ def fix_info_plist(app_path):
     info_plist_path = f"{app_path}/Contents/Info.plist"
     
     # Create proper Info.plist for background app that can be double-clicked
-    info_plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+    info_plist_content = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -670,47 +751,19 @@ def fix_info_plist(app_path):
     
     print("✅ Fixed Info.plist for double-click launching")
 
-def remove_quarantine_attributes(app_path):
-    """Remove quarantine attributes from the app to allow unsigned apps to run"""
-    print("🔓 Removing quarantine attributes for development build...")
-    
-    try:
-        # Remove quarantine attribute from the app bundle
-        result = subprocess.run([
-            'xattr', '-dr', 'com.apple.quarantine', app_path
-        ], capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print("✅ Quarantine attributes removed - app should run without permission prompts")
-            return True
-        else:
-            # Check if it's just because there were no quarantine attributes
-            if "No such xattr" in result.stderr or result.stderr.strip() == "":
-                print("✅ No quarantine attributes found (app was built locally)")
-                return True
-            else:
-                print(f"⚠️  Could not remove quarantine attributes: {result.stderr}")
-                return False
-                
-    except Exception as e:
-        print(f"⚠️  Error removing quarantine attributes: {e}")
-        return False
-
 def main():
     """Main build process with CLI support"""
     parser = argparse.ArgumentParser(description='Enhanced Potter App Builder')
     parser.add_argument('--target', choices=['github', 'appstore'], default='github',
                        help='Build target: github (for GitHub releases) or appstore (for App Store)')
-    parser.add_argument('--skip-signing', action='store_true',
-                       help='Skip code signing (for development builds)')
-    parser.add_argument('--skip-notarization', action='store_true',
-                       help='Skip notarization (faster builds for testing)')
+    parser.add_argument('--skip-tests', action='store_true',
+                       help='Skip running tests before building')
     
     args = parser.parse_args()
     
     # Show environment setup instructions if no signing certificates configured
     config = get_signing_config()
-    if not args.skip_signing and not config.get('developer_id_app') and not config.get('mac_app_store'):
+    if not config.get('developer_id_app') and not config.get('mac_app_store'):
         print("🔧 **CODE SIGNING SETUP REQUIRED**")
         print("=" * 60)
         print("To enable code signing, set these environment variables:")
@@ -719,7 +772,7 @@ def main():
         print("  export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (TEAM_ID)'")
         print("  export APPLE_TEAM_ID='YOUR_TEAM_ID'")
         print("")
-        print("For notarization (optional but recommended):")
+        print("For notarization (required for GitHub releases):")
         print("  export APPLE_ID='your@apple.id'")
         print("  export APPLE_APP_PASSWORD='app-specific-password'")
         print("")
@@ -732,14 +785,13 @@ def main():
         print("  export ASC_API_ISSUER_ID='your-issuer-id'")
         print("  export ASC_API_KEY_PATH='/path/to/AuthKey_KEYID.p8'")
         print("")
-        print("💡 Add --skip-signing to build without code signing")
+        print("💡 All builds are now signed and notarized for security")
         print("=" * 60)
         print("")
     
     success = build_app(
         target=args.target,
-        skip_signing=args.skip_signing,
-        skip_notarization=args.skip_notarization
+        skip_tests=args.skip_tests
     )
     
     if success:

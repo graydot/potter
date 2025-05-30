@@ -98,10 +98,19 @@ class PermissionManager:
     
     def get_permission_status(self):
         """Get current permission status"""
-        return {
-            "accessibility": self.check_accessibility_permissions(),
+        logger.debug("🔍 Checking permission status...")
+        
+        accessibility_status = self.check_accessibility_permissions()
+        logger.debug(f"  🔐 Accessibility permission: {accessibility_status}")
+        logger.debug(f"  🍎 macOS APIs available: {self.macos_available}")
+        
+        status = {
+            "accessibility": accessibility_status,
             "macos_available": self.macos_available
         }
+        
+        logger.info(f"📋 Permission summary: {status}")
+        return status
     
     def open_system_preferences_security(self):
         """Open System Preferences to Security & Privacy"""

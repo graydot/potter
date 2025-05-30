@@ -15,12 +15,22 @@ sys.path.insert(0, str(src_path))
 # Import the main service
 from core.service import PotterService
 
-# Configure logging
+# Configure logging - use appropriate location for app bundle vs development
+if hasattr(sys, '_MEIPASS'):
+    # Running as app bundle - log to user's home directory
+    log_path = Path.home() / 'Library' / 'Logs' / 'potter.log'
+else:
+    # Running from source - log to project directory
+    log_path = src_path / 'potter.log'
+
+# Ensure log directory exists
+log_path.parent.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(src_path / 'potter.log'),
+        logging.FileHandler(log_path),
         logging.StreamHandler()
     ]
 )
