@@ -1170,9 +1170,9 @@ class SettingsWindow(NSWindowController):
             
             # Determine the correct logo path based on appearance
             if current_appearance == 'dark':
-                logo_filename = 'light.png'  # Use light logo on dark theme
+                logo_filename = 'dark.png'  # Use dark logo for dark theme
             else:
-                logo_filename = 'dark.png'   # Use dark logo on light theme
+                logo_filename = 'light.png'   # Use light logo for light theme
             
             # Build the path to the logo
             if getattr(sys, 'frozen', False):
