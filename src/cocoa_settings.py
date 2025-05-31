@@ -422,6 +422,14 @@ class PromptDialog(NSWindowController):
         window.setAcceptsMouseMovedEvents_(True)
         window.makeKeyWindow()
         
+        # Set custom icon for the dialog window
+        try:
+            # Get the parent settings window controller to access the icon setting method
+            if hasattr(self, 'parent_window_controller'):
+                self.parent_window_controller._set_dialog_icon(window)
+        except Exception as e:
+            print(f"Debug - Could not set prompt dialog icon: {e}")
+        
         # Name field (max 10 chars)
         name_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 280, 100, 20))
         name_label.setStringValue_("Name (max 10):")
@@ -815,7 +823,7 @@ def create_modern_switch(frame, title, initial_state=False):
     label.setTextColor_(NSColor.labelColor())
     container.addSubview_(label)
     
-    # Switch (try NSSwitch first, fallback to checkbox)
+    # Switch (try NSSwitch first, fallback to checkbox) - positioned at right edge
     try:
         switch = NSSwitch.alloc().initWithFrame_(NSMakeRect(frame.size.width - 50, 0, 50, 30))
         switch.setState_(1 if initial_state else 0)
@@ -1151,6 +1159,64 @@ class SettingsWindow(NSWindowController):
         except Exception as e:
             print(f"Debug - Error setting window icon: {e}")
     
+    def _set_dialog_icon(self, window):
+        """Set dialog icon based on current theme"""
+        try:
+            import os
+            current_appearance = self._get_current_appearance()
+            
+            # Determine the correct logo path based on appearance
+            if current_appearance == 'dark':
+                logo_filename = 'light.png'  # Use light logo on dark theme
+            else:
+                logo_filename = 'dark.png'   # Use dark logo on light theme
+            
+            # Build the path to the logo
+            if getattr(sys, 'frozen', False):
+                # Running as app bundle
+                app_bundle_path = os.path.dirname(sys.executable)
+                logo_path = os.path.join(app_bundle_path, '..', 'Resources', 'assets', logo_filename)
+            else:
+                # Running in development
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(script_dir)
+                logo_path = os.path.join(project_root, 'assets', logo_filename)
+            
+            if os.path.exists(logo_path):
+                # Load and set the icon
+                logo_image = NSImage.alloc().initWithContentsOfFile_(logo_path)
+                if logo_image:
+                    # Resize to appropriate dialog icon size
+                    logo_image.setSize_(NSMakeSize(64, 64))
+                    window.setRepresentedURL_(None)  # Clear any URL association
+                    # Set as window icon - will appear in title bar and dock
+                    try:
+                        if hasattr(window, 'setTitlebarAppearsTransparent_'):
+                            # Modern approach for newer macOS
+                            window.setTitlebarAppearsTransparent_(False)
+                        
+                        # Set the window's icon in the dock and title bar
+                        app = NSApplication.sharedApplication()
+                        if hasattr(app, 'setApplicationIconImage_'):
+                            # This affects the dock icon temporarily for this window
+                            current_icon = app.applicationIconImage()
+                            app.setApplicationIconImage_(logo_image)
+                            
+                            # Store reference to restore later if needed
+                            if not hasattr(self, '_original_app_icon'):
+                                self._original_app_icon = current_icon
+                        
+                        print(f"Debug - Dialog icon set using {logo_filename}")
+                    except Exception as e:
+                        print(f"Debug - Error setting dialog window icon: {e}")
+                else:
+                    print(f"Debug - Could not load logo image from {logo_path}")
+            else:
+                print(f"Debug - Logo file not found at {logo_path}")
+                
+        except Exception as e:
+            print(f"Debug - Error setting dialog icon: {e}")
+    
     def createSidebar(self):
         """Create modern sidebar with icons"""
         # Sidebar container
@@ -1432,7 +1498,7 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(self.provider_popup)
         y_pos -= 30
         
-        # API Key field with validation
+        # API Key field with validation - aligned right edge at 580px
         api_key_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
         api_key_label.setStringValue_("API Key:")
         api_key_label.setBezeled_(False)
@@ -1450,8 +1516,8 @@ class SettingsWindow(NSWindowController):
         )
         view.addSubview_(self.api_key_field)
         
-        # Verify & Save button
-        self.verify_api_button = NSButton.alloc().initWithFrame_(NSMakeRect(470, y_pos, 100, 22))
+        # Verify & Save button - right edge aligned at 620px
+        self.verify_api_button = NSButton.alloc().initWithFrame_(NSMakeRect(510, y_pos, 110, 22))  # x=510, width=110, right edge=620
         self.verify_api_button.setTitle_("Verify & Save")
         self.verify_api_button.setTarget_(self)
         self.verify_api_button.setAction_("verifyAndSaveApiKey:")
@@ -1523,39 +1589,6 @@ class SettingsWindow(NSWindowController):
             print(f"Debug - Error configuring tooltip: {e}")
         
         view.addSubview_(self.model_popup)
-        y_pos -= 40
-        
-        # Preferences section
-        prefs_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
-        prefs_section_label.setStringValue_("Application Preferences")
-        prefs_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
-        prefs_section_label.setBezeled_(False)
-        prefs_section_label.setDrawsBackground_(False)
-        prefs_section_label.setEditable_(False)
-        prefs_section_label.setTextColor_(NSColor.labelColor())
-        view.addSubview_(prefs_section_label)
-        y_pos -= 35
-        
-        # Notifications toggle
-        notifications_container, self.notifications_switch = create_modern_switch(
-            NSMakeRect(40, y_pos, 300, 30),
-            "Show notifications",
-            self.settings_manager.get("show_notifications", False)
-        )
-        self.notifications_switch.setTarget_(self)
-        self.notifications_switch.setAction_("notificationsSwitchChanged:")
-        view.addSubview_(notifications_container)
-        y_pos -= 40
-        
-        # Launch at startup toggle
-        startup_container, self.startup_switch = create_modern_switch(
-            NSMakeRect(40, y_pos, 300, 30),
-            "Launch at startup",
-            self.settings_manager.get("launch_at_startup", False)
-        )
-        self.startup_switch.setTarget_(self)
-        self.startup_switch.setAction_("startupSwitchChanged:")
-        view.addSubview_(startup_container)
         y_pos -= 50
         
         # Hotkey section
@@ -1569,7 +1602,7 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(hotkey_section_label)
         y_pos -= 35
         
-        # Hotkey field
+        # Hotkey field - right edge aligned at 580px
         hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
         hotkey_label.setStringValue_("Hotkey:")
         hotkey_label.setBezeled_(False)
@@ -1586,8 +1619,8 @@ class SettingsWindow(NSWindowController):
         self.hotkey_field.reset_callback = self.hotkeyChanged
         view.addSubview_(self.hotkey_field)
         
-        # Reset button
-        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(520, y_pos, 80, 22))
+        # Reset button - right edge aligned at 620px
+        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(540, y_pos, 80, 22))  # x=540, width=80, right edge=620
         self.reset_button.setTitle_("Reset")
         self.reset_button.setTarget_(self)
         self.reset_button.setAction_("resetHotkey:")
@@ -1606,6 +1639,123 @@ class SettingsWindow(NSWindowController):
         self.conflict_label.setStringValue_("")
         self.conflict_label.setHidden_(True)
         view.addSubview_(self.conflict_label)
+        y_pos -= 50
+        
+        # Permissions section
+        permissions_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        permissions_section_label.setStringValue_("Permissions")
+        permissions_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        permissions_section_label.setBezeled_(False)
+        permissions_section_label.setDrawsBackground_(False)
+        permissions_section_label.setEditable_(False)
+        permissions_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(permissions_section_label)
+        y_pos -= 35
+        
+        # Get permissions status
+        permissions = self.get_permissions_status()
+        
+        # Accessibility permission
+        accessibility_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 160, 22))
+        accessibility_label.setStringValue_("Accessibility Permission:")
+        accessibility_label.setBezeled_(False)
+        accessibility_label.setDrawsBackground_(False)
+        accessibility_label.setEditable_(False)
+        accessibility_label.setFont_(NSFont.systemFontOfSize_(14))
+        view.addSubview_(accessibility_label)
+        
+        # Accessibility status
+        self.accessibility_status = NSTextField.alloc().initWithFrame_(NSMakeRect(210, y_pos, 80, 22))
+        accessibility_granted = permissions.get("accessibility", False)
+        self.accessibility_status.setStringValue_("✓ Granted" if accessibility_granted else "✗ Denied")
+        self.accessibility_status.setBezeled_(False)
+        self.accessibility_status.setDrawsBackground_(False)
+        self.accessibility_status.setEditable_(False)
+        self.accessibility_status.setFont_(NSFont.systemFontOfSize_(14))
+        self.accessibility_status.setTextColor_(NSColor.systemGreenColor() if accessibility_granted else NSColor.systemRedColor())
+        view.addSubview_(self.accessibility_status)
+        
+        # Accessibility button - right edge aligned at 620px
+        self.accessibility_button = NSButton.alloc().initWithFrame_(NSMakeRect(500, y_pos, 120, 22))  # x=500, width=120, right edge=620
+        self.accessibility_button.setTitle_("Open Settings")
+        self.accessibility_button.setTarget_(self)
+        self.accessibility_button.setAction_("openAccessibilitySettings:")
+        self.accessibility_button.setBezelStyle_(NSBezelStyleRounded)
+        self.accessibility_button.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.accessibility_button)
+        y_pos -= 35
+        
+        # System Events permission
+        system_events_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 160, 22))
+        system_events_label.setStringValue_("System Events Permission:")
+        system_events_label.setBezeled_(False)
+        system_events_label.setDrawsBackground_(False)
+        system_events_label.setEditable_(False)
+        system_events_label.setFont_(NSFont.systemFontOfSize_(14))
+        view.addSubview_(system_events_label)
+        
+        # System Events status
+        self.system_events_status = NSTextField.alloc().initWithFrame_(NSMakeRect(210, y_pos, 80, 22))
+        system_events_granted = permissions.get("system_events", False)
+        self.system_events_status.setStringValue_("✓ Granted" if system_events_granted else "✗ Denied")
+        self.system_events_status.setBezeled_(False)
+        self.system_events_status.setDrawsBackground_(False)
+        self.system_events_status.setEditable_(False)
+        self.system_events_status.setFont_(NSFont.systemFontOfSize_(14))
+        self.system_events_status.setTextColor_(NSColor.systemGreenColor() if system_events_granted else NSColor.systemRedColor())
+        view.addSubview_(self.system_events_status)
+        
+        # System Events button - right edge aligned at 620px
+        self.system_events_button = NSButton.alloc().initWithFrame_(NSMakeRect(500, y_pos, 120, 22))  # x=500, width=120, right edge=620
+        self.system_events_button.setTitle_("Open Settings")
+        self.system_events_button.setTarget_(self)
+        self.system_events_button.setAction_("openSystemSettings:")
+        self.system_events_button.setBezelStyle_(NSBezelStyleRounded)
+        self.system_events_button.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.system_events_button)
+        y_pos -= 35
+        
+        # Refresh permissions button - right edge aligned at 620px
+        self.refresh_permissions_button = NSButton.alloc().initWithFrame_(NSMakeRect(480, y_pos, 140, 22))  # x=480, width=140, right edge=620
+        self.refresh_permissions_button.setTitle_("Refresh Status")
+        self.refresh_permissions_button.setTarget_(self)
+        self.refresh_permissions_button.setAction_("refreshPermissions:")
+        self.refresh_permissions_button.setBezelStyle_(NSBezelStyleRounded)
+        self.refresh_permissions_button.setFont_(NSFont.systemFontOfSize_(11))
+        view.addSubview_(self.refresh_permissions_button)
+        y_pos -= 50
+        
+        # Application Preferences section (moved to bottom)
+        prefs_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        prefs_section_label.setStringValue_("Application Preferences")
+        prefs_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        prefs_section_label.setBezeled_(False)
+        prefs_section_label.setDrawsBackground_(False)
+        prefs_section_label.setEditable_(False)
+        prefs_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(prefs_section_label)
+        y_pos -= 35
+        
+        # Notifications toggle - align right edge at 620
+        notifications_container, self.notifications_switch = create_modern_switch(
+            NSMakeRect(40, y_pos, 580, 30),  # Extended width to align right edge at 620
+            "Show notifications",
+            self.settings_manager.get("show_notifications", False)
+        )
+        self.notifications_switch.setTarget_(self)
+        self.notifications_switch.setAction_("notificationsSwitchChanged:")
+        view.addSubview_(notifications_container)
+        y_pos -= 40
+        
+        # Launch at startup toggle - align right edge at 620
+        startup_container, self.startup_switch = create_modern_switch(
+            NSMakeRect(40, y_pos, 580, 30),  # Extended width to align right edge at 620
+            "Launch at startup",
+            self.settings_manager.get("launch_at_startup", False)
+        )
+        self.startup_switch.setTarget_(self)
+        self.startup_switch.setAction_("startupSwitchChanged:")
+        view.addSubview_(startup_container)
         
         # Load current values
         self.updateProviderUI()
@@ -2571,6 +2721,12 @@ class SettingsWindow(NSWindowController):
             alert.addButtonWithTitle_("Clear Logs")
             alert.addButtonWithTitle_("Cancel")
             
+            # Set custom icon based on theme
+            try:
+                self._set_dialog_icon(alert.window())
+            except Exception as e:
+                print(f"Debug - Could not set clear logs dialog icon: {e}")
+            
             response = alert.runModal()
             if response != NSAlertFirstButtonReturn:  # User clicked Cancel
                 return
@@ -3512,6 +3668,9 @@ class SettingsWindow(NSWindowController):
         # Create and show dialog modally
         dialog = PromptDialog.alloc().initWithPrompt_isEdit_(None, False)
         
+        # Set parent window controller reference for icon access
+        dialog.parent_window_controller = self
+        
         # Set up name validator
         dialog.name_validator = lambda name: self.validatePromptName_(name)
         
@@ -3615,6 +3774,9 @@ class SettingsWindow(NSWindowController):
         
         # Create and show dialog modally
         dialog = PromptDialog.alloc().initWithPrompt_isEdit_(current_prompt, True)
+        
+        # Set parent window controller reference for icon access
+        dialog.parent_window_controller = self
         
         # Set up name validator (excluding current index)
         dialog.name_validator = lambda name: self.validatePromptName_(name, exclude_index=selected_row)
