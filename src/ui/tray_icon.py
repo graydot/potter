@@ -26,6 +26,8 @@ class TrayIconManager:
         self.app_name = app_name
         self.tray_icon = None
         self.is_processing = False
+        self.has_error = False
+        self.last_error_message = None
         self.current_icon_image = None
         
         # Callbacks
@@ -137,6 +139,65 @@ class TrayIconManager:
             (sparkle_x - center_size, sparkle_y)
         ]
         draw.polygon(center_points, fill='#B8D4F1')
+        
+        self.current_icon_image = image
+        return image
+    
+    def create_error_icon(self) -> Image.Image:
+        """Create an error icon with red exclamation mark"""
+        # Make icon bigger for better visibility
+        image = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        
+        # Red background circle to indicate error
+        draw.ellipse([8, 8, 120, 120], fill=(255, 100, 100, 220))  # Red background
+        
+        # Main clipboard/copy icon (same as normal but with red tinting)
+        clip_x, clip_y = 20, 24
+        clip_w, clip_h = 40, 48
+        
+        # Clipboard body (white with red outline to show error)
+        draw.rectangle([clip_x, clip_y, clip_x + clip_w, clip_y + clip_h], 
+                      fill='white', outline='#DC143C', width=3)  # Dark red outline
+        
+        # Clipboard top clip (red)
+        clip_top_x = clip_x + 12
+        clip_top_y = clip_y - 6
+        clip_top_w = 16
+        clip_top_h = 8
+        draw.rectangle([clip_top_x, clip_top_y, clip_top_x + clip_top_w, clip_top_y + clip_top_h], 
+                      fill='#DC143C')
+        
+        # Document lines (red to show error)
+        line_x = clip_x + 6
+        line_w = 28
+        line_h = 3
+        line_color = '#DC143C'
+        
+        draw.rectangle([line_x, clip_y + 12, line_x + line_w, clip_y + 12 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 20, line_x + line_w, clip_y + 20 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 28, line_x + 22, clip_y + 28 + line_h], fill=line_color)
+        draw.rectangle([line_x, clip_y + 36, line_x + 24, clip_y + 36 + line_h], fill=line_color)
+        
+        # Large red exclamation mark on the right side
+        excl_x, excl_y = 85, 35
+        excl_width = 8
+        excl_height = 35
+        
+        # Exclamation mark body (thick red line)
+        draw.rectangle([excl_x, excl_y, excl_x + excl_width, excl_y + excl_height - 12], 
+                      fill='white')
+        
+        # Exclamation mark dot
+        dot_y = excl_y + excl_height - 8
+        draw.rectangle([excl_x, dot_y, excl_x + excl_width, dot_y + 8], 
+                      fill='white')
+        
+        # Add white border to exclamation mark for visibility
+        draw.rectangle([excl_x-1, excl_y-1, excl_x + excl_width+1, excl_y + excl_height - 12+1], 
+                      outline='white', width=1)
+        draw.rectangle([excl_x-1, dot_y-1, excl_x + excl_width+1, dot_y + 8+1], 
+                      outline='white', width=1)
         
         self.current_icon_image = image
         return image
@@ -256,10 +317,21 @@ class TrayIconManager:
         permission_entity = f"{self.app_name}.app" if getattr(sys, 'frozen', False) else "Python"
         
         # Create menu items
-        menu_items = [
+        menu_items = []
+        
+        # Add error message at top if there's an error
+        if self.has_error and self.last_error_message:
+            error_text = f"❌ Error: {self.last_error_message[:50]}.." if len(self.last_error_message) > 50 else f"❌ Error: {self.last_error_message}"
+            menu_items.extend([
+                pystray.MenuItem(error_text, lambda *args: None, enabled=False),
+                pystray.MenuItem("Clear Error", lambda *args: self.set_error_state(False)),
+                pystray.Menu.SEPARATOR,
+            ])
+        
+        menu_items.extend([
             pystray.MenuItem(f"Mode: {current_mode.title()}", lambda *args: None, enabled=False),
             pystray.Menu.SEPARATOR,
-        ]
+        ])
         
         # Add permission status indicators
         if permissions.get("accessibility", False):
@@ -310,17 +382,116 @@ class TrayIconManager:
                         permissions: Dict, notifications_enabled: bool):
         """Create the system tray icon"""
         image = self.create_normal_icon()
-        menu = self.create_menu(current_mode, available_modes, permissions, notifications_enabled)
         
-        # Create icon with default left-click action for LLM processing
+        # Create menu with custom handling for left click
+        def create_custom_menu():
+            # Create a function that handles different mouse buttons
+            def handle_click(icon, item):
+                # This gets called on left click - trigger processing
+                logger.info("🖱️ Menu item click detected - triggering LLM processing")
+                logger.info("🖱️ Icon: %s, Item: %s", icon, item)
+                self._handle_process_click()
+            
+            # Create the menu for right-click
+            regular_menu_items = []
+            
+            # Add error message at top if there's an error
+            if self.has_error and self.last_error_message:
+                error_text = f"❌ Error: {self.last_error_message[:50]}.." if len(self.last_error_message) > 50 else f"❌ Error: {self.last_error_message}"
+                regular_menu_items.extend([
+                    pystray.MenuItem(error_text, lambda *args: None, enabled=False),
+                    pystray.MenuItem("Clear Error", lambda *args: self.set_error_state(False)),
+                    pystray.Menu.SEPARATOR,
+                ])
+            
+            # Get current state for menu
+            current_mode = self.text_processor.get_current_mode() if hasattr(self, 'text_processor') else "default"
+            available_modes = ["default", "creative", "professional"] if hasattr(self, 'text_processor') else []
+            permissions = {"accessibility": True} if hasattr(self, 'permission_manager') else {}
+            notifications_enabled = True if hasattr(self, 'notification_manager') else True
+            
+            # Add regular menu items
+            permission_entity = f"{self.app_name}.app" if getattr(sys, 'frozen', False) else "Python"
+            
+            regular_menu_items.extend([
+                pystray.MenuItem("🖱️ Left-click to process text", handle_click, default=True),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(f"Mode: {current_mode.title()}", lambda *args: None, enabled=False),
+                pystray.Menu.SEPARATOR,
+            ])
+            
+            # Add permission status
+            if permissions.get("accessibility", False):
+                accessibility_status = f"✅ {permission_entity} has access"
+            else:
+                accessibility_status = f"❌ {permission_entity} needs access"
+            
+            accessibility_item = pystray.MenuItem(f"Accessibility: {accessibility_status}", 
+                                                self._handle_permissions_check)
+            
+            notifications_status = "✅" if notifications_enabled else "❌"
+            notifications_item = pystray.MenuItem(f"Notifications: {notifications_status}", 
+                                                self._handle_notifications_toggle)
+            
+            regular_menu_items.extend([
+                accessibility_item,
+                notifications_item,
+                pystray.Menu.SEPARATOR,
+            ])
+            
+            # Add mode switching options
+            for mode in available_modes:
+                def make_mode_handler(mode_name):
+                    return lambda *args: self._handle_mode_change(mode_name)
+                
+                def make_mode_checker(mode_name):
+                    return lambda *args: current_mode == mode_name
+                
+                regular_menu_items.append(
+                    pystray.MenuItem(
+                        mode.title(), 
+                        make_mode_handler(mode),
+                        checked=make_mode_checker(mode)
+                    )
+                )
+            
+            regular_menu_items.extend([
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Preferences...", self._handle_preferences),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Quit", self._handle_quit)
+            ])
+            
+            return pystray.Menu(*regular_menu_items)
+        
+        menu = create_custom_menu()
+        
+        # Use a simple menu approach where the first item triggers processing
+        # This is the most reliable way to handle left clicks in pystray
+        process_menu_item = pystray.MenuItem(
+            "Process Clipboard Text", 
+            self._handle_process_click, 
+            default=True  # This makes it the default action for left-click
+        )
+        
+        # Create a new menu with process item first
+        new_menu_items = [process_menu_item, pystray.Menu.SEPARATOR]
+        
+        # Add all the existing menu items
+        for item in menu:
+            new_menu_items.append(item)
+        
+        final_menu = pystray.Menu(*new_menu_items)
+        
+        # Create icon with the menu that has processing as default
+        logger.info("🔧 Creating tray icon with processing as default menu action")
         self.tray_icon = pystray.Icon(
             self.app_name, 
             image, 
-            f"{self.app_name} - AI Text Processor (Click to process selected text)",
-            menu,
-            default_action=self._handle_process_click  # Left-click triggers processing
+            f"{self.app_name} - AI Text Processor (Left-click to process, Right-click for menu)",
+            final_menu
         )
-        logger.info("✅ Tray icon created with click-to-process functionality")
+        logger.info("✅ Tray icon created with processing menu item as default")
     
     def update_menu(self, current_mode: str, available_modes: list, 
                    permissions: Dict, notifications_enabled: bool):
@@ -330,12 +501,34 @@ class TrayIconManager:
             self.tray_icon.menu = new_menu
             logger.debug("Tray icon menu updated")
     
+    def clear_error(self):
+        """Clear the error state"""
+        self.set_error_state(False)
+    
     def set_processing_state(self, processing: bool):
         """Set processing state and update icon"""
         self.is_processing = processing
+        self.update_icon()
+    
+    def set_error_state(self, has_error: bool, error_message: str = None):
+        """Set error state and update icon"""
+        self.has_error = has_error
+        if has_error and error_message:
+            self.last_error_message = error_message
+            logger.error(f"🚨 Tray icon entering error state: {error_message}")
+        elif not has_error:
+            self.last_error_message = None
+            logger.info("✅ Tray icon clearing error state")
+        self.update_icon()
+    
+    def update_icon(self):
+        """Update the tray icon based on current state"""
         if self.tray_icon:
-            # Create the appropriate icon
-            if processing:
+            # Create the appropriate icon based on state priority: error > processing > normal
+            if self.has_error:
+                logger.debug("🚨 Setting error icon for error state")
+                icon_image = self.create_error_icon()
+            elif self.is_processing:
                 logger.debug("🔄 Setting spinner icon for processing state")
                 icon_image = self.create_spinner_icon()
             else:
@@ -345,7 +538,7 @@ class TrayIconManager:
             # Update the tray icon
             try:
                 self.tray_icon.icon = icon_image
-                logger.debug(f"Icon updated successfully, processing={processing}")
+                logger.debug(f"Icon updated successfully, error={self.has_error}, processing={self.is_processing}")
             except Exception as e:
                 logger.error(f"Failed to update tray icon: {e}")
         else:
@@ -353,7 +546,10 @@ class TrayIconManager:
     
     def run(self):
         """Start the tray icon event loop (blocking)"""
+        logger.info("🚀 Starting tray icon run method...")
         if self.tray_icon:
+            logger.info("🎯 Tray icon exists, starting event loop...")
+            logger.info("🔧 Tray icon default_action: %s", getattr(self.tray_icon, 'default_action', 'NOT SET'))
             try:
                 self.tray_icon.run()
             except KeyboardInterrupt:
@@ -375,9 +571,15 @@ class TrayIconManager:
     # Event handlers
     def _handle_process_click(self, *args):
         """Handle left-click on tray icon to trigger LLM processing"""
-        logger.info("🖱️ Tray icon clicked - triggering LLM processing")
+        logger.info("🖱️ Tray icon _handle_process_click called with args: %s", args)
+        logger.info("🖱️ on_process_click callback: %s", self.on_process_click)
         if self.on_process_click:
-            self.on_process_click()
+            logger.info("🖱️ Calling on_process_click callback...")
+            try:
+                self.on_process_click()
+                logger.info("🖱️ on_process_click callback completed successfully")
+            except Exception as e:
+                logger.error("🖱️ Error in on_process_click callback: %s", e)
         else:
             logger.warning("No process click handler configured")
     

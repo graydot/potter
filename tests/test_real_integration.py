@@ -95,7 +95,7 @@ def test_real_component_imports():
         
         # Test utils imports
         from utils.instance_checker import SingleInstanceChecker
-        from utils.openai_client import OpenAIClientManager
+        from utils.llm_client import LLMClientManager
         
         # Test settings UI import (the critical one)
         from cocoa_settings import SettingsManager, show_settings
@@ -104,7 +104,7 @@ def test_real_component_imports():
         classes = [
             PotterService, PermissionManager, HotkeyManager, TextProcessor,
             TrayIconManager, NotificationManager, SingleInstanceChecker,
-            OpenAIClientManager, SettingsManager, show_settings
+            LLMClientManager, SettingsManager, show_settings
         ]
         
         # Verify all are callable/classes
@@ -206,7 +206,7 @@ def test_real_api_key_detection():
     print("\n🧪 Testing REAL API key detection...")
     
     try:
-        from utils.openai_client import OpenAIClientManager
+        from utils.llm_client import LLMClientManager
         from cocoa_settings import SettingsManager
         import os
         
@@ -229,16 +229,16 @@ def test_real_api_key_detection():
                 
                 settings_manager = SettingsManager(temp_settings)
                 
-                # Create OpenAI manager without arguments (like the service does)
-                openai_manager = OpenAIClientManager()
+                # Create LLM manager without arguments (like the service does)
+                llm_manager = LLMClientManager()
                 
                 # Try to setup with empty API key (should fail)
                 api_key = settings_manager.get("openai_api_key", "").strip()
                 if api_key:  # Should be empty
-                    openai_manager.setup_client(api_key)
+                    llm_manager.setup_provider('openai', api_key)
                 
                 # Should detect no API key
-                assert not openai_manager.is_available(), "Should detect missing API key"
+                assert not llm_manager.is_available(), "Should detect missing API key"
                 
                 # Test first launch detection
                 assert settings_manager.is_first_launch(), "Should detect first launch"

@@ -143,9 +143,14 @@ class HotkeyManager:
 
         # Check if our hotkey combination is pressed
         if self.hotkey_combo.issubset(self.current_keys):
-            logger.info("🎯 HOTKEY DETECTED! Processing selection...")
+            logger.info("🎯 HOTKEY CAPTURED! Triggering text processing workflow...")
             if self.on_hotkey_pressed:
-                self.on_hotkey_pressed()
+                try:
+                    self.on_hotkey_pressed()
+                except Exception as e:
+                    logger.error(f"❌ Error in hotkey handler: {e}")
+                    import traceback
+                    traceback.print_exc()
     
     def on_key_release(self, key):
         """Handle key release events"""

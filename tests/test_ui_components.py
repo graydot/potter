@@ -196,7 +196,7 @@ def test_api_key_validation_ui():
     print("\n🧪 Testing API key validation in UI...")
     
     try:
-        from utils.openai_client import validate_api_key_format
+        from utils.llm_client import validate_api_key_format
         from cocoa_settings import SettingsManager
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:

@@ -27,7 +27,7 @@ def test_basic_import():
         from ui.tray_icon import TrayIconManager
         from ui.notifications import NotificationManager
         from utils.instance_checker import SingleInstanceChecker
-        from utils.openai_client import OpenAIClientManager
+        from utils.llm_client import LLMClientManager
         
         print("✅ All modules imported successfully")
         return True
@@ -68,26 +68,26 @@ def test_permission_manager():
         return False
 
 
-def test_openai_client_manager():
-    """Test OpenAI client manager"""
-    print("\n🧪 Testing OpenAI client manager...")
+def test_llm_client_manager():
+    """Test LLM client manager"""
+    print("\n🧪 Testing LLM client manager...")
     
     try:
-        from utils.openai_client import OpenAIClientManager, validate_api_key_format
+        from utils.llm_client import LLMClientManager, validate_api_key_format
         
         # Test key validation
-        assert validate_api_key_format("") == False
-        assert validate_api_key_format("invalid") == False
-        assert validate_api_key_format("sk-1234567890abcdef1234567890abcdef") == True
+        assert validate_api_key_format("", "openai") == False
+        assert validate_api_key_format("invalid", "openai") == False
+        assert validate_api_key_format("sk-1234567890abcdef1234567890abcdef", "openai") == True
         
         # Test client creation without key
-        manager = OpenAIClientManager()
+        manager = LLMClientManager()
         assert manager.is_available() == False
         
-        print("✅ OpenAI client manager tests passed")
+        print("✅ LLM client manager tests passed")
         return True
     except Exception as e:
-        print(f"❌ OpenAI client manager failed: {e}")
+        print(f"❌ LLM client manager failed: {e}")
         return False
 
 
@@ -96,12 +96,12 @@ def test_text_processor():
     print("\n🧪 Testing text processor...")
     
     try:
-        from utils.openai_client import OpenAIClientManager
+        from utils.llm_client import LLMClientManager
         from core.text_processor import TextProcessor
         
-        # Create with mock OpenAI manager
-        openai_manager = OpenAIClientManager()
-        processor = TextProcessor(openai_manager)
+        # Create with mock LLM manager
+        llm_manager = LLMClientManager()
+        processor = TextProcessor(llm_manager)
         
         # Test prompts management
         test_prompts = {
@@ -255,7 +255,7 @@ def run_all_tests():
         test_basic_import,
         test_service_creation,
         test_permission_manager,
-        test_openai_client_manager,
+        test_llm_client_manager,
         test_text_processor,
         test_hotkey_manager,
         test_startup_opens_settings_no_api_key,

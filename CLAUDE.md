@@ -28,7 +28,7 @@ Potter is a macOS tray application that provides AI-powered text processing with
 ### Key Components
 - **Entry point**: `src/potter.py` (60 lines)
 - **Settings management**: `src/settings/settings_manager.py`
-- **Multi-LLM integration**: `src/utils/openai_client.py` (supports OpenAI, Anthropic, Google Gemini)
+- **Multi-LLM integration**: `src/utils/llm_client.py` (supports OpenAI, Anthropic, Google Gemini)
 - **Build versioning**: `src/utils/instance_checker.py` with intelligent conflict resolution
 
 ### Refactored Architecture

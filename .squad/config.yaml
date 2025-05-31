@@ -1,0 +1,5 @@
+extends_global: true
+git:
+  auto_commit: true
+  default_branch: main
+  worktree_prefix: feature

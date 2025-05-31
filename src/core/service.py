@@ -17,7 +17,7 @@ from core.text_processor import TextProcessor
 from ui.tray_icon import TrayIconManager
 from ui.notifications import NotificationManager
 from utils.instance_checker import SingleInstanceChecker
-from utils.openai_client import OpenAIClientManager, get_api_key_from_env, validate_api_key_format
+from utils.llm_client import LLMClientManager, get_api_key_from_env, validate_api_key_format
 
 # Settings UI (optional)
 try:
@@ -36,13 +36,14 @@ class PotterService:
         # Core components
         self.instance_checker = SingleInstanceChecker()
         self.permission_manager = PermissionManager()
-        self.openai_manager = OpenAIClientManager()
-        self.text_processor = TextProcessor(self.openai_manager)
+        self.llm_manager = LLMClientManager()
+        self.text_processor = TextProcessor(self.llm_manager)
         self.hotkey_manager = HotkeyManager(on_hotkey_pressed=self._handle_hotkey_pressed)
         self.tray_icon_manager = TrayIconManager(
             on_mode_change=self._handle_mode_change,
             on_preferences=self._handle_preferences,
             on_notifications_toggle=self._handle_notifications_toggle,
+            on_process_click=self._handle_hotkey_pressed,  # Also handle tray icon clicks
             on_quit=self._handle_quit
         )
         self.notification_manager = NotificationManager()
@@ -70,15 +71,20 @@ class PotterService:
             else:
                 settings = self._get_default_settings()
             
-            # Configure OpenAI client
-            api_key = settings.get("openai_api_key", "").strip()
-            if not api_key:
-                api_key = get_api_key_from_env()
+            # Configure LLM provider
+            provider = settings.get("llm_provider", "openai")
+            model = settings.get("model", "gpt-3.5-turbo")
             
-            if api_key and validate_api_key_format(api_key):
-                self.openai_manager.setup_client(api_key)
+            # Get API key based on provider
+            api_key_field = f"{provider}_api_key"
+            api_key = settings.get(api_key_field, "").strip()
+            if not api_key:
+                api_key = get_api_key_from_env(provider)
+            
+            if api_key and validate_api_key_format(api_key, provider):
+                self.llm_manager.setup_provider(provider, api_key, model)
             else:
-                logger.warning("No valid OpenAI API key found")
+                logger.warning(f"No valid {provider} API key found")
             
             # Configure hotkey
             hotkey_str = settings.get("hotkey", "cmd+shift+a")
@@ -124,11 +130,14 @@ class PotterService:
                 {"name": "casual", "text": "Please rewrite the following text in a casual, relaxed tone."}
             ],
             "hotkey": "cmd+shift+a",
+            "llm_provider": "openai",
             "model": "gpt-3.5-turbo",
             "max_tokens": 1000,
             "temperature": 0.7,
             "notifications": True,
-            "openai_api_key": ""
+            "openai_api_key": "",
+            "anthropic_api_key": "",
+            "google_api_key": ""
         }
     
     def _get_default_prompts(self) -> Dict[str, str]:
@@ -198,16 +207,17 @@ class PotterService:
             status_icon = "✅" if perm_status else "❌"
             logger.info(f"  {status_icon} {perm_name.title()} permission: {perm_status}")
         
-        # Check if API key is available
-        api_key_available = self.openai_manager.is_available()
-        api_status_icon = "✅" if api_key_available else "❌"
-        logger.info(f"  {api_status_icon} OpenAI API key: {'Available' if api_key_available else 'Not configured'}")
+        # Check if LLM provider is available
+        llm_available = self.llm_manager.is_available()
+        api_status_icon = "✅" if llm_available else "❌"
+        current_provider = self.llm_manager.get_current_provider() or "none"
+        logger.info(f"  {api_status_icon} LLM Provider ({current_provider}): {'Available' if llm_available else 'Not configured'}")
         
         needs_setup = False
         
         # Determine what setup is needed
-        if not api_key_available:
-            logger.info("⚠️  No valid API key found - showing setup")
+        if not llm_available:
+            logger.info("⚠️  No valid LLM provider configured - showing setup")
             self.notification_manager.show_api_key_needed()
             needs_setup = True
         elif not permissions["accessibility"]:
@@ -277,6 +287,8 @@ class PotterService:
     # Event handlers
     def _handle_hotkey_pressed(self):
         """Handle hotkey press"""
+        logger.info("🔥 _handle_hotkey_pressed called! Source could be hotkey or tray click")
+        
         if self.is_processing:
             logger.debug("⏭️  Already processing, ignoring hotkey")
             return
@@ -290,18 +302,32 @@ class PotterService:
         
         # Process text
         logger.debug("🔄 Starting text processing...")
-        success = self.text_processor.process_clipboard_text(
-            notification_callback=self.notification_manager.show_notification,
-            progress_callback=self._set_processing_state
-        )
-        
-        if success:
-            mode = self.text_processor.get_current_mode()
-            logger.info(f"✅ Text processing completed successfully (mode: {mode})")
-            self.notification_manager.show_text_processed(mode)
-        else:
-            logger.warning("❌ Text processing failed")
-            logger.debug("🔍 Check previous logs for error details")
+        try:
+            success = self.text_processor.process_clipboard_text(
+                notification_callback=self.notification_manager.show_notification,
+                progress_callback=self._set_processing_state,
+                error_callback=self._handle_error
+            )
+            
+            if success:
+                mode = self.text_processor.get_current_mode()
+                logger.info(f"✅ Text processing completed successfully (mode: {mode})")
+                self.notification_manager.show_text_processed(mode)
+                # Clear any previous error state on success
+                self.tray_icon_manager.set_error_state(False)
+            else:
+                logger.warning("❌ Text processing failed")
+                logger.debug("🔍 Check previous logs for error details")
+                # Set error state in tray icon
+                self._handle_error("Text processing failed")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in hotkey handler: {e}")
+            import traceback
+            traceback.print_exc()
+            self._handle_error(f"Unexpected error: {str(e)}")
+        finally:
+            # Ensure processing state is cleared
+            self._set_processing_state(False)
     
     def _handle_mode_change(self, mode: str):
         """Handle mode change from tray menu"""
@@ -400,12 +426,18 @@ class PotterService:
             if self.settings_manager:
                 self.settings_manager.save_settings(new_settings)
             
-            # Update OpenAI client if API key changed
-            api_key = new_settings.get("openai_api_key", "")
-            if api_key and api_key != self.openai_manager.api_key:
-                logger.info("API key updated, reinitializing OpenAI client...")
-                self.openai_manager.update_api_key(api_key)
-                self.text_processor.update_settings()
+            # Update LLM client if provider/API key changed
+            provider = new_settings.get("llm_provider", "openai")
+            model = new_settings.get("model", "gpt-3.5-turbo")
+            api_key_field = f"{provider}_api_key"
+            api_key = new_settings.get(api_key_field, "")
+            
+            current_provider = self.llm_manager.get_current_provider()
+            if provider != current_provider or (api_key and api_key != getattr(self.llm_manager, 'api_key', None)):
+                logger.info(f"LLM provider/key updated, reinitializing {provider} client...")
+                if api_key and validate_api_key_format(api_key, provider):
+                    self.llm_manager.setup_provider(provider, api_key, model)
+                    self.text_processor.update_settings()
             
             # Update hotkey if changed
             hotkey = new_settings.get("hotkey", "cmd+shift+a")
@@ -449,8 +481,24 @@ class PotterService:
     def _set_processing_state(self, processing: bool):
         """Set processing state and update UI"""
         self.is_processing = processing
+        # Clear error state when starting processing
+        if processing:
+            self.tray_icon_manager.set_error_state(False)
         self.tray_icon_manager.set_processing_state(processing)
         logger.debug(f"Processing state: {processing}")
+    
+    def _handle_error(self, error_message: str):
+        """Handle error state and update UI"""
+        logger.error(f"🚨 Error occurred: {error_message}")
+        self.tray_icon_manager.set_error_state(True, error_message)
+        # Also update the menu to show the error
+        permissions = self.permission_manager.get_permission_status()
+        self.tray_icon_manager.update_menu(
+            current_mode=self.text_processor.get_current_mode(),
+            available_modes=self.text_processor.get_available_modes(),
+            permissions=permissions,
+            notifications_enabled=self.notification_manager.is_notifications_enabled()
+        )
     
     def get_permission_status(self) -> Dict:
         """Get current permission status"""

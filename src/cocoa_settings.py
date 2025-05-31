@@ -219,47 +219,19 @@ class LinkTarget(NSObject):
 
 
 def create_clickable_link(frame, text, url):
-    """Create a clickable link button"""
+    """Create a clickable button (gave up on blue links!)"""
+    
+    # Simple, clean button that actually works
     button = NSButton.alloc().initWithFrame_(frame)
     button.setTitle_(text)
-    button.setButtonType_(NSButtonTypeMomentaryLight)
-    button.setBordered_(False)
+    button.setButtonType_(NSButtonTypeMomentaryPushIn)
+    button.setBezelStyle_(NSBezelStyleRounded)
     button.setFont_(NSFont.systemFontOfSize_(11))
-    button.setAlignment_(NSTextAlignmentLeft)
     
-    # Style as link with improved blue color
-    try:
-        # Create attributed string with blue color and underline
-        attrs = {
-            NSForegroundColorAttributeName: NSColor.systemBlueColor(),  # Use systemBlue for better visibility
-            NSUnderlineStyleAttributeName: NSUnderlineStyleSingle,
-            NSCursorAttributeName: NSCursor.pointingHandCursor()  # Add hand cursor
-        }
-        attributed_title = NSAttributedString.alloc().initWithString_attributes_(text, attrs)
-        button.setAttributedTitle_(attributed_title)
-    except Exception as e:
-        # Enhanced fallback styling
-        print(f"Debug - Link styling fallback: {e}")
-        button.setTextColor_(NSColor.systemBlueColor())
-        # Try to set cursor manually
-        try:
-            # Create a tracking area for the hand cursor
-            tracking_area = NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
-                button.bounds(),
-                NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow,
-                button,
-                None
-            )
-            button.addTrackingArea_(tracking_area)
-        except:
-            pass
-    
-    # Create target for handling clicks
+    # Set up click handling
     target = LinkTarget.alloc().initWithURL_(url)
     button.setTarget_(target)
     button.setAction_("openURL:")
-    
-    # Store target as button's representedObject to keep it alive
     button.setRepresentedObject_(target)
     
     return button
@@ -757,8 +729,12 @@ class PromptDialog(NSWindowController):
                 print("Debug - No window available for modal dialog")
                 return None
             
-            # Center the window
-            window.center()
+            # Center the window on screen
+            screen_frame = NSScreen.mainScreen().visibleFrame()
+            window_frame = window.frame()
+            x = (screen_frame.size.width - window_frame.size.width) / 2 + screen_frame.origin.x
+            y = (screen_frame.size.height - window_frame.size.height) / 2 + screen_frame.origin.y
+            window.setFrameOrigin_(NSMakePoint(x, y))
             
             # Make it key and order front
             window.makeKeyAndOrderFront_(None)
@@ -1414,7 +1390,7 @@ class SettingsWindow(NSWindowController):
         accessibility_container.addSubview_(perm_name_label)
         
         # Status icon - simple tick/X
-        status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(260, 35, 30, 20))
+        status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(200, 35, 30, 20))
         if permissions_status.get('accessibility', False):
             status_label.setStringValue_("✓")
             status_label.setTextColor_(NSColor.systemGreenColor())
@@ -1429,7 +1405,7 @@ class SettingsWindow(NSWindowController):
         self.accessibility_status = status_label
         
         # Button
-        self.accessibility_btn = NSButton.alloc().initWithFrame_(NSMakeRect(300, 35, 120, 22))
+        self.accessibility_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 35, 120, 22))
         if not permissions_status.get('accessibility', False):
             self.accessibility_btn.setTitle_("Grant Access")
         else:
@@ -1457,7 +1433,7 @@ class SettingsWindow(NSWindowController):
         accessibility_container.addSubview_(desc_label)
         
         view.addSubview_(accessibility_container)
-        y_pos -= 80
+        y_pos -= 70
         
         # System Events permission - new addition
         system_events_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 60, 620, 60))
@@ -1472,7 +1448,7 @@ class SettingsWindow(NSWindowController):
         system_events_container.addSubview_(se_name_label)
         
         # Status icon
-        se_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(260, 35, 30, 20))
+        se_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(200, 35, 30, 20))
         if permissions_status.get('system_events', False):
             se_status_label.setStringValue_("✓")
             se_status_label.setTextColor_(NSColor.systemGreenColor())
@@ -1487,7 +1463,7 @@ class SettingsWindow(NSWindowController):
         self.system_events_status = se_status_label
         
         # Button
-        self.system_events_btn = NSButton.alloc().initWithFrame_(NSMakeRect(300, 35, 120, 22))
+        self.system_events_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 35, 120, 22))
         if not permissions_status.get('system_events', False):
             self.system_events_btn.setTitle_("Grant Access")
         else:
@@ -1514,7 +1490,7 @@ class SettingsWindow(NSWindowController):
         system_events_container.addSubview_(se_desc_label)
         
         view.addSubview_(system_events_container)
-        y_pos -= 80
+        y_pos -= 70
         
         # Notification permission - improved layout  
         notification_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 60, 620, 60))
@@ -1530,7 +1506,7 @@ class SettingsWindow(NSWindowController):
         
         # Status icon
         notification_text, notification_color = self.get_notification_status()
-        notif_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(260, 35, 30, 20))
+        notif_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(200, 35, 30, 20))
         if "✅" in notification_text:
             notif_status_label.setStringValue_("✓")
             notif_status_label.setTextColor_(NSColor.systemGreenColor())
@@ -1545,7 +1521,7 @@ class SettingsWindow(NSWindowController):
         self.notification_status = notif_status_label
         
         # Button
-        self.notification_btn = NSButton.alloc().initWithFrame_(NSMakeRect(300, 35, 120, 22))
+        self.notification_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 35, 120, 22))
         if "✗" in notification_text:
             self.notification_btn.setTitle_("Grant Access")
         else:
@@ -1671,8 +1647,9 @@ class SettingsWindow(NSWindowController):
             api_key = str(self.api_key_field.stringValue()).strip()
             current_provider = self.get_current_provider()
             
-            # Clear red background on text change
+            # Clear red background and text color on text change
             self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
+            self.api_key_field.setTextColor_(NSColor.labelColor())
             
             if not api_key:
                 self._update_api_validation_display("", None)
@@ -1685,12 +1662,15 @@ class SettingsWindow(NSWindowController):
             if expected_prefix and not api_key.startswith(expected_prefix):
                 self._update_api_validation_display(f"⚠️ {current_provider.title()} API keys should start with '{expected_prefix}'", False)
                 self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
+                self.api_key_field.setTextColor_(NSColor.systemOrangeColor())
             elif len(api_key) < 20:  # Basic length check
                 self._update_api_validation_display("⚠️ API key seems too short", False)
                 self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
+                self.api_key_field.setTextColor_(NSColor.systemOrangeColor())
             else:
                 self._update_api_validation_display("✓ Format looks valid - click 'Verify & Save' to test", None)
                 self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
+                self.api_key_field.setTextColor_(NSColor.labelColor())
                 
             # Auto-save as user types (delayed)
             if hasattr(self, 'api_key_save_timer'):
@@ -1758,25 +1738,16 @@ class SettingsWindow(NSWindowController):
         
         def verify_in_background():
             try:
-                # Only OpenAI verification is currently supported
-                if provider == "openai":
-                    from utils.openai_client import OpenAIClientManager
-                    client = OpenAIClientManager(api_key)
+                # Use unified LLM client for all providers
+                from utils.llm_client import LLMClientManager
+                client = LLMClientManager()
+                
+                # Setup the provider
+                if client.setup_provider(provider, api_key):
                     # Make a minimal test call
                     result = client.process_text("test", "respond with just 'ok'", max_tokens=5)
                     success = result is not None and "ok" in result.lower()
-                elif provider == "anthropic":
-                    # TODO: Implement Anthropic API verification
-                    # For now, just do basic format validation
-                    success = api_key.startswith("sk-ant-") and len(api_key) > 20
-                    result = "Format validation only - full verification not yet implemented"
-                elif provider == "gemini":
-                    # TODO: Implement Gemini API verification  
-                    # For now, just do basic format validation
-                    success = api_key.startswith("AIza") and len(api_key) > 20
-                    result = "Format validation only - full verification not yet implemented"
                 else:
-                    # Unknown provider
                     success = False
                     result = None
                 
@@ -1823,13 +1794,21 @@ class SettingsWindow(NSWindowController):
             
             if save_success:
                 self._update_api_validation_display("✅ API key verified and saved!", True)
+                # Reset field styling to normal
+                self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
+                self.api_key_field.setTextColor_(NSColor.labelColor())
                 # Clear the temporary green message after 3 seconds
                 self._schedule_validation_clear()
             else:
                 self._update_api_validation_display("❌ Verification passed but failed to save", False)
+                self.api_key_field.setBackgroundColor_(NSColor.systemRedColor().colorWithAlphaComponent_(0.2))
+                self.api_key_field.setTextColor_(NSColor.systemRedColor())
         else:
             error_msg = error_msg or "Invalid API key"
             self._update_api_validation_display(f"❌ {error_msg}", False)
+            # Make field red on error
+            self.api_key_field.setBackgroundColor_(NSColor.systemRedColor().colorWithAlphaComponent_(0.2))
+            self.api_key_field.setTextColor_(NSColor.systemRedColor())
 
     def _schedule_validation_clear(self):
         """Clear validation message after delay"""
@@ -1856,12 +1835,14 @@ class SettingsWindow(NSWindowController):
         api_key = self.settings_manager.get(f"{current_provider}_api_key", "")
         self.api_key_field.setStringValue_(api_key)
         
-        # Make field red if API key is empty
+        # Update field styling based on API key presence
         if not api_key.strip():
             self.api_key_field.setTextColor_(NSColor.systemRedColor())
+            self.api_key_field.setBackgroundColor_(NSColor.systemRedColor().colorWithAlphaComponent_(0.1))
             self.api_key_field.setPlaceholderString_(f"API key required for {provider_info.get('name', 'provider')}")
         else:
             self.api_key_field.setTextColor_(NSColor.labelColor())
+            self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
             # Update placeholder
             prefix = provider_info.get("api_key_prefix", "")
             self.api_key_field.setPlaceholderString_(f"{prefix}...")
@@ -1957,7 +1938,7 @@ class SettingsWindow(NSWindowController):
         toolbar_container.addSubview_(info_label)
         
         view.addSubview_(toolbar_container)
-        y_pos -= 40
+        y_pos -= 20
         
         # Table view container - made even smaller
         table_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 200, 620, 200))  # Much smaller table
@@ -2050,9 +2031,9 @@ class SettingsWindow(NSWindowController):
     
     def createAdvancedView(self):
         """Create Advanced settings view focused on build version information"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 900))  # Proper height
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 700))  # Proper height
         
-        y_pos = 850  # Start higher to reduce empty space
+        y_pos = 650  # Start higher to reduce empty space
         
         # Section header
         header = create_section_header("Advanced Settings", y_pos)
@@ -2228,9 +2209,9 @@ class SettingsWindow(NSWindowController):
     
     def createLogsView(self):
         """Create modern Logs view"""
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 900))  # Proper height
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 800))  # Proper height
         
-        y_pos = 850  # Start higher to reduce empty space
+        y_pos = 750  # Start higher to reduce empty space
         
         # Section header
         header = create_section_header("Application Logs", y_pos)
@@ -2305,8 +2286,8 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(toolbar_container)
         y_pos -= 40
         
-        # Logs scroll view - properly sized
-        logs_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, 60, 620, y_pos - 80))  # Leave room for status
+        # Logs scroll view - moved up to reduce gap
+        logs_container = NSScrollView.alloc().initWithFrame_(NSMakeRect(40, 160, 620, y_pos - 140))  # Moved table up from y=80 to y=120
         logs_container.setHasVerticalScroller_(True)
         logs_container.setAutohidesScrollers_(True)
         logs_container.setBorderType_(NSBezelBorder)
@@ -2324,8 +2305,8 @@ class SettingsWindow(NSWindowController):
         logs_container.setDocumentView_(self.logs_text)
         view.addSubview_(logs_container)
         
-        # Status label
-        self.log_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 30, 620, 17))
+        # Status label - moved up to match the new table position
+        self.log_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, 130, 620, 17))  # Moved up from y=50 to y=90
         self.log_status_label.setStringValue_("Loading logs...")
         self.log_status_label.setBezeled_(False)
         self.log_status_label.setDrawsBackground_(False)
@@ -3952,8 +3933,12 @@ def show_settings(settings_manager, on_settings_changed=None):
         if on_settings_changed:
             controller.on_settings_changed = on_settings_changed
         
+        # Center the window on screen before showing it
+        window = controller.window()
+        window.center()
+        
         # Show the window
-        controller.window().makeKeyAndOrderFront_(None)
+        window.makeKeyAndOrderFront_(None)
         
         # Bring to front
         from AppKit import NSApplication
