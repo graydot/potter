@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # macOS
 .DS_Store
 .DS_Store?
@@ -12,6 +13,9 @@ Thumbs.db
 *.tmp
 *.temp 
 =======
+=======
+worktrees
+>>>>>>> dd5457c (Fixed more view stuff)
 # Environment variables (contains API keys)
 .env
 .env.local
@@ -157,4 +161,7 @@ tmp/
 # PyInstaller
 *.manifest
 *.spec.bak 
+<<<<<<< HEAD
 >>>>>>> db2f5bf (build to potter repo)
+=======
+>>>>>>> dd5457c (Fixed more view stuff)

@@ -910,7 +910,7 @@ class SettingsWindow(NSWindowController):
         return self
     
     def createWindow(self):
-        """Create the modern window with sidebar"""
+        """Create and configure the settings window"""
         print("Debug - Creating settings window...")
         
         # Create larger window for modern layout
@@ -926,6 +926,9 @@ class SettingsWindow(NSWindowController):
         window.setLevel_(NSNormalWindowLevel)
         window.setMinSize_(NSMakeSize(800, 600))
         window.setDelegate_(self)
+        
+        # Try to set window icon using logo.png
+        self._set_window_icon(window)
         
         print("Debug - Creating sidebar and content area...")
         
@@ -952,15 +955,61 @@ class SettingsWindow(NSWindowController):
         
         print("Debug - Creating content views...")
         
-        # Create content views
-        self.content_views = [
-            self.createGeneralView(),
-            self.createPromptsView(), 
-            self.createAdvancedView(),
-            self.createLogsView()
-        ]
+        # Create content views with safety checks
+        content_views = []
         
-        print(f"Debug - Created {len(self.content_views)} content views")
+        try:
+            general_view = self.createGeneralView()
+            if general_view is not None:
+                content_views.append(general_view)
+                print("Debug - General view created successfully")
+            else:
+                print("Debug - Failed to create General view")
+                
+        except Exception as e:
+            print(f"Debug - Error creating General view: {e}")
+        
+        try:
+            prompts_view = self.createPromptsView()
+            if prompts_view is not None:
+                content_views.append(prompts_view)
+                print("Debug - Prompts view created successfully")
+            else:
+                print("Debug - Failed to create Prompts view")
+                
+        except Exception as e:
+            print(f"Debug - Error creating Prompts view: {e}")
+        
+        try:
+            advanced_view = self.createAdvancedView()
+            if advanced_view is not None:
+                content_views.append(advanced_view)
+                print("Debug - Advanced view created successfully")
+            else:
+                print("Debug - Failed to create Advanced view")
+                
+        except Exception as e:
+            print(f"Debug - Error creating Advanced view: {e}")
+        
+        try:
+            logs_view = self.createLogsView()
+            if logs_view is not None:
+                content_views.append(logs_view)
+                print("Debug - Logs view created successfully")
+            else:
+                print("Debug - Failed to create Logs view")
+                
+        except Exception as e:
+            print(f"Debug - Error creating Logs view: {e}")
+        
+        # Only assign if we have at least one view
+        if content_views:
+            self.content_views = content_views
+            print(f"Debug - Created {len(self.content_views)} content views successfully")
+        else:
+            print("Debug - Warning: No content views were created successfully")
+            # Create a fallback empty view to prevent crashes
+            self.content_views = [NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 700, 600))]
         
         # Show initial section
         self.showSection_(0)
@@ -974,6 +1023,133 @@ class SettingsWindow(NSWindowController):
                 print("Debug - Set default button successfully")
             except Exception as e:
                 print(f"Warning: Could not set default button: {e}")
+        
+        # Register for appearance change notifications
+        self._register_for_appearance_changes()
+    
+    def _register_for_appearance_changes(self):
+        """Register for system appearance change notifications"""
+        try:
+            # Register for system appearance changes
+            NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+                self, "appearanceDidChange:", "NSSystemColorsDidChangeNotification", None
+            )
+            print("Debug - Registered for appearance change notifications")
+        except Exception as e:
+            print(f"Debug - Error registering for appearance changes: {e}")
+    
+    def appearanceDidChange_(self, notification):
+        """Handle system appearance changes"""
+        print("Debug - System appearance changed, updating icons")
+        try:
+            # Update dock icon
+            self._update_dock_icon()
+            
+            # Update tray icon if available
+            try:
+                potter_module = sys.modules.get('__main__')
+                if potter_module and hasattr(potter_module, 'service') and hasattr(potter_module.service, 'tray_icon'):
+                    print("Debug - Updating tray icon for appearance change")
+                    potter_module.service.tray_icon.update_icon_for_appearance()
+            except Exception as e:
+                print(f"Debug - Error updating tray icon: {e}")
+                
+        except Exception as e:
+            print(f"Debug - Error updating icons for appearance change: {e}")
+    
+    def _update_dock_icon(self):
+        """Update dock icon for current appearance"""
+        try:
+            # Try to find logo files in assets folder
+            base_paths = [
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets'),
+                'assets',
+                '.'
+            ]
+            
+            logo_light_path = None
+            logo_dark_path = None
+            fallback_logo_path = None
+            
+            # Look for light/dark specific logos and fallback
+            for base_path in base_paths:
+                light_path = os.path.join(base_path, 'light.png')
+                dark_path = os.path.join(base_path, 'dark.png')
+                fallback_path = os.path.join(base_path, 'logo.png')
+                
+                if os.path.exists(light_path) and not logo_light_path:
+                    logo_light_path = light_path
+                if os.path.exists(dark_path) and not logo_dark_path:
+                    logo_dark_path = dark_path
+                if os.path.exists(fallback_path) and not fallback_logo_path:
+                    fallback_logo_path = fallback_path
+            
+            # Determine current appearance
+            current_appearance = self._get_current_appearance()
+            
+            # Choose appropriate icon
+            if current_appearance == "dark" and logo_dark_path:
+                icon_path = logo_dark_path
+                print(f"Debug - Using dark icon: {icon_path}")
+            elif current_appearance == "light" and logo_light_path:
+                icon_path = logo_light_path
+                print(f"Debug - Using light icon: {icon_path}")
+            elif fallback_logo_path:
+                icon_path = fallback_logo_path
+                print(f"Debug - Using fallback icon: {icon_path}")
+            else:
+                print("Debug - No suitable icon found for dock")
+                return
+            
+            # Load and set the icon
+            ns_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+            if ns_image:
+                ns_image.setSize_(NSMakeSize(128, 128))
+                # Set dock icon for the entire application
+                app = NSApplication.sharedApplication()
+                app.setApplicationIconImage_(ns_image)
+                print(f"Debug - Updated dock icon for {current_appearance} mode")
+            else:
+                print(f"Debug - Failed to load icon from {icon_path}")
+                
+        except Exception as e:
+            print(f"Debug - Error updating dock icon: {e}")
+    
+    def _get_current_appearance(self):
+        """Get the current system appearance (light/dark)"""
+        try:
+            # Check the effective appearance of the current window or app
+            if hasattr(self, 'window') and self.window():
+                appearance = self.window().effectiveAppearance()
+            else:
+                appearance = NSApplication.sharedApplication().effectiveAppearance()
+            
+            if appearance:
+                appearance_name = appearance.name()
+                if "Dark" in str(appearance_name):
+                    return "dark"
+                else:
+                    return "light"
+            else:
+                # Fallback: check system preferences
+                import subprocess
+                result = subprocess.run(['defaults', 'read', '-g', 'AppleInterfaceStyle'], 
+                                      capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip() == "Dark":
+                    return "dark"
+                else:
+                    return "light"
+        except Exception as e:
+            print(f"Debug - Error getting appearance: {e}")
+            return "light"  # Default to light
+    
+    def _set_window_icon(self, window):
+        """Set window icon using logo.png from assets folder with light/dark mode support"""
+        try:
+            # Update dock icon based on current appearance
+            self._update_dock_icon()
+        except Exception as e:
+            print(f"Debug - Error setting window icon: {e}")
     
     def createSidebar(self):
         """Create modern sidebar with icons"""
@@ -988,8 +1164,9 @@ class SettingsWindow(NSWindowController):
         else:
             self.sidebar_container.layer().setBackgroundColor_(NSColor.windowBackgroundColor().CGColor())
         
-        # Title
-        title_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 600, 160, 30))
+        # Title at the top
+        title_y = 600
+        title_label = NSTextField.alloc().initWithFrame_(NSMakeRect(20, title_y, 160, 30))
         title_label.setStringValue_("Settings")
         title_label.setFont_(NSFont.boldSystemFontOfSize_(20))
         title_label.setBezeled_(False)
@@ -1006,9 +1183,9 @@ class SettingsWindow(NSWindowController):
             {"title": "Logs", "icon": "doc.text", "tag": 3}
         ]
         
-        # Create sidebar buttons
+        # Create sidebar buttons (positioned after title)
         self.sidebar_buttons = []
-        y_position = 540
+        y_position = title_y - 40
         
         for item in self.sidebar_items:
             button = create_sidebar_button(item, y_position)
@@ -1022,32 +1199,39 @@ class SettingsWindow(NSWindowController):
         self.createSidebarFooter()
     
     def createSidebarFooter(self):
-        """Create footer with save/cancel buttons"""
+        """Create footer area with buttons"""
+        # Footer background
+        footer = NSView.alloc().initWithFrame_(NSMakeRect(0, 20, 200, 100))
+        footer.setAutoresizingMask_(NSViewMaxYMargin | NSViewWidthSizable)
+        
         # Separator line
-        separator = NSView.alloc().initWithFrame_(NSMakeRect(20, 130, 160, 1))
+        separator = NSView.alloc().initWithFrame_(NSMakeRect(20, 80, 160, 1))
         separator.setWantsLayer_(True)
         separator.layer().setBackgroundColor_(NSColor.separatorColor().CGColor())
-        self.sidebar_container.addSubview_(separator)
+        footer.addSubview_(separator)
         
         # Cancel button
-        cancel_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 90, 70, 32))
-        cancel_btn.setTitle_("Cancel")
-        cancel_btn.setTarget_(self)
-        cancel_btn.setAction_("cancel:")
-        cancel_btn.setKeyEquivalent_("\x1b")
-        cancel_btn.setBezelStyle_(NSBezelStyleRounded)
-        self.sidebar_container.addSubview_(cancel_btn)
+        cancel_button = NSButton.alloc().initWithFrame_(NSMakeRect(20, 40, 70, 32))
+        cancel_button.setTitle_("Cancel")
+        cancel_button.setTarget_(self)
+        cancel_button.setAction_("cancel:")
+        cancel_button.setBezelStyle_(NSBezelStyleRounded)
+        cancel_button.setKeyEquivalent_("\033")  # Escape key
+        footer.addSubview_(cancel_button)
         
-        # Quit button - positioned where Save button was (next to Cancel)
-        quit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(100, 90, 80, 32))
-        quit_btn.setTitle_("Quit Potter")
-        quit_btn.setTarget_(self)
-        quit_btn.setAction_("quitApplication:")
-        quit_btn.setBezelStyle_(NSBezelStyleRounded)
-        quit_btn.setFont_(NSFont.systemFontOfSize_(13))
-        self.sidebar_container.addSubview_(quit_btn)
+        # Quit button - positioned next to Cancel
+        quit_button = NSButton.alloc().initWithFrame_(NSMakeRect(100, 40, 80, 32))
+        quit_button.setTitle_("Quit Potter")
+        quit_button.setTarget_(self)
+        quit_button.setAction_("quitApplication:")
+        quit_button.setBezelStyle_(NSBezelStyleRounded)
+        quit_button.setFont_(NSFont.systemFontOfSize_(13))
+        footer.addSubview_(quit_button)
         
-        # Save button removed - using auto-save instead
+        # Add footer to sidebar container
+        self.sidebar_container.addSubview_(footer)
+        
+        return footer
     
     def createContentArea(self):
         """Create scrollable content area"""
@@ -1070,8 +1254,19 @@ class SettingsWindow(NSWindowController):
     def showSection_(self, section):
         """Show the specified section with enhanced sidebar highlighting"""
         if section < 0 or section >= len(self.content_views):
+            print(f"Debug - Invalid section index: {section}")
             return
         
+        # Check if the content view exists and is valid
+        if not self.content_views or section >= len(self.content_views):
+            print(f"Debug - Content views not ready or invalid section: {section}")
+            return
+            
+        view = self.content_views[section]
+        if view is None:
+            print(f"Debug - Content view at section {section} is None")
+            return
+
         # Update sidebar button states with proper highlighting
         for i, button in enumerate(self.sidebar_buttons):
             if i == section:
@@ -1114,26 +1309,59 @@ class SettingsWindow(NSWindowController):
                 button.setFont_(NSFont.systemFontOfSize_(14))
         
         # Remove current content
-        for subview in list(self.content_container.subviews()):
-            subview.removeFromSuperview()
+        if hasattr(self, 'content_container') and self.content_container:
+            for subview in list(self.content_container.subviews()):
+                subview.removeFromSuperview()
+        else:
+            print("Debug - Content container not available")
+            return
         
         # Add new content with proper sizing to fit container bounds
-        view = self.content_views[section]
-        # Resize view to match content container width and position at top
-        container_bounds = self.content_container.bounds()
-        view_height = view.frame().size.height
+        # Additional safety check for view frame
+        try:
+            view_frame = view.frame()
+            if view_frame is None:
+                print(f"Debug - View frame is None for section {section}")
+                return
+            view_height = view_frame.size.height
+        except Exception as e:
+            print(f"Debug - Error getting view frame for section {section}: {e}")
+            # Fallback to a reasonable default height
+            view_height = 800
+        
+        # Get container bounds safely
+        try:
+            container_bounds = self.content_container.bounds()
+            if container_bounds is None:
+                print("Debug - Container bounds is None")
+                return
+        except Exception as e:
+            print(f"Debug - Error getting container bounds: {e}")
+            return
         
         # Position view at the TOP of the container (not bottom)
         # The y-coordinate should be calculated so content starts at the top
         container_height = max(view_height, 650)  # Minimum scrollable height
-        view.setFrame_(NSMakeRect(0, container_height - view_height, container_bounds.size.width, view_height))
         
-        # Update container size for proper scrolling
-        self.content_container.setFrame_(NSMakeRect(0, 0, container_bounds.size.width, container_height))
-        self.content_container.addSubview_(view)
-        
-        # Scroll to the TOP instead of bottom
-        self.content_scroll_view.documentView().scrollPoint_(NSMakePoint(0, container_height - self.content_scroll_view.contentView().bounds().size.height))
+        try:
+            view.setFrame_(NSMakeRect(0, container_height - view_height, container_bounds.size.width, view_height))
+            
+            # Update container size for proper scrolling
+            self.content_container.setFrame_(NSMakeRect(0, 0, container_bounds.size.width, container_height))
+            self.content_container.addSubview_(view)
+            
+            # Scroll to the TOP instead of bottom
+            if hasattr(self, 'content_scroll_view') and self.content_scroll_view:
+                document_view = self.content_scroll_view.documentView()
+                if document_view and hasattr(self.content_scroll_view, 'contentView'):
+                    content_view = self.content_scroll_view.contentView()
+                    if content_view:
+                        content_bounds = content_view.bounds()
+                        scroll_point = NSMakePoint(0, container_height - content_bounds.size.height)
+                        document_view.scrollPoint_(scroll_point)
+        except Exception as e:
+            print(f"Debug - Error setting up view for section {section}: {e}")
+            return
         
         self.current_section = section
         
@@ -1275,12 +1503,64 @@ class SettingsWindow(NSWindowController):
         self.model_popup = NSPopUpButton.alloc().initWithFrame_(NSMakeRect(160, y_pos, 250, 22))
         self.model_popup.setTarget_(self)
         self.model_popup.setAction_("modelChanged:")
+        
+        # Configure immediate tooltip display for model dropdown
+        try:
+            # Set tooltip delay to 0 for immediate display on this popup
+            if hasattr(self.model_popup, 'cell') and self.model_popup.cell():
+                cell = self.model_popup.cell()
+                if hasattr(cell, 'setShowsFirstResponder_'):
+                    cell.setShowsFirstResponder_(True)
+            # Also configure general tooltip behavior for faster display
+            if hasattr(NSToolTipManager, 'sharedToolTipManager'):
+                tooltip_manager = NSToolTipManager.sharedToolTipManager()
+                if hasattr(tooltip_manager, 'setInitialToolTipDelay_'):
+                    tooltip_manager.setInitialToolTipDelay_(0.1)  # Very fast display (100ms)
+                if hasattr(tooltip_manager, 'setReshowToolTipDelay_'):
+                    tooltip_manager.setReshowToolTipDelay_(0.0)  # Immediate re-display
+            print("Debug - Configured fast tooltip display for model dropdown")
+        except Exception as e:
+            print(f"Debug - Error configuring tooltip: {e}")
+        
         view.addSubview_(self.model_popup)
+        y_pos -= 40
+        
+        # Preferences section
+        prefs_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
+        prefs_section_label.setStringValue_("Application Preferences")
+        prefs_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
+        prefs_section_label.setBezeled_(False)
+        prefs_section_label.setDrawsBackground_(False)
+        prefs_section_label.setEditable_(False)
+        prefs_section_label.setTextColor_(NSColor.labelColor())
+        view.addSubview_(prefs_section_label)
+        y_pos -= 35
+        
+        # Notifications toggle
+        notifications_container, self.notifications_switch = create_modern_switch(
+            NSMakeRect(40, y_pos, 300, 30),
+            "Show notifications",
+            self.settings_manager.get("show_notifications", False)
+        )
+        self.notifications_switch.setTarget_(self)
+        self.notifications_switch.setAction_("notificationsSwitchChanged:")
+        view.addSubview_(notifications_container)
+        y_pos -= 40
+        
+        # Launch at startup toggle
+        startup_container, self.startup_switch = create_modern_switch(
+            NSMakeRect(40, y_pos, 300, 30),
+            "Launch at startup",
+            self.settings_manager.get("launch_at_startup", False)
+        )
+        self.startup_switch.setTarget_(self)
+        self.startup_switch.setAction_("startupSwitchChanged:")
+        view.addSubview_(startup_container)
         y_pos -= 50
         
         # Hotkey section
         hotkey_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
-        hotkey_section_label.setStringValue_("Hotkey Configuration")
+        hotkey_section_label.setStringValue_("Global Hotkey")
         hotkey_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
         hotkey_section_label.setBezeled_(False)
         hotkey_section_label.setDrawsBackground_(False)
@@ -1289,7 +1569,7 @@ class SettingsWindow(NSWindowController):
         view.addSubview_(hotkey_section_label)
         y_pos -= 35
         
-        # Hotkey field with conflict warning on the right
+        # Hotkey field
         hotkey_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 120, 22))
         hotkey_label.setStringValue_("Hotkey:")
         hotkey_label.setBezeled_(False)
@@ -1298,289 +1578,38 @@ class SettingsWindow(NSWindowController):
         hotkey_label.setFont_(NSFont.systemFontOfSize_(14))
         view.addSubview_(hotkey_label)
         
+        # Create hotkey capture control
         self.hotkey_field = HotkeyCapture.alloc().initWithFrame_manager_(
-            NSMakeRect(160, y_pos, 300, 22), self.settings_manager
+            NSMakeRect(160, y_pos, 350, 30),
+            self.settings_manager
         )
-        self.hotkey_field.setHotkeyString_(self.settings_manager.get("hotkey", "cmd+shift+a"))
-        # Set up auto-save callback for hotkey changes
         self.hotkey_field.reset_callback = self.hotkeyChanged
         view.addSubview_(self.hotkey_field)
         
         # Reset button
-        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(470, y_pos, 80, 22))
+        self.reset_button = NSButton.alloc().initWithFrame_(NSMakeRect(520, y_pos, 80, 22))
         self.reset_button.setTitle_("Reset")
         self.reset_button.setTarget_(self)
         self.reset_button.setAction_("resetHotkey:")
         self.reset_button.setBezelStyle_(NSBezelStyleRounded)
-        self.reset_button.setFont_(NSFont.systemFontOfSize_(12))
+        self.reset_button.setFont_(NSFont.systemFontOfSize_(11))
         view.addSubview_(self.reset_button)
+        y_pos -= 30
         
-        # Conflict warning to the right
-        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(560, y_pos, 100, 22))
-        self.conflict_label.setStringValue_("")
+        # Conflict warning label
+        self.conflict_label = NSTextField.alloc().initWithFrame_(NSMakeRect(160, y_pos, 350, 17))
         self.conflict_label.setBezeled_(False)
         self.conflict_label.setDrawsBackground_(False)
         self.conflict_label.setEditable_(False)
         self.conflict_label.setFont_(NSFont.systemFontOfSize_(11))
-        self.conflict_label.setTextColor_(NSColor.systemRedColor())
+        self.conflict_label.setTextColor_(NSColor.systemOrangeColor())
+        self.conflict_label.setStringValue_("")
+        self.conflict_label.setHidden_(True)
         view.addSubview_(self.conflict_label)
-        y_pos -= 50
         
-        # Preferences section
-        pref_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
-        pref_section_label.setStringValue_("Preferences")
-        pref_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
-        pref_section_label.setBezeled_(False)
-        pref_section_label.setDrawsBackground_(False)
-        pref_section_label.setEditable_(False)
-        pref_section_label.setTextColor_(NSColor.labelColor())
-        view.addSubview_(pref_section_label)
-        y_pos -= 35
-        
-        # Notifications switch with OS sync
-        os_notifications_enabled = self.settings_manager.get_os_notification_status()
-        notifications_switch = create_modern_switch(
-            NSMakeRect(40, y_pos, 620, 30),
-            "Show notifications",
-            os_notifications_enabled  # Use OS state as source of truth
-        )
-        view.addSubview_(notifications_switch[0])
-        self.notifications_switch = notifications_switch[1]
-        self.notifications_switch.setTarget_(self)
-        self.notifications_switch.setAction_("notificationsSwitchChanged:")
-        y_pos -= 35  # Reduced spacing
-        
-        # Launch at startup switch with OS sync
-        os_startup_enabled = self.settings_manager.get_os_startup_status()
-        startup_switch = create_modern_switch(
-            NSMakeRect(40, y_pos, 620, 30),
-            "Launch at startup",
-            os_startup_enabled  # Use OS state as source of truth
-        )
-        view.addSubview_(startup_switch[0])
-        self.startup_switch = startup_switch[1]
-        self.startup_switch.setTarget_(self)
-        self.startup_switch.setAction_("startupSwitchChanged:")
-        y_pos -= 50
-        
-        # System Permissions section
-        permissions_section_label = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 20))
-        permissions_section_label.setStringValue_("System Permissions")
-        permissions_section_label.setFont_(NSFont.boldSystemFontOfSize_(16))
-        permissions_section_label.setBezeled_(False)
-        permissions_section_label.setDrawsBackground_(False)
-        permissions_section_label.setEditable_(False)
-        permissions_section_label.setTextColor_(NSColor.labelColor())
-        view.addSubview_(permissions_section_label)
-        y_pos -= 35
-        
-        # Permission status
-        permissions_status = self.get_permissions_status()
-        
-        # Accessibility permission - improved layout with simple tick/X
-        accessibility_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 60, 620, 60))
-        
-        # Permission name
-        perm_name_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 35, 250, 20))
-        perm_name_label.setStringValue_("Accessibility (Global Hotkeys)")
-        perm_name_label.setBezeled_(False)
-        perm_name_label.setDrawsBackground_(False)
-        perm_name_label.setEditable_(False)
-        perm_name_label.setFont_(NSFont.systemFontOfSize_(14))
-        accessibility_container.addSubview_(perm_name_label)
-        
-        # Status icon - simple tick/X
-        status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(200, 35, 30, 20))
-        if permissions_status.get('accessibility', False):
-            status_label.setStringValue_("✓")
-            status_label.setTextColor_(NSColor.systemGreenColor())
-        else:
-            status_label.setStringValue_("✗")
-            status_label.setTextColor_(NSColor.systemRedColor())
-        status_label.setBezeled_(False)
-        status_label.setDrawsBackground_(False)
-        status_label.setEditable_(False)
-        status_label.setFont_(NSFont.boldSystemFontOfSize_(18))
-        accessibility_container.addSubview_(status_label)
-        self.accessibility_status = status_label
-        
-        # Button
-        self.accessibility_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 35, 120, 22))
-        if not permissions_status.get('accessibility', False):
-            self.accessibility_btn.setTitle_("Grant Access")
-        else:
-            self.accessibility_btn.setTitle_("Manage")  # Keep enabled for managing permissions
-        self.accessibility_btn.setTarget_(self)
-        self.accessibility_btn.setAction_("openAccessibilitySettings:")
-        self.accessibility_btn.setBezelStyle_(NSBezelStyleRounded)
-        self.accessibility_btn.setFont_(NSFont.systemFontOfSize_(12))
-        accessibility_container.addSubview_(self.accessibility_btn)
-        
-        # Description
-        desc_text = ("Required for detecting hotkey combinations. Potter captures keystrokes to find your hotkey but only processes selected text when you press it." if not permissions_status.get('accessibility', False) 
-                    else "Potter can detect your hotkey combinations and process selected text.")
-        
-        desc_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 620, 30))
-        desc_label.setStringValue_(desc_text)
-        desc_label.setBezeled_(False)
-        desc_label.setDrawsBackground_(False)
-        desc_label.setEditable_(False)
-        desc_label.setFont_(NSFont.systemFontOfSize_(11))
-        desc_label.setTextColor_(NSColor.secondaryLabelColor())
-        desc_label.setLineBreakMode_(NSLineBreakByWordWrapping)
-        cell = desc_label.cell()
-        cell.setWraps_(True)
-        accessibility_container.addSubview_(desc_label)
-        
-        view.addSubview_(accessibility_container)
-        y_pos -= 70
-        
-        # System Events permission - new addition
-        system_events_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 60, 620, 60))
-        
-        # Permission name
-        se_name_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 35, 250, 20))
-        se_name_label.setStringValue_("System Events (Login Items)")
-        se_name_label.setBezeled_(False)
-        se_name_label.setDrawsBackground_(False)
-        se_name_label.setEditable_(False)
-        se_name_label.setFont_(NSFont.systemFontOfSize_(14))
-        system_events_container.addSubview_(se_name_label)
-        
-        # Status icon
-        se_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(200, 35, 30, 20))
-        if permissions_status.get('system_events', False):
-            se_status_label.setStringValue_("✓")
-            se_status_label.setTextColor_(NSColor.systemGreenColor())
-        else:
-            se_status_label.setStringValue_("✗")
-            se_status_label.setTextColor_(NSColor.systemRedColor())
-        se_status_label.setBezeled_(False)
-        se_status_label.setDrawsBackground_(False)
-        se_status_label.setEditable_(False)
-        se_status_label.setFont_(NSFont.boldSystemFontOfSize_(18))
-        system_events_container.addSubview_(se_status_label)
-        self.system_events_status = se_status_label
-        
-        # Button
-        self.system_events_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 35, 120, 22))
-        if not permissions_status.get('system_events', False):
-            self.system_events_btn.setTitle_("Grant Access")
-        else:
-            self.system_events_btn.setTitle_("Manage")  # Keep enabled for managing permissions
-        self.system_events_btn.setTarget_(self)
-        self.system_events_btn.setAction_("openSystemSettings:")
-        self.system_events_btn.setBezelStyle_(NSBezelStyleRounded)
-        self.system_events_btn.setFont_(NSFont.systemFontOfSize_(12))
-        system_events_container.addSubview_(self.system_events_btn)
-        
-        # Description
-        se_desc_text = "Required for managing launch at startup. Potter needs to modify login items to start automatically with macOS."
-        
-        se_desc_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 620, 30))
-        se_desc_label.setStringValue_(se_desc_text)
-        se_desc_label.setBezeled_(False)
-        se_desc_label.setDrawsBackground_(False)
-        se_desc_label.setEditable_(False)
-        se_desc_label.setFont_(NSFont.systemFontOfSize_(11))
-        se_desc_label.setTextColor_(NSColor.secondaryLabelColor())
-        se_desc_label.setLineBreakMode_(NSLineBreakByWordWrapping)
-        cell = se_desc_label.cell()
-        cell.setWraps_(True)
-        system_events_container.addSubview_(se_desc_label)
-        
-        view.addSubview_(system_events_container)
-        y_pos -= 70
-        
-        # Notification permission - improved layout  
-        notification_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos - 60, 620, 60))
-        
-        # Permission name
-        notif_name_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 35, 250, 20))
-        notif_name_label.setStringValue_("Notifications (Optional)")
-        notif_name_label.setBezeled_(False)
-        notif_name_label.setDrawsBackground_(False)
-        notif_name_label.setEditable_(False)
-        notif_name_label.setFont_(NSFont.systemFontOfSize_(14))
-        notification_container.addSubview_(notif_name_label)
-        
-        # Status icon
-        notification_text, notification_color = self.get_notification_status()
-        notif_status_label = NSTextField.alloc().initWithFrame_(NSMakeRect(200, 35, 30, 20))
-        if "✅" in notification_text:
-            notif_status_label.setStringValue_("✓")
-            notif_status_label.setTextColor_(NSColor.systemGreenColor())
-        else:
-            notif_status_label.setStringValue_("✗")
-            notif_status_label.setTextColor_(NSColor.systemRedColor())
-        notif_status_label.setBezeled_(False)
-        notif_status_label.setDrawsBackground_(False)
-        notif_status_label.setEditable_(False)
-        notif_status_label.setFont_(NSFont.boldSystemFontOfSize_(18))
-        notification_container.addSubview_(notif_status_label)
-        self.notification_status = notif_status_label
-        
-        # Button
-        self.notification_btn = NSButton.alloc().initWithFrame_(NSMakeRect(500, 35, 120, 22))
-        if "✗" in notification_text:
-            self.notification_btn.setTitle_("Grant Access")
-        else:
-            self.notification_btn.setTitle_("Manage")  # Keep enabled for managing notifications
-        self.notification_btn.setTarget_(self)
-        self.notification_btn.setAction_("openNotificationSettings:")
-        self.notification_btn.setBezelStyle_(NSBezelStyleRounded)
-        self.notification_btn.setFont_(NSFont.systemFontOfSize_(12))
-        notification_container.addSubview_(self.notification_btn)
-        
-        # Description
-        notif_desc_text = "Optional: Potter sends notifications when text processing is complete. The app works fine without notifications."
-        
-        notif_desc_label = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 620, 30))
-        notif_desc_label.setStringValue_(notif_desc_text)
-        notif_desc_label.setBezeled_(False)
-        notif_desc_label.setDrawsBackground_(False)
-        notif_desc_label.setEditable_(False)
-        notif_desc_label.setFont_(NSFont.systemFontOfSize_(11))
-        notif_desc_label.setTextColor_(NSColor.secondaryLabelColor())
-        notif_desc_label.setLineBreakMode_(NSLineBreakByWordWrapping)
-        cell = notif_desc_label.cell()
-        cell.setWraps_(True)
-        notification_container.addSubview_(notif_desc_label)
-        
-        view.addSubview_(notification_container)
-        y_pos -= 80
-        
-        # Permission actions
-        actions_container = NSView.alloc().initWithFrame_(NSMakeRect(40, y_pos, 620, 30))
-        
-        refresh_btn = NSButton.alloc().initWithFrame_(NSMakeRect(0, 0, 120, 30))
-        refresh_btn.setTitle_("Refresh Status")
-        refresh_btn.setTarget_(self)
-        refresh_btn.setAction_("refreshPermissions:")
-        refresh_btn.setBezelStyle_(NSBezelStyleRounded)
-        refresh_btn.setFont_(NSFont.systemFontOfSize_(13))
-        actions_container.addSubview_(refresh_btn)
-        
-        reset_btn = NSButton.alloc().initWithFrame_(NSMakeRect(130, 0, 140, 30))
-        reset_btn.setTitle_("Reset Permissions")
-        reset_btn.setTarget_(self)
-        reset_btn.setAction_("resetPermissions:")
-        reset_btn.setBezelStyle_(NSBezelStyleRounded)
-        reset_btn.setFont_(NSFont.systemFontOfSize_(13))
-        actions_container.addSubview_(reset_btn)
-        
-        view.addSubview_(actions_container)
-        
-        # Start periodic permission checking
-        self.startPeriodicPermissionCheck()
-        
-        # Set up callbacks
-        self.hotkey_field.reset_callback = self.updateResetButton
-        self.updateResetButton()
-        self.checkConflicts()
-        
-        # Update UI based on current provider
+        # Load current values
         self.updateProviderUI()
+        self.updateResetButton()
         
         return view
     
@@ -1865,7 +1894,7 @@ class SettingsWindow(NSWindowController):
         self.updateModelList()
     
     def updateModelList(self):
-        """Update model dropdown based on current provider"""
+        """Update model dropdown based on current provider with descriptions"""
         current_provider = self.settings_manager.get_current_provider()
         provider_info = self.settings_manager.llm_providers.get(current_provider, {})
         models = provider_info.get("models", [])
@@ -1873,17 +1902,56 @@ class SettingsWindow(NSWindowController):
         # Clear current items
         self.model_popup.removeAllItems()
         
-        # Add models for current provider
+        # Add models for current provider with descriptions
         for model in models:
-            self.model_popup.addItemWithTitle_(model)
+            if isinstance(model, dict):
+                # New format with id, name, and description
+                model_id = model.get("id", "")
+                model_name = model.get("name", model_id)
+                model_description = model.get("description", "")
+                detailed_description = model.get("detailed_description", model_description)
+                
+                # Create display text with name and description
+                display_text = f"{model_name} - {model_description}"
+                self.model_popup.addItemWithTitle_(display_text)
+                
+                # Store the model ID in the represented object for saving
+                item = self.model_popup.itemAtIndex_(self.model_popup.numberOfItems() - 1)
+                item.setRepresentedObject_(model_id)
+                
+                # Set tooltip with detailed description for immediate display
+                try:
+                    item.setToolTip_(detailed_description)
+                except Exception as e:
+                    print(f"Debug - Could not set tooltip: {e}")
+                    
+            else:
+                # Backward compatibility - old string format
+                self.model_popup.addItemWithTitle_(model)
+                item = self.model_popup.itemAtIndex_(self.model_popup.numberOfItems() - 1)
+                item.setRepresentedObject_(model)
         
-        # Select current model
+        # Select current model by matching the stored model ID
         current_model = self.settings_manager.get("model", "")
-        if current_model in models:
-            self.model_popup.selectItemWithTitle_(current_model)
-        elif models:
-            # Select first model if current not available
+        model_selected = False
+        
+        for i in range(self.model_popup.numberOfItems()):
+            item = self.model_popup.itemAtIndex_(i)
+            stored_id = item.representedObject()
+            if stored_id == current_model:
+                self.model_popup.selectItemAtIndex_(i)
+                model_selected = True
+                break
+        
+        # If no match found and we have models, select the first one
+        if not model_selected and self.model_popup.numberOfItems() > 0:
             self.model_popup.selectItemAtIndex_(0)
+            
+        # Enable tooltips on the popup button itself
+        try:
+            self.model_popup.setToolTip_("Hover over dropdown items for detailed model information")
+        except Exception as e:
+            print(f"Debug - Could not set popup tooltip: {e}")
     
     def updateApiValidationDisplay_(self, validation):
         """Update API key validation display"""
@@ -2573,6 +2641,13 @@ class SettingsWindow(NSWindowController):
             self.permission_timer = None
             print("Debug - Stopped periodic permission checking")
         
+        # Unregister from appearance change notifications
+        try:
+            NSNotificationCenter.defaultCenter().removeObserver_(self)
+            print("Debug - Unregistered from appearance change notifications")
+        except Exception as e:
+            print(f"Debug - Error unregistering from notifications: {e}")
+        
         # Make sure this doesn't trigger app termination
         try:
             from AppKit import NSApplication
@@ -3155,7 +3230,9 @@ class SettingsWindow(NSWindowController):
             if hasattr(self, 'model_popup'):
                 selected_model = self.model_popup.selectedItem()
                 if selected_model:
-                    settings["model"] = str(selected_model.title())
+                    # Use the model ID stored in representedObject instead of title
+                    model_id = selected_model.representedObject()
+                    settings["model"] = str(model_id) if model_id else ""
             
             # Hotkey from HotkeyCapture
             if hasattr(self, 'hotkey_field'):
@@ -3222,7 +3299,16 @@ class SettingsWindow(NSWindowController):
                 # Check that we have a valid model
                 model = settings.get("model")
                 provider_models = self.settings_manager.llm_providers[provider].get("models", [])
-                if model not in provider_models:
+                
+                # Extract model IDs for validation (support both old and new format)
+                valid_model_ids = []
+                for provider_model in provider_models:
+                    if isinstance(provider_model, dict):
+                        valid_model_ids.append(provider_model.get("id", ""))
+                    else:
+                        valid_model_ids.append(provider_model)
+                
+                if model not in valid_model_ids:
                     self.show_save_error(f"Invalid model '{model}' for provider {provider}")
                     return
                 
@@ -3375,6 +3461,13 @@ class SettingsWindow(NSWindowController):
             self.permission_timer.invalidate()
             self.permission_timer = None
             print("Debug - Stopped periodic permission checking")
+        
+        # Unregister from appearance change notifications
+        try:
+            NSNotificationCenter.defaultCenter().removeObserver_(self)
+            print("Debug - Unregistered from appearance change notifications")
+        except Exception as e:
+            print(f"Debug - Error unregistering from notifications: {e}")
         
         # Make sure this doesn't trigger app termination
         try:
@@ -3873,7 +3966,9 @@ class SettingsWindow(NSWindowController):
             if hasattr(self, 'model_popup'):
                 selected_model = self.model_popup.selectedItem()
                 if selected_model:
-                    current_settings["model"] = str(selected_model.title())
+                    # Use the model ID stored in representedObject instead of title
+                    model_id = selected_model.representedObject()
+                    current_settings["model"] = str(model_id) if model_id else ""
             
             if hasattr(self, 'notifications_switch'):
                 current_settings["show_notifications"] = bool(self.notifications_switch.state())

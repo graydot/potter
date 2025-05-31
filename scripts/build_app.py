@@ -565,11 +565,109 @@ def build_app(target='github', skip_tests=False):
     return True
 
 def create_app_icon():
-    """Create a professional app icon with clean clipboard and AI sparkle"""
-    print("🎨 Creating app icon...")
+    """Create app icon using logo.png from assets folder"""
+    print("🎨 Creating app icon from logo.png...")
     
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image
+        
+        # Try to find logo files in assets folder
+        logo_paths = [
+            'assets/light.png',    # Prioritize light mode logo for app icon
+            'assets/logo.png',     # Fallback to regular logo
+            'assets/dark.png',     # Last resort: dark mode logo
+            os.path.join('..', 'assets', 'light.png'),
+            os.path.join('..', 'assets', 'logo.png'),
+            os.path.join('..', 'assets', 'dark.png'),
+            os.path.join(os.path.dirname(__file__), '..', 'assets', 'light.png'),
+            os.path.join(os.path.dirname(__file__), '..', 'assets', 'logo.png'),
+            os.path.join(os.path.dirname(__file__), '..', 'assets', 'dark.png')
+        ]
+        
+        logo_image = None
+        logo_source = None
+        for logo_path in logo_paths:
+            if os.path.exists(logo_path):
+                print(f"📁 Found logo at: {logo_path}")
+                logo_image = Image.open(logo_path)
+                logo_source = logo_path
+                break
+        
+        if not logo_image:
+            print("⚠️  Logo not found, creating custom app icon")
+            # Create fallback custom icon
+            logo_image = Image.new('RGBA', (1024, 1024), (70, 130, 180, 255))  # Steel blue background
+            
+            # Add simple app icon elements here if needed
+            print("✅ Created custom fallback app icon")
+        else:
+            print(f"✅ Using logo from: {logo_source}")
+            # Ensure image is in RGBA mode for proper transparency handling
+            if logo_image.mode != 'RGBA':
+                logo_image = logo_image.convert('RGBA')
+        
+        # Generate all required icon sizes for macOS app bundle
+        icon_sizes = [16, 32, 64, 128, 256, 512, 1024]
+        icon_dir = 'dist/icon_temp'
+        os.makedirs(icon_dir, exist_ok=True)
+        
+        print(f"📏 Generating icon sizes: {icon_sizes}")
+        
+        # Generate each size
+        for size in icon_sizes:
+            resized = logo_image.resize((size, size), Image.Resampling.LANCZOS)
+            icon_path = os.path.join(icon_dir, f'icon_{size}x{size}.png')
+            resized.save(icon_path, 'PNG')
+            print(f"  ✓ Created {size}x{size} icon")
+        
+        # Create .icns file using iconutil (macOS built-in tool)
+        iconset_dir = os.path.join(icon_dir, 'icon.iconset')
+        os.makedirs(iconset_dir, exist_ok=True)
+        
+        # Copy files with correct naming for iconset
+        iconset_mapping = {
+            16: ['icon_16x16.png'],
+            32: ['icon_16x16@2x.png', 'icon_32x32.png'],
+            64: ['icon_32x32@2x.png'],
+            128: ['icon_64x64@2x.png', 'icon_128x128.png'],
+            256: ['icon_128x128@2x.png', 'icon_256x256.png'],
+            512: ['icon_256x256@2x.png', 'icon_512x512.png'],
+            1024: ['icon_512x512@2x.png']
+        }
+        
+        for size, names in iconset_mapping.items():
+            src_path = os.path.join(icon_dir, f'icon_{size}x{size}.png')
+            for name in names:
+                dst_path = os.path.join(iconset_dir, name)
+                import shutil
+                shutil.copy2(src_path, dst_path)
+        
+        # Use iconutil to create .icns file
+        icns_path = 'dist/icon.icns'
+        result = subprocess.run([
+            'iconutil', '-c', 'icns', iconset_dir, '-o', icns_path
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"✅ Created .icns file: {icns_path}")
+            
+            # Clean up temporary files
+            shutil.rmtree(icon_dir)
+            return icns_path
+        else:
+            print(f"❌ iconutil failed: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error creating app icon: {e}")
+        return None
+
+def create_fallback_icon():
+    """Create a fallback custom icon if logo.png is not available"""
+    print("🎨 Creating fallback custom icon...")
+    
+    try:
+        from PIL import Image, ImageDraw
         
         # Create a high-resolution icon
         size = 512
@@ -674,7 +772,7 @@ def create_app_icon():
             # Convert to .icns
             try:
                 subprocess.run(['iconutil', '-c', 'icns', 'app_icon.iconset'], check=True)
-                print("✅ Clean AI app icon created successfully")
+                print("✅ Fallback custom icon created successfully")
                 
                 # Clean up
                 shutil.rmtree('app_icon.iconset')
@@ -693,7 +791,7 @@ def create_app_icon():
         return True
     
     except Exception as e:
-        print(f"⚠️  Could not create icon: {e}")
+        print(f"⚠️  Could not create fallback icon: {e}")
         # Create empty icon file
         with open('app_icon.icns', 'w') as f:
             f.write('')

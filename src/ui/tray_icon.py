@@ -5,10 +5,12 @@ Handles system tray icon creation and menu management
 """
 
 import sys
+import os
 import logging
 from typing import Callable, Dict, Optional
 import pystray
 from PIL import Image, ImageDraw
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +38,155 @@ class TrayIconManager:
         self.on_notifications_toggle = on_notifications_toggle
         self.on_process_click = on_process_click
         self.on_quit = on_quit
+        
+        # Load logo once and cache it
+        self._logo_image = None
+        self._load_logo()
+    
+    def _detect_system_appearance(self):
+        """Detect if macOS is in dark mode or light mode"""
+        try:
+            # Try to import AppKit for appearance detection
+            from AppKit import NSAppearance, NSApplication
+            
+            # Get the current effective appearance
+            app = NSApplication.sharedApplication()
+            if app and hasattr(app, 'effectiveAppearance'):
+                appearance = app.effectiveAppearance()
+                if appearance and hasattr(appearance, 'name'):
+                    appearance_name = str(appearance.name())
+                    is_dark = 'dark' in appearance_name.lower()
+                    print(f"Debug - Detected appearance: {appearance_name}, is_dark: {is_dark}")
+                    return 'dark' if is_dark else 'light'
+            
+            # Fallback: Use defaults command to check system appearance
+            result = subprocess.run([
+                'defaults', 'read', '-g', 'AppleInterfaceStyle'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0 and 'Dark' in result.stdout:
+                print("Debug - System appearance: Dark (via defaults)")
+                return 'dark'
+            else:
+                print("Debug - System appearance: Light (via defaults)")
+                return 'light'
+                
+        except Exception as e:
+            print(f"Debug - Could not detect system appearance: {e}, defaulting to light")
+            return 'light'
+    
+    def _load_logo(self):
+        """Load and cache the logo image with light/dark mode support"""
+        try:
+            # Detect current system appearance
+            current_appearance = self._detect_system_appearance()
+            
+            # Try to find logo files in assets folder
+            base_paths = [
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets'),
+                'assets',
+                '.'
+            ]
+            
+            logo_light_path = None
+            logo_dark_path = None
+            fallback_logo_path = None
+            
+            # Look for light/dark specific logos and fallback using correct filenames
+            for base_path in base_paths:
+                light_path = os.path.join(base_path, 'light.png')  # Updated filename
+                dark_path = os.path.join(base_path, 'dark.png')    # Updated filename
+                fallback_path = os.path.join(base_path, 'logo.png')
+                
+                if os.path.exists(light_path) and not logo_light_path:
+                    logo_light_path = light_path
+                if os.path.exists(dark_path) and not logo_dark_path:
+                    logo_dark_path = dark_path
+                if os.path.exists(fallback_path) and not fallback_logo_path:
+                    fallback_logo_path = fallback_path
+            
+            # Choose the appropriate logo based on system appearance
+            if current_appearance == 'dark' and logo_dark_path:
+                chosen_logo_path = logo_dark_path
+                print(f"Debug - Using dark mode logo: {chosen_logo_path}")
+            elif current_appearance == 'light' and logo_light_path:
+                chosen_logo_path = logo_light_path
+                print(f"Debug - Using light mode logo: {chosen_logo_path}")
+            elif fallback_logo_path:
+                chosen_logo_path = fallback_logo_path
+                print(f"Debug - Using fallback logo: {chosen_logo_path}")
+            else:
+                chosen_logo_path = None
+                print("Debug - No logo files found")
+            
+            # Load the chosen logo
+            if chosen_logo_path:
+                self._logo_image = Image.open(chosen_logo_path)
+                # Convert to RGBA if needed
+                if self._logo_image.mode != 'RGBA':
+                    self._logo_image = self._logo_image.convert('RGBA')
+                print(f"Debug - Logo loaded successfully: {self._logo_image.size}")
+                return
+            
+            print("Debug - No logo files found, will use fallback custom icon")
+            self._logo_image = None
+            
+        except Exception as e:
+            print(f"Debug - Error loading logo: {e}")
+            self._logo_image = None
+    
+    def _create_appearance_aware_image(self, light_path, dark_path):
+        """Create an NSImage that automatically switches between light and dark variants"""
+        try:
+            # Import required NSImage constants
+            from AppKit import NSImage, NSImageNameLockLockedTemplate
+            
+            # Load both images with PIL first to get the data
+            light_image = Image.open(light_path)
+            dark_image = Image.open(dark_path)
+            
+            # Convert to RGBA if needed
+            if light_image.mode != 'RGBA':
+                light_image = light_image.convert('RGBA')
+            if dark_image.mode != 'RGBA':
+                dark_image = dark_image.convert('RGBA')
+            
+            # For tray icons, we'll return the light version as PIL Image
+            # and handle the appearance switching at the NSImage level later
+            # For now, return the light version and we'll enhance this in the NSImage creation
+            return light_image
+            
+        except Exception as e:
+            print(f"Debug - Error creating appearance-aware image: {e}")
+            # Fall back to light image only
+            try:
+                return Image.open(light_path).convert('RGBA')
+            except:
+                return None
+    
+    def _resize_logo_for_tray(self, target_size=128):
+        """Resize logo for tray icon use"""
+        if not self._logo_image:
+            return None
+        
+        try:
+            # Resize logo to fit in target size while maintaining aspect ratio
+            resized = self._logo_image.resize((target_size, target_size), Image.Resampling.LANCZOS)
+            return resized
+        except Exception as e:
+            print(f"Debug - Error resizing logo: {e}")
+            return None
     
     def create_normal_icon(self) -> Image.Image:
-        """Create the normal icon with clipboard and magic wand"""
+        """Create the normal icon using logo.png"""
+        # Try to use logo first
+        logo = self._resize_logo_for_tray(128)
+        if logo:
+            self.current_icon_image = logo
+            return logo
+        
+        # Fallback to custom icon if logo not available
+        print("Debug - Using fallback custom icon for normal state")
         # Make icon bigger for better visibility
         image = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
@@ -144,7 +292,48 @@ class TrayIconManager:
         return image
     
     def create_error_icon(self) -> Image.Image:
-        """Create an error icon with red exclamation mark"""
+        """Create an error icon using logo.png with black background"""
+        # Try to use logo first
+        logo = self._resize_logo_for_tray(128)
+        if logo:
+            # Create a new image with black background
+            error_image = Image.new('RGBA', (128, 128), (0, 0, 0, 255))  # Black background
+            
+            # Paste the logo on the black background
+            error_image.paste(logo, (0, 0), logo)  # Use logo as alpha mask
+            
+            # Add a subtle red overlay to indicate error
+            overlay = Image.new('RGBA', (128, 128), (255, 0, 0, 60))  # Semi-transparent red
+            error_image = Image.alpha_composite(error_image, overlay)
+            
+            # Add small red exclamation mark in corner
+            draw = ImageDraw.Draw(error_image)
+            
+            # Small red exclamation mark in top-right corner
+            excl_x, excl_y = 100, 15
+            excl_width = 6
+            excl_height = 20
+            
+            # Exclamation mark body (bright red)
+            draw.rectangle([excl_x, excl_y, excl_x + excl_width, excl_y + excl_height - 8], 
+                          fill='#FF0000')
+            
+            # Exclamation mark dot
+            dot_y = excl_y + excl_height - 6
+            draw.rectangle([excl_x, dot_y, excl_x + excl_width, dot_y + 6], 
+                          fill='#FF0000')
+            
+            # White border for visibility
+            draw.rectangle([excl_x-1, excl_y-1, excl_x + excl_width+1, excl_y + excl_height - 8+1], 
+                          outline='white', width=1)
+            draw.rectangle([excl_x-1, dot_y-1, excl_x + excl_width+1, dot_y + 6+1], 
+                          outline='white', width=1)
+            
+            self.current_icon_image = error_image
+            return error_image
+        
+        # Fallback to custom error icon if logo not available
+        print("Debug - Using fallback custom icon for error state")
         # Make icon bigger for better visibility
         image = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
@@ -524,6 +713,9 @@ class TrayIconManager:
     def update_icon(self):
         """Update the tray icon based on current state"""
         if self.tray_icon:
+            # Check for appearance changes before updating
+            self.refresh_logo_for_appearance()
+            
             # Create the appropriate icon based on state priority: error > processing > normal
             if self.has_error:
                 logger.debug("🚨 Setting error icon for error state")
@@ -607,4 +799,22 @@ class TrayIconManager:
     def _handle_quit(self, *args):
         """Handle quit menu item"""
         if self.on_quit:
-            self.on_quit() 
+            self.on_quit()
+    
+    def refresh_logo_for_appearance(self):
+        """Refresh the logo based on current system appearance - called when appearance changes"""
+        print("Debug - Refreshing tray icon for appearance change")
+        try:
+            # Reload the logo with current appearance
+            self._load_logo()
+            
+            # Update the icon immediately
+            self.update_icon()
+            
+            print("Debug - Tray icon refreshed for appearance change")
+        except Exception as e:
+            print(f"Debug - Error refreshing tray icon for appearance change: {e}")
+    
+    def update_icon_for_appearance(self):
+        """Update icon for appearance changes - compatibility method"""
+        self.refresh_logo_for_appearance() 

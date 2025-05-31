@@ -38,19 +38,204 @@ class SettingsManager:
         self.llm_providers = {
             "openai": {
                 "name": "OpenAI", 
-                "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"],
+                "models": [
+                    {
+                        "id": "o1-pro",
+                        "name": "o1-pro",
+                        "description": "Advanced reasoning",
+                        "detailed_description": ("🧠 Advanced reasoning powerhouse - Best for complex "
+                                               "logic, scientific research, and multi-step problem "
+                                               "solving. Thinks deeply before responding.")
+                    },
+                    {
+                        "id": "o1",
+                        "name": "o1", 
+                        "description": "Strong reasoning",
+                        "detailed_description": ("🎯 Strong reasoning model - Excellent for math, "
+                                               "coding challenges, and analytical tasks requiring "
+                                               "step-by-step thinking.")
+                    },
+                    {
+                        "id": "o1-preview",
+                        "name": "o1-preview",
+                        "description": "Fast reasoning",
+                        "detailed_description": ("⚡ Fast reasoning preview - Good balance of speed "
+                                               "and reasoning capability for everyday complex tasks.")
+                    },
+                    {
+                        "id": "o1-mini",
+                        "name": "o1-mini",
+                        "description": "Quick & affordable",
+                        "detailed_description": ("💨 Quick reasoning model - Cost-effective option for "
+                                               "mathematical problems and coding with basic "
+                                               "reasoning needs.")
+                    },
+                    {
+                        "id": "gpt-4o",
+                        "name": "gpt-4o",
+                        "description": "Multimodal champion",
+                        "detailed_description": ("🖼️ Multimodal champion - Excellent for text, images, "
+                                               "and vision tasks. Great all-around model for varied "
+                                               "content types.")
+                    },
+                    {
+                        "id": "gpt-4o-mini",
+                        "name": "gpt-4o-mini", 
+                        "description": "Fast & affordable",
+                        "detailed_description": ("⚡ Fast & affordable - Quick responses for everyday "
+                                               "tasks, good balance of speed, cost, and capability.")
+                    },
+                    {
+                        "id": "gpt-4-turbo",
+                        "name": "gpt-4-turbo",
+                        "description": "High performance",
+                        "detailed_description": ("🚀 High-performance model - Strong reasoning and "
+                                               "coding capabilities with faster response times "
+                                               "than GPT-4.")
+                    },
+                    {
+                        "id": "gpt-4",
+                        "name": "gpt-4",
+                        "description": "Reliable workhorse",
+                        "detailed_description": ("📚 Reliable workhorse - Solid performance across "
+                                               "all tasks, established model with consistent "
+                                               "quality.")
+                    },
+                    {
+                        "id": "gpt-3.5-turbo",
+                        "name": "gpt-3.5-turbo",
+                        "description": "Budget friendly",
+                        "detailed_description": ("💰 Budget-friendly option - Good for simple tasks, "
+                                               "quick responses, and high-volume usage where "
+                                               "cost matters.")
+                    }
+                ],
                 "api_key_prefix": "sk-",
                 "help_url": "https://platform.openai.com/api-keys"
             },
             "anthropic": {
                 "name": "Anthropic",
-                "models": ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
+                "models": [
+                    {
+                        "id": "claude-opus-4-20250514",
+                        "name": "Claude Opus 4",
+                        "description": "Best coding model",
+                        "detailed_description": ("👑 World's best coding model - Unmatched for "
+                                               "complex programming, AI agents, long-running tasks. "
+                                               "Can work autonomously for hours.")
+                    },
+                    {
+                        "id": "claude-sonnet-4-20250514", 
+                        "name": "Claude Sonnet 4",
+                        "description": "Perfect balance",
+                        "detailed_description": ("⚖️ Perfect balance - Superior coding and reasoning "
+                                               "at 3x faster speed than Opus. Best value for "
+                                               "production workloads.")
+                    },
+                    {
+                        "id": "claude-3-7-sonnet-20250219",
+                        "name": "Claude 3.7 Sonnet",
+                        "description": "Extended thinking",
+                        "detailed_description": ("🔄 Extended thinking capable - Good reasoning with "
+                                               "optional deep thinking mode for complex analysis.")
+                    },
+                    {
+                        "id": "claude-3-5-sonnet-20241022",
+                        "name": "Claude 3.5 Sonnet",
+                        "description": "Excellent writer",
+                        "detailed_description": ("📝 Excellent writer - Strong at creative writing, "
+                                               "content creation, and nuanced communication tasks.")
+                    },
+                    {
+                        "id": "claude-3-5-haiku-20241022",
+                        "name": "Claude 3.5 Haiku",
+                        "description": "Lightning fast",
+                        "detailed_description": ("⚡ Lightning fast - Quick responses for simple tasks, "
+                                               "great for real-time applications and chat "
+                                               "interfaces.")
+                    },
+                    {
+                        "id": "claude-3-opus-20240229",
+                        "name": "Claude 3 Opus",
+                        "description": "Strong analytics",
+                        "detailed_description": ("🎓 Previous flagship - Strong analytical capabilities, "
+                                               "good for research and complex reasoning tasks.")
+                    },
+                    {
+                        "id": "claude-3-sonnet-20240229",
+                        "name": "Claude 3 Sonnet", 
+                        "description": "Balanced performer",
+                        "detailed_description": ("📊 Balanced performer - Good all-around capabilities "
+                                               "for general text processing and analysis.")
+                    },
+                    {
+                        "id": "claude-3-haiku-20240307",
+                        "name": "Claude 3 Haiku",
+                        "description": "Speed focused",
+                        "detailed_description": ("💨 Speed focused - Fast and efficient for basic "
+                                               "text processing and simple question-answering.")
+                    }
+                ],
                 "api_key_prefix": "sk-ant-",
                 "help_url": "https://console.anthropic.com/settings/keys"
             },
             "gemini": {
                 "name": "Google Gemini",
-                "models": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
+                "models": [
+                    {
+                        "id": "gemini-2.5-pro-preview-05-06",
+                        "name": "Gemini 2.5 Pro",
+                        "description": "Google's flagship",
+                        "detailed_description": ("🏆 Google's flagship - Leading multimodal reasoning, "
+                                               "excellent for complex web apps, huge 1M+ token "
+                                               "context window.")
+                    },
+                    {
+                        "id": "gemini-2.5-flash-preview-05-20",
+                        "name": "Gemini 2.5 Flash",
+                        "description": "Hybrid reasoning",
+                        "detailed_description": ("⚡ Hybrid reasoning - Controllable thinking "
+                                               "capabilities, fast performance with optional deep "
+                                               "reasoning mode.")
+                    },
+                    {
+                        "id": "gemini-2.0-flash",
+                        "name": "Gemini 2.0 Flash",
+                        "description": "Well rounded",
+                        "detailed_description": ("🌟 Well-rounded model - Good balance of speed and "
+                                               "capability for everyday tasks with multimodal "
+                                               "support.")
+                    },
+                    {
+                        "id": "gemini-2.0-flash-lite",
+                        "name": "Gemini 2.0 Flash Lite",
+                        "description": "Lightweight option",
+                        "detailed_description": ("💨 Lightweight option - Fast and cost-effective for "
+                                               "simple text processing and quick responses.")
+                    },
+                    {
+                        "id": "gemini-1.5-pro",
+                        "name": "Gemini 1.5 Pro",
+                        "description": "Long context",
+                        "detailed_description": ("📊 Long context specialist - Massive 2M token "
+                                               "window for processing large documents and "
+                                               "datasets.")
+                    },
+                    {
+                        "id": "gemini-1.5-flash",
+                        "name": "Gemini 1.5 Flash", 
+                        "description": "Speed & efficiency",
+                        "detailed_description": ("⚡ Speed and efficiency - Quick responses with good "
+                                               "capability, ideal for high-throughput applications.")
+                    },
+                    {
+                        "id": "gemini-1.5-flash-8b",
+                        "name": "Gemini 1.5 Flash 8B",
+                        "description": "Most affordable",
+                        "detailed_description": ("💰 Most affordable - Budget-friendly option for "
+                                               "basic text tasks and simple processing needs.")
+                    }
+                ],
                 "api_key_prefix": "AIza",
                 "help_url": "https://makersuite.google.com/app/apikey"
             }
@@ -60,23 +245,38 @@ class SettingsManager:
             "prompts": [
                 {
                     "name": "summarize", 
-                    "text": "Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way."
+                    "text": ("Please provide a concise summary of the following text. "
+                             "Focus on the key points and main ideas. Keep it brief but "
+                             "comprehensive, capturing the essential information in a clear "
+                             "and organized way.")
                 },
                 {
                     "name": "formal",
-                    "text": "Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication."
+                    "text": ("Please rewrite the following text in a formal, professional tone. "
+                             "Use proper business language and structure. Ensure the tone is "
+                             "respectful, authoritative, and appropriate for professional "
+                             "communication.")
                 },
                 {
                     "name": "casual",
-                    "text": "Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact."
+                    "text": ("Please rewrite the following text in a casual, relaxed tone. "
+                             "Make it sound conversational and approachable. Use everyday "
+                             "language while maintaining clarity and keeping the core message "
+                             "intact.")
                 },
                 {
                     "name": "friendly",
-                    "text": "Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging."
+                    "text": ("Please rewrite the following text in a warm, friendly tone. "
+                             "Make it sound welcoming and personable. Add warmth and "
+                             "approachability while keeping the message clear and engaging.")
                 },
                 {
                     "name": "polish",
-                    "text": "Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness."
+                    "text": ("Please polish the following text by fixing any grammatical "
+                             "issues, typos, or awkward phrasing. Make it sound natural and "
+                             "human while keeping it direct and clear. Double-check that the "
+                             "tone is appropriate and not offensive, but maintain the "
+                             "original intent and directness.")
                 }
             ],
             "hotkey": "cmd+shift+a",
