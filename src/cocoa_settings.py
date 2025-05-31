@@ -425,8 +425,11 @@ class PromptDialog(NSWindowController):
         # Set custom icon for the dialog window
         try:
             # Get the parent settings window controller to access the icon setting method
+            # For prompt dialogs (which are windows, not alerts), we need different handling
             if hasattr(self, 'parent_window_controller'):
-                self.parent_window_controller._set_dialog_icon(window)
+                # This is a window dialog, not an NSAlert, so we skip icon setting for now
+                # TODO: Implement window icon setting if needed
+                pass
         except Exception as e:
             print(f"Debug - Could not set prompt dialog icon: {e}")
         
@@ -1159,8 +1162,8 @@ class SettingsWindow(NSWindowController):
         except Exception as e:
             print(f"Debug - Error setting window icon: {e}")
     
-    def _set_dialog_icon(self, window):
-        """Set dialog icon based on current theme"""
+    def _set_dialog_icon(self, alert_object):
+        """Set dialog icon based on current theme for NSAlert objects"""
         try:
             import os
             current_appearance = self._get_current_appearance()
@@ -1188,27 +1191,13 @@ class SettingsWindow(NSWindowController):
                 if logo_image:
                     # Resize to appropriate dialog icon size
                     logo_image.setSize_(NSMakeSize(64, 64))
-                    window.setRepresentedURL_(None)  # Clear any URL association
-                    # Set as window icon - will appear in title bar and dock
-                    try:
-                        if hasattr(window, 'setTitlebarAppearsTransparent_'):
-                            # Modern approach for newer macOS
-                            window.setTitlebarAppearsTransparent_(False)
-                        
-                        # Set the window's icon in the dock and title bar
-                        app = NSApplication.sharedApplication()
-                        if hasattr(app, 'setApplicationIconImage_'):
-                            # This affects the dock icon temporarily for this window
-                            current_icon = app.applicationIconImage()
-                            app.setApplicationIconImage_(logo_image)
-                            
-                            # Store reference to restore later if needed
-                            if not hasattr(self, '_original_app_icon'):
-                                self._original_app_icon = current_icon
-                        
+                    
+                    # Set the icon directly on the NSAlert object
+                    if hasattr(alert_object, 'setIcon_'):
+                        alert_object.setIcon_(logo_image)
                         print(f"Debug - Dialog icon set using {logo_filename}")
-                    except Exception as e:
-                        print(f"Debug - Error setting dialog window icon: {e}")
+                    else:
+                        print(f"Debug - Alert object does not have setIcon_ method")
                 else:
                     print(f"Debug - Could not load logo image from {logo_path}")
             else:
@@ -2723,7 +2712,7 @@ class SettingsWindow(NSWindowController):
             
             # Set custom icon based on theme
             try:
-                self._set_dialog_icon(alert.window())
+                self._set_dialog_icon(alert)
             except Exception as e:
                 print(f"Debug - Could not set clear logs dialog icon: {e}")
             
@@ -3133,6 +3122,12 @@ class SettingsWindow(NSWindowController):
             alert.addButtonWithTitle_("Reset Permissions")
             alert.addButtonWithTitle_("Cancel")
             
+            # Set custom icon based on theme
+            try:
+                self._set_dialog_icon(alert)
+            except Exception as e:
+                print(f"Debug - Could not set reset permissions dialog icon: {e}")
+            
             response = alert.runModal()
             if response != NSAlertFirstButtonReturn:  # User clicked Cancel
                 return
@@ -3154,6 +3149,12 @@ class SettingsWindow(NSWindowController):
                     success_alert.setAlertStyle_(NSAlertStyleInformational)
                     success_alert.addButtonWithTitle_("Restart Potter")
                     success_alert.addButtonWithTitle_("Later")
+                    
+                    # Set custom icon based on theme
+                    try:
+                        self._set_dialog_icon(success_alert)
+                    except Exception as e:
+                        print(f"Debug - Could not set success dialog icon: {e}")
                     
                     restart_response = success_alert.runModal()
                     if restart_response == NSAlertFirstButtonReturn:  # Restart
@@ -3721,6 +3722,13 @@ class SettingsWindow(NSWindowController):
             alert.setMessageText_("No Selection")
             alert.setInformativeText_("Please select a prompt to remove.")
             alert.setAlertStyle_(NSAlertStyleInformational)
+            
+            # Set custom icon based on theme
+            try:
+                self._set_dialog_icon(alert)
+            except Exception as e:
+                print(f"Debug - Could not set no selection dialog icon: {e}")
+            
             alert.runModal()
             return
         
@@ -3735,6 +3743,12 @@ class SettingsWindow(NSWindowController):
         alert.setAlertStyle_(NSAlertStyleWarning)
         alert.addButtonWithTitle_("Delete")
         alert.addButtonWithTitle_("Cancel")
+        
+        # Set custom icon based on theme
+        try:
+            self._set_dialog_icon(alert)
+        except Exception as e:
+            print(f"Debug - Could not set delete prompt dialog icon: {e}")
         
         response = alert.runModal()
         if response == NSAlertFirstButtonReturn:  # Delete
@@ -3764,6 +3778,13 @@ class SettingsWindow(NSWindowController):
             alert.setMessageText_("No Selection")
             alert.setInformativeText_("Please select a prompt to edit.")
             alert.setAlertStyle_(NSAlertStyleInformational)
+            
+            # Set custom icon based on theme
+            try:
+                self._set_dialog_icon(alert)
+            except Exception as e:
+                print(f"Debug - Could not set no selection dialog icon: {e}")
+            
             alert.runModal()
             return
         
@@ -3972,6 +3993,12 @@ class SettingsWindow(NSWindowController):
             alert.addButtonWithTitle_("Reset Permissions")
             alert.addButtonWithTitle_("Cancel")
             
+            # Set custom icon based on theme
+            try:
+                self._set_dialog_icon(alert)
+            except Exception as e:
+                print(f"Debug - Could not set reset permissions dialog icon: {e}")
+            
             response = alert.runModal()
             if response != NSAlertFirstButtonReturn:  # User clicked Cancel
                 return
@@ -3993,6 +4020,12 @@ class SettingsWindow(NSWindowController):
                     success_alert.setAlertStyle_(NSAlertStyleInformational)
                     success_alert.addButtonWithTitle_("Restart Potter")
                     success_alert.addButtonWithTitle_("Later")
+                    
+                    # Set custom icon based on theme
+                    try:
+                        self._set_dialog_icon(success_alert)
+                    except Exception as e:
+                        print(f"Debug - Could not set success dialog icon: {e}")
                     
                     restart_response = success_alert.runModal()
                     if restart_response == NSAlertFirstButtonReturn:  # Restart
