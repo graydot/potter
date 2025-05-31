@@ -68,8 +68,10 @@ class PotterService:
             # Get settings from manager or use defaults
             if self.settings_manager:
                 settings = self.settings_manager.settings
+                logger.info(f"📋 Loaded settings from manager: provider={settings.get('llm_provider', 'N/A')}")
             else:
                 settings = self._get_default_settings()
+                logger.warning("⚠️ Using default settings (no settings manager)")
             
             # Configure LLM provider
             provider = settings.get("llm_provider", "openai")
@@ -78,13 +80,30 @@ class PotterService:
             # Get API key based on provider
             api_key_field = f"{provider}_api_key"
             api_key = settings.get(api_key_field, "").strip()
+            logger.info(f"🔑 Loading {provider} API key from field '{api_key_field}'")
+            
             if not api_key:
                 api_key = get_api_key_from_env(provider)
+                if api_key:
+                    logger.info(f"🔑 Found {provider} API key in environment")
+                else:
+                    logger.warning(f"⚠️ No {provider} API key found in settings or environment")
+            else:
+                # Mask the key for logging
+                masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
+                logger.info(f"🔑 Found {provider} API key in settings: {masked_key}")
             
             if api_key and validate_api_key_format(api_key, provider):
-                self.llm_manager.setup_provider(provider, api_key, model)
+                logger.info(f"✅ {provider} API key format is valid, setting up provider...")
+                success = self.llm_manager.setup_provider(provider, api_key, model)
+                if success:
+                    logger.info(f"✅ {provider} provider initialized successfully")
+                else:
+                    logger.error(f"❌ Failed to initialize {provider} provider despite valid key")
             else:
-                logger.warning(f"No valid {provider} API key found")
+                if api_key:
+                    logger.error(f"❌ {provider} API key format is invalid")
+                logger.warning(f"⚠️ {provider} API key not configured - text processing will fail")
             
             # Configure hotkey
             hotkey_str = settings.get("hotkey", "cmd+shift+a")

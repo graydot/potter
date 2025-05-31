@@ -345,7 +345,18 @@ class SettingsManager:
     def get_current_api_key(self) -> str:
         """Get the API key for the current provider"""
         provider = self.get_current_provider()
-        return self.get(f"{provider}_api_key", "")
+        api_key_field = f"{provider}_api_key"
+        api_key = self.get(api_key_field, "")
+        
+        # Debug logging for troubleshooting
+        if api_key:
+            masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
+            print(f"Debug - get_current_api_key: Found {provider} API key in settings: {masked_key}")
+        else:
+            print(f"Debug - get_current_api_key: No {provider} API key found in field '{api_key_field}'")
+            print(f"Debug - Available settings keys: {list(self.settings.keys())}")
+        
+        return api_key
     
     def set_api_key_validation(self, provider: str, valid: bool, error: str = None):
         """Set API key validation state for a provider"""

@@ -508,13 +508,17 @@ def validate_api_key_format(api_key: str, provider: str = 'openai') -> bool:
     if not api_key:
         return False
     
+    # Strip whitespace for validation
+    api_key = api_key.strip()
+    
     # Provider-specific validation
     if provider == 'openai':
-        return api_key.startswith('sk-') and len(api_key) > 20
+        return api_key.startswith('sk-') and len(api_key) >= 50  # OpenAI keys are typically 51 chars
     elif provider == 'anthropic':
-        return api_key.startswith('sk-ant-') and len(api_key) > 20
-    elif provider == 'google':
-        return len(api_key) > 20  # Google API keys vary in format
+        return api_key.startswith('sk-ant-') and len(api_key) >= 100  # Anthropic keys are ~108 chars
+    elif provider in ['google', 'gemini']:
+        # Google API keys must start with AIza and be at least 35 chars
+        return api_key.startswith('AIza') and len(api_key) >= 35
     
     logger.warning(f"Unknown provider for API key validation: {provider}")
     return len(api_key) > 10  # Basic length check

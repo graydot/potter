@@ -155,11 +155,11 @@ class TextProcessor:
         try:
             # Check if LLM client is available first
             if not self.llm_manager.is_available():
-                provider = self.llm_manager.get_current_provider() or "LLM"
+                provider = self.llm_manager.get_current_provider() or "OpenAI"
                 error_msg = f"{provider.title()} API key not configured. Please check Settings."
                 logger.error(f"❌ {error_msg}")
                 show_notification("Configuration Error", error_msg, is_error=True)
-                report_error("API key not configured")
+                report_error(f"{provider.title()} API key not configured")
                 return False
             
             # Get text from clipboard
@@ -182,8 +182,14 @@ class TextProcessor:
                     error_msg = f"Text too large ({estimated_tokens:,} tokens estimated). Try smaller text or use GPT-4 Turbo."
                     short_error = "Text too large for model"
                 else:
-                    error_msg = "Failed to process text with AI"
-                    short_error = "LLM processing failed"
+                    # Get more specific error from LLM manager
+                    provider = self.llm_manager.get_current_provider() or "LLM"
+                    if not self.llm_manager.is_available():
+                        error_msg = f"{provider.title()} client not properly initialized"
+                        short_error = f"{provider.title()} client error"
+                    else:
+                        error_msg = f"Failed to process text with {provider.title()} API"
+                        short_error = f"{provider.title()} API error"
                 
                 logger.error(f"❌ {error_msg}")
                 show_notification("AI Processing Failed", error_msg, is_error=True)
