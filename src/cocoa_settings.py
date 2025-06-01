@@ -1823,34 +1823,18 @@ class SettingsWindow(NSWindowController):
                 self._update_api_validation_display("", None)
                 return
             
-            # Use the proper validation function
-            from utils.llm_client import validate_api_key_format
+            # Use the LLM client's validation instead of inline logic
+            from utils.llm_client import LLMClientManager
+            llm_manager = LLMClientManager()
             
-            # Get provider info for error messages
-            provider_info = self.settings_manager.llm_providers.get(current_provider, {})
-            expected_prefix = provider_info.get("api_key_prefix", "")
-            
-            # Check if the format is valid using proper validation
-            is_valid = validate_api_key_format(api_key, current_provider)
+            is_valid, error_msg = llm_manager.validate_api_key(current_provider, api_key)
             
             if is_valid:
                 self._update_api_validation_display("✓ Format looks valid - click 'Verify & Save' to test", None)
                 self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
                 self.api_key_field.setTextColor_(NSColor.labelColor())
             else:
-                # Provide specific error messages
-                if expected_prefix and not api_key.startswith(expected_prefix):
-                    error_msg = f"⚠️ {current_provider.title()} API keys should start with '{expected_prefix}'"
-                elif current_provider == "openai" and len(api_key) < 50:
-                    error_msg = f"⚠️ OpenAI keys need ≥50 characters (currently {len(api_key)})"
-                elif current_provider == "anthropic" and len(api_key) < 50:
-                    error_msg = f"⚠️ Anthropic keys need ≥50 characters (currently {len(api_key)})"
-                elif current_provider in ["google", "gemini"] and len(api_key) < 35:
-                    error_msg = f"⚠️ Google keys need ≥35 characters (currently {len(api_key)})"
-                else:
-                    error_msg = "⚠️ API key format is invalid"
-                
-                self._update_api_validation_display(error_msg, False)
+                self._update_api_validation_display(f"⚠️ {error_msg}", False)
                 self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
                 self.api_key_field.setTextColor_(NSColor.systemOrangeColor())
                 
@@ -1920,22 +1904,15 @@ class SettingsWindow(NSWindowController):
         
         def verify_in_background():
             try:
-                # Use unified LLM client for all providers
+                # Use LLM client's test method
                 from utils.llm_client import LLMClientManager
-                client = LLMClientManager()
+                llm_manager = LLMClientManager()
                 
-                # Setup the provider
-                if client.setup_provider(provider, api_key):
-                    # Make a minimal test call
-                    result = client.process_text("test", "respond with just 'ok'", max_tokens=5)
-                    success = result is not None and "ok" in result.lower()
-                else:
-                    success = False
-                    result = None
+                success, error_msg = llm_manager.test_api_key(provider, api_key)
                 
                 # Update UI on main thread
                 def update_ui():
-                    self._handle_api_verification_result(success, provider, api_key)
+                    self._handle_api_verification_result(success, provider, api_key, error_msg)
                 
                 # Schedule UI update on main thread
                 self.performSelectorOnMainThread_withObject_waitUntilDone_("_updateUIFromVerification:", update_ui, False)
@@ -3522,35 +3499,18 @@ class SettingsWindow(NSWindowController):
     def validateApiKey_withProvider_(self, api_key, provider):
         """Validate API key for the given provider (basic validation)"""
         try:
-            # Import the proper validation function
-            from utils.llm_client import validate_api_key_format
+            # Use LLM client's validation method
+            from utils.llm_client import LLMClientManager
+            llm_manager = LLMClientManager()
             
-            # Use the proper validation logic
-            is_valid = validate_api_key_format(api_key, provider)
+            is_valid, error_msg = llm_manager.validate_api_key(provider, api_key)
             
             if is_valid:
                 # Mark as potentially valid (would need actual API call for real validation)
                 self.settings_manager.set_api_key_validation(provider, True, None)
                 return True
             else:
-                # Provide more specific error messages based on provider
-                provider_info = self.settings_manager.llm_providers.get(provider, {})
-                expected_prefix = provider_info.get("api_key_prefix", "")
-                
-                if not api_key.startswith(expected_prefix):
-                    error_msg = f"Should start with {expected_prefix}"
-                elif provider == "openai" and len(api_key) < 50:
-                    error_msg = f"Too short (OpenAI keys need ≥50 chars, got {len(api_key)})"
-                elif provider == "anthropic" and len(api_key) < 100:
-                    error_msg = f"Too short (Anthropic keys need ≥100 chars, got {len(api_key)})"
-                elif provider in ["google", "gemini"] and len(api_key) < 35:
-                    error_msg = f"Too short (Google keys need ≥35 chars, got {len(api_key)})"
-                else:
-                    error_msg = "Invalid format"
-                
-                self.settings_manager.set_api_key_validation(
-                    provider, False, error_msg
-                )
+                self.settings_manager.set_api_key_validation(provider, False, error_msg)
                 return False
             
         except Exception as e:

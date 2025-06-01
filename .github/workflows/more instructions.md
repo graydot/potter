@@ -66,6 +66,7 @@ cleanup
 * settings file is too big.
 * move code to a single place so that we can use this with ios app too
 * responsive layout so that when text size changes it still works. 
+* move all includes to top. add linter checks in pre commit
 
 
 QOL

@@ -39,6 +39,14 @@ class LLMProvider(ABC):
     def get_available_models(self) -> list:
         """Get list of available models for this provider"""
         pass
+    
+    @abstractmethod
+    def validate_api_key(self, api_key: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate API key format and optionally test with API
+        Returns (is_valid, error_message)
+        """
+        pass
 
 
 class OpenAIProvider(LLMProvider):
@@ -181,6 +189,23 @@ class OpenAIProvider(LLMProvider):
             "gpt-3.5-turbo-16k"     # Extended context
         ]
 
+    def validate_api_key(self, api_key: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate API key format and optionally test with API
+        Returns (is_valid, error_message)
+        """
+        if not api_key:
+            return False, "API key is empty"
+        
+        # Strip whitespace for validation
+        api_key = api_key.strip()
+        
+        # Provider-specific validation
+        if not api_key.startswith('sk-') or len(api_key) < 50:
+            return False, "Invalid OpenAI API key format"
+        
+        return True, None
+
 
 class AnthropicProvider(LLMProvider):
     """Anthropic Claude provider implementation"""
@@ -259,6 +284,23 @@ class AnthropicProvider(LLMProvider):
             "claude-3-opus-20240229",       # Most capable
             "claude-3-5-sonnet-20241022"    # Latest
         ]
+
+    def validate_api_key(self, api_key: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate API key format and optionally test with API
+        Returns (is_valid, error_message)
+        """
+        if not api_key:
+            return False, "API key is empty"
+        
+        # Strip whitespace for validation
+        api_key = api_key.strip()
+        
+        # Provider-specific validation
+        if not api_key.startswith('sk-ant-') or len(api_key) < 50:
+            return False, "Invalid Anthropic API key format"
+        
+        return True, None
 
 
 class GoogleProvider(LLMProvider):
@@ -347,6 +389,23 @@ class GoogleProvider(LLMProvider):
             "gemini-2.5-pro-exp",      # Experimental advanced (PAID)
             "gemini-2.5-flash-exp",    # Experimental fast (PAID)
         ]
+
+    def validate_api_key(self, api_key: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate API key format and optionally test with API
+        Returns (is_valid, error_message)
+        """
+        if not api_key:
+            return False, "API key is empty"
+        
+        # Strip whitespace for validation
+        api_key = api_key.strip()
+        
+        # Provider-specific validation
+        if not api_key.startswith('AIza') or len(api_key) < 35:
+            return False, "Invalid Google API key format"
+        
+        return True, None
 
 
 class LLMClientManager:
@@ -437,6 +496,46 @@ class LLMClientManager:
             return False
         
         return self.providers[self.current_provider].setup_client(api_key)
+    
+    def validate_api_key(self, provider_name: str, api_key: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate API key format for a specific provider
+        Returns (is_valid, error_message)
+        """
+        if provider_name not in self.providers:
+            return False, f"Unknown provider: {provider_name}"
+        
+        provider = self.providers[provider_name]
+        return provider.validate_api_key(api_key)
+    
+    def test_api_key(self, provider_name: str, api_key: str) -> tuple[bool, Optional[str]]:
+        """
+        Test API key by making an actual API call
+        Returns (is_valid, error_message)
+        """
+        if provider_name not in self.providers:
+            return False, f"Unknown provider: {provider_name}"
+        
+        # First validate format
+        is_valid_format, format_error = self.validate_api_key(provider_name, api_key)
+        if not is_valid_format:
+            return False, format_error
+        
+        # Test with actual API call
+        provider = self.providers[provider_name]
+        try:
+            if provider.setup_client(api_key):
+                # Make a minimal test call
+                result = provider.process_text("test", "respond with just 'ok'", 
+                                               provider.get_default_model())
+                if result and "ok" in result.lower():
+                    return True, None
+                else:
+                    return False, "API key appears valid but test call failed"
+            else:
+                return False, "Failed to initialize client with this API key"
+        except Exception as e:
+            return False, f"API test failed: {str(e)}"
 
 
 def get_api_key_from_env(provider: str = 'openai') -> Optional[str]:
