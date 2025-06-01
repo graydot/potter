@@ -1823,22 +1823,36 @@ class SettingsWindow(NSWindowController):
                 self._update_api_validation_display("", None)
                 return
             
-            # Basic format validation based on provider
+            # Use the proper validation function
+            from utils.llm_client import validate_api_key_format
+            
+            # Get provider info for error messages
             provider_info = self.settings_manager.llm_providers.get(current_provider, {})
             expected_prefix = provider_info.get("api_key_prefix", "")
             
-            if expected_prefix and not api_key.startswith(expected_prefix):
-                self._update_api_validation_display(f"⚠️ {current_provider.title()} API keys should start with '{expected_prefix}'", False)
-                self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
-                self.api_key_field.setTextColor_(NSColor.systemOrangeColor())
-            elif len(api_key) < 20:  # Basic length check
-                self._update_api_validation_display("⚠️ API key seems too short", False)
-                self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
-                self.api_key_field.setTextColor_(NSColor.systemOrangeColor())
-            else:
+            # Check if the format is valid using proper validation
+            is_valid = validate_api_key_format(api_key, current_provider)
+            
+            if is_valid:
                 self._update_api_validation_display("✓ Format looks valid - click 'Verify & Save' to test", None)
                 self.api_key_field.setBackgroundColor_(NSColor.controlBackgroundColor())
                 self.api_key_field.setTextColor_(NSColor.labelColor())
+            else:
+                # Provide specific error messages
+                if expected_prefix and not api_key.startswith(expected_prefix):
+                    error_msg = f"⚠️ {current_provider.title()} API keys should start with '{expected_prefix}'"
+                elif current_provider == "openai" and len(api_key) < 50:
+                    error_msg = f"⚠️ OpenAI keys need ≥50 characters (currently {len(api_key)})"
+                elif current_provider == "anthropic" and len(api_key) < 50:
+                    error_msg = f"⚠️ Anthropic keys need ≥50 characters (currently {len(api_key)})"
+                elif current_provider in ["google", "gemini"] and len(api_key) < 35:
+                    error_msg = f"⚠️ Google keys need ≥35 characters (currently {len(api_key)})"
+                else:
+                    error_msg = "⚠️ API key format is invalid"
+                
+                self._update_api_validation_display(error_msg, False)
+                self.api_key_field.setBackgroundColor_(NSColor.systemYellowColor().colorWithAlphaComponent_(0.2))
+                self.api_key_field.setTextColor_(NSColor.systemOrangeColor())
                 
             # Auto-save as user types (delayed)
             if hasattr(self, 'api_key_save_timer'):
@@ -3508,26 +3522,36 @@ class SettingsWindow(NSWindowController):
     def validateApiKey_withProvider_(self, api_key, provider):
         """Validate API key for the given provider (basic validation)"""
         try:
-            provider_info = self.settings_manager.llm_providers.get(provider, {})
-            expected_prefix = provider_info.get("api_key_prefix", "")
+            # Import the proper validation function
+            from utils.llm_client import validate_api_key_format
             
-            # Basic format validation
-            if expected_prefix and not api_key.startswith(expected_prefix):
+            # Use the proper validation logic
+            is_valid = validate_api_key_format(api_key, provider)
+            
+            if is_valid:
+                # Mark as potentially valid (would need actual API call for real validation)
+                self.settings_manager.set_api_key_validation(provider, True, None)
+                return True
+            else:
+                # Provide more specific error messages based on provider
+                provider_info = self.settings_manager.llm_providers.get(provider, {})
+                expected_prefix = provider_info.get("api_key_prefix", "")
+                
+                if not api_key.startswith(expected_prefix):
+                    error_msg = f"Should start with {expected_prefix}"
+                elif provider == "openai" and len(api_key) < 50:
+                    error_msg = f"Too short (OpenAI keys need ≥50 chars, got {len(api_key)})"
+                elif provider == "anthropic" and len(api_key) < 100:
+                    error_msg = f"Too short (Anthropic keys need ≥100 chars, got {len(api_key)})"
+                elif provider in ["google", "gemini"] and len(api_key) < 35:
+                    error_msg = f"Too short (Google keys need ≥35 chars, got {len(api_key)})"
+                else:
+                    error_msg = "Invalid format"
+                
                 self.settings_manager.set_api_key_validation(
-                    provider, False, f"Should start with {expected_prefix}"
+                    provider, False, error_msg
                 )
                 return False
-            
-            # Length validation
-            if len(api_key) < 20:  # Minimum reasonable length
-                self.settings_manager.set_api_key_validation(
-                    provider, False, "Too short"
-                )
-                return False
-            
-            # Mark as potentially valid (would need actual API call for real validation)
-            self.settings_manager.set_api_key_validation(provider, True, None)
-            return True
             
         except Exception as e:
             self.settings_manager.set_api_key_validation(
@@ -4137,6 +4161,9 @@ class SettingsWindow(NSWindowController):
         """Determine if settings should be shown on startup"""
         # Show settings if this is first time for this build OR no API key is set up
         is_first_launch = self.is_first_launch_for_build()
+        current_provider = self.settings_manager.get_current_provider()
+        api_key = self.settings_manager.get(f"{current_provider}_api_key", "").strip()
+        
         current_provider = self.get_current_provider()
         api_key = self.get(f"{current_provider}_api_key", "").strip()
         

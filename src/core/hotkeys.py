@@ -134,7 +134,7 @@ class HotkeyManager:
         logger.debug(f"🔥 KEY PRESS DETECTED: {key} (type: {type(key)})")
         
         self.current_keys.add(key)
-        logger.debug(f"DEBUG: Added key to current_keys")
+        logger.debug("DEBUG: Added key to current_keys")
 
         # Debug logging for hotkey detection
         logger.debug(f"DEBUG: Current keys: {[str(k) for k in self.current_keys]}")
@@ -144,13 +144,20 @@ class HotkeyManager:
         # Check if our hotkey combination is pressed
         if self.hotkey_combo.issubset(self.current_keys):
             logger.info("🎯 HOTKEY CAPTURED! Triggering text processing workflow...")
+            
+            # Clear keys IMMEDIATELY to prevent system sound, before any processing
+            logger.debug("🔄 Clearing current_keys BEFORE processing to prevent system sound")
+            self.current_keys.clear()
+            
             if self.on_hotkey_pressed:
                 try:
                     self.on_hotkey_pressed()
+                    logger.debug("✅ Hotkey processing completed successfully")
                 except Exception as e:
                     logger.error(f"❌ Error in hotkey handler: {e}")
                     import traceback
                     traceback.print_exc()
+                    # Keys already cleared above, so no need to clear again
     
     def on_key_release(self, key):
         """Handle key release events"""

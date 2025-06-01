@@ -20,11 +20,8 @@ class TextProcessor:
         self.llm_manager = llm_manager
         self.prompts = prompts or {}
         self.current_mode = 'polish'
-        self.processing_settings = {
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 1000,
-            'temperature': 0.7
-        }
+        # Set a sensible default model - will be overridden by settings if provided
+        self.current_model = "gpt-4o-mini"  # Good default with balance of cost/quality
     
     def update_prompts(self, prompts: Dict[str, str]):
         """Update the available prompts"""
@@ -44,16 +41,10 @@ class TextProcessor:
             logger.warning(f"Invalid mode: {mode}")
             return False
     
-    def update_settings(self, model: str = None, max_tokens: int = None, temperature: float = None):
-        """Update processing settings"""
-        if model:
-            self.processing_settings['model'] = model
-        if max_tokens:
-            self.processing_settings['max_tokens'] = max_tokens
-        if temperature is not None:
-            self.processing_settings['temperature'] = temperature
-        
-        logger.info(f"Updated processing settings: {self.processing_settings}")
+    def set_model(self, model: str):
+        """Set the model to use (optional, will use provider default if not set)"""
+        self.current_model = model
+        logger.info(f"Set model to: {model}")
     
     def get_clipboard_text(self) -> Optional[str]:
         """Get text from clipboard"""
@@ -101,14 +92,12 @@ class TextProcessor:
             logger.error(f"❌ No prompt found for mode: {self.current_mode}")
             return None
         
-        logger.info(f"🤖 Sending text to LLM (mode: {self.current_mode}, model: {self.processing_settings['model']})...")
+        logger.info(f"🤖 Sending text to LLM (mode: {self.current_mode})...")
         try:
             result = self.llm_manager.process_text(
                 text=text,
                 prompt=current_prompt,
-                model=self.processing_settings['model'],
-                max_tokens=self.processing_settings['max_tokens'],
-                temperature=self.processing_settings['temperature']
+                model=self.current_model  # Will use provider default if None
             )
             if result:
                 logger.info(f"✅ LLM processing completed successfully ({len(result)} characters returned)")
@@ -129,6 +118,7 @@ class TextProcessor:
         Args:
             notification_callback: Function to show notifications (title, message, is_error)
             progress_callback: Function to show/hide processing state (processing)
+            error_callback: Function to report errors (error_message)
         
         Returns:
             bool: True if processing was successful, False otherwise
@@ -155,11 +145,29 @@ class TextProcessor:
         try:
             # Check if LLM client is available first
             if not self.llm_manager.is_available():
-                provider = self.llm_manager.get_current_provider() or "OpenAI"
-                error_msg = f"{provider.title()} API key not configured. Please check Settings."
+                # Get the INTENDED provider from settings, not the current (failed) one
+                try:
+                    from settings.settings_manager import SettingsManager
+                    settings_manager = SettingsManager()
+                    intended_provider = settings_manager.get_current_provider()
+                    logger.error(f"🔍 Intended provider from settings: {intended_provider}")
+                    logger.error(f"🔍 LLM manager current provider: {self.llm_manager.get_current_provider()}")
+                    logger.error(f"🔍 LLM manager available: {self.llm_manager.is_available()}")
+                    
+                    # Check if API key exists for intended provider
+                    api_key_field = f"{intended_provider}_api_key"
+                    api_key = settings_manager.get(api_key_field, "").strip()
+                    logger.error(f"🔍 {intended_provider} API key field '{api_key_field}': {'found' if api_key else 'NOT FOUND'}")
+                    
+                    provider_name = intended_provider.title()
+                except Exception as e:
+                    logger.error(f"❌ Failed to get intended provider from settings: {e}")
+                    provider_name = "LLM"
+                
+                error_msg = f"{provider_name} API key not configured. Please check Settings."
                 logger.error(f"❌ {error_msg}")
                 show_notification("Configuration Error", error_msg, is_error=True)
-                report_error(f"{provider.title()} API key not configured")
+                report_error(f"{provider_name} API key not configured")
                 return False
             
             # Get text from clipboard
@@ -176,20 +184,14 @@ class TextProcessor:
             # Process with LLM
             processed_text = self.process_text_with_current_mode(clipboard_text)
             if not processed_text:
-                # Check if it might be a context window issue
-                estimated_tokens = len(clipboard_text) // 4
-                if estimated_tokens > 3000:  # Likely context issue
-                    error_msg = f"Text too large ({estimated_tokens:,} tokens estimated). Try smaller text or use GPT-4 Turbo."
-                    short_error = "Text too large for model"
+                # Get more specific error from LLM manager
+                provider = self.llm_manager.get_current_provider() or "LLM"
+                if not self.llm_manager.is_available():
+                    error_msg = f"{provider.title()} client not properly initialized"
+                    short_error = f"{provider.title()} client error"
                 else:
-                    # Get more specific error from LLM manager
-                    provider = self.llm_manager.get_current_provider() or "LLM"
-                    if not self.llm_manager.is_available():
-                        error_msg = f"{provider.title()} client not properly initialized"
-                        short_error = f"{provider.title()} client error"
-                    else:
-                        error_msg = f"Failed to process text with {provider.title()} API"
-                        short_error = f"{provider.title()} API error"
+                    error_msg = f"Failed to process text with {provider.title()} API"
+                    short_error = f"{provider.title()} API error"
                 
                 logger.error(f"❌ {error_msg}")
                 show_notification("AI Processing Failed", error_msg, is_error=True)

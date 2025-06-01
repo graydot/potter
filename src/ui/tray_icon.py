@@ -508,7 +508,13 @@ class TrayIconManager:
         # Create menu items
         menu_items = []
         
-        # Add error message at top if there's an error
+        # Always add the process item at the top for consistency
+        menu_items.extend([
+            pystray.MenuItem("🖱️ Left-click to process text", self._handle_process_click, default=True),
+            pystray.Menu.SEPARATOR,
+        ])
+        
+        # Add error message if there's an error
         if self.has_error and self.last_error_message:
             error_text = f"❌ Error: {self.last_error_message[:50]}.." if len(self.last_error_message) > 50 else f"❌ Error: {self.last_error_message}"
             menu_items.extend([
@@ -572,115 +578,19 @@ class TrayIconManager:
         """Create the system tray icon"""
         image = self.create_normal_icon()
         
-        # Create menu with custom handling for left click
-        def create_custom_menu():
-            # Create a function that handles different mouse buttons
-            def handle_click(icon, item):
-                # This gets called on left click - trigger processing
-                logger.info("🖱️ Menu item click detected - triggering LLM processing")
-                logger.info("🖱️ Icon: %s, Item: %s", icon, item)
-                self._handle_process_click()
-            
-            # Create the menu for right-click
-            regular_menu_items = []
-            
-            # Add error message at top if there's an error
-            if self.has_error and self.last_error_message:
-                error_text = f"❌ Error: {self.last_error_message[:50]}.." if len(self.last_error_message) > 50 else f"❌ Error: {self.last_error_message}"
-                regular_menu_items.extend([
-                    pystray.MenuItem(error_text, lambda *args: None, enabled=False),
-                    pystray.MenuItem("Clear Error", lambda *args: self.set_error_state(False)),
-                    pystray.Menu.SEPARATOR,
-                ])
-            
-            # Get current state for menu
-            current_mode = self.text_processor.get_current_mode() if hasattr(self, 'text_processor') else "default"
-            available_modes = ["default", "creative", "professional"] if hasattr(self, 'text_processor') else []
-            permissions = {"accessibility": True} if hasattr(self, 'permission_manager') else {}
-            notifications_enabled = True if hasattr(self, 'notification_manager') else True
-            
-            # Add regular menu items
-            permission_entity = f"{self.app_name}.app" if getattr(sys, 'frozen', False) else "Python"
-            
-            regular_menu_items.extend([
-                pystray.MenuItem("🖱️ Left-click to process text", handle_click, default=True),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(f"Mode: {current_mode.title()}", lambda *args: None, enabled=False),
-                pystray.Menu.SEPARATOR,
-            ])
-            
-            # Add permission status
-            if permissions.get("accessibility", False):
-                accessibility_status = f"✅ {permission_entity} has access"
-            else:
-                accessibility_status = f"❌ {permission_entity} needs access"
-            
-            accessibility_item = pystray.MenuItem(f"Accessibility: {accessibility_status}", 
-                                                self._handle_permissions_check)
-            
-            notifications_status = "✅" if notifications_enabled else "❌"
-            notifications_item = pystray.MenuItem(f"Notifications: {notifications_status}", 
-                                                self._handle_notifications_toggle)
-            
-            regular_menu_items.extend([
-                accessibility_item,
-                notifications_item,
-                pystray.Menu.SEPARATOR,
-            ])
-            
-            # Add mode switching options
-            for mode in available_modes:
-                def make_mode_handler(mode_name):
-                    return lambda *args: self._handle_mode_change(mode_name)
-                
-                def make_mode_checker(mode_name):
-                    return lambda *args: current_mode == mode_name
-                
-                regular_menu_items.append(
-                    pystray.MenuItem(
-                        mode.title(), 
-                        make_mode_handler(mode),
-                        checked=make_mode_checker(mode)
-                    )
-                )
-            
-            regular_menu_items.extend([
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Preferences...", self._handle_preferences),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Quit", self._handle_quit)
-            ])
-            
-            return pystray.Menu(*regular_menu_items)
+        # Create the menu using the standard create_menu method
+        # which now includes the process item at the top
+        menu = self.create_menu(current_mode, available_modes, permissions, notifications_enabled)
         
-        menu = create_custom_menu()
-        
-        # Use a simple menu approach where the first item triggers processing
-        # This is the most reliable way to handle left clicks in pystray
-        process_menu_item = pystray.MenuItem(
-            "Process Clipboard Text", 
-            self._handle_process_click, 
-            default=True  # This makes it the default action for left-click
-        )
-        
-        # Create a new menu with process item first
-        new_menu_items = [process_menu_item, pystray.Menu.SEPARATOR]
-        
-        # Add all the existing menu items
-        for item in menu:
-            new_menu_items.append(item)
-        
-        final_menu = pystray.Menu(*new_menu_items)
-        
-        # Create icon with the menu that has processing as default
-        logger.info("🔧 Creating tray icon with processing as default menu action")
+        # Create icon with the unified menu
+        logger.info("🔧 Creating tray icon with unified menu")
         self.tray_icon = pystray.Icon(
             self.app_name, 
             image, 
             f"{self.app_name} - AI Text Processor (Left-click to process, Right-click for menu)",
-            final_menu
+            menu
         )
-        logger.info("✅ Tray icon created with processing menu item as default")
+        logger.info("✅ Tray icon created with unified menu")
     
     def update_menu(self, current_mode: str, available_modes: list, 
                    permissions: Dict, notifications_enabled: bool):

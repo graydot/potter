@@ -182,58 +182,64 @@ class SettingsManager:
             "gemini": {
                 "name": "Google Gemini",
                 "models": [
-                    {
-                        "id": "gemini-2.5-pro-preview-05-06",
-                        "name": "Gemini 2.5 Pro",
-                        "description": "Google's flagship",
-                        "detailed_description": ("🏆 Google's flagship - Leading multimodal reasoning, "
-                                               "excellent for complex web apps, huge 1M+ token "
-                                               "context window.")
-                    },
-                    {
-                        "id": "gemini-2.5-flash-preview-05-20",
-                        "name": "Gemini 2.5 Flash",
-                        "description": "Hybrid reasoning",
-                        "detailed_description": ("⚡ Hybrid reasoning - Controllable thinking "
-                                               "capabilities, fast performance with optional deep "
-                                               "reasoning mode.")
-                    },
-                    {
-                        "id": "gemini-2.0-flash",
-                        "name": "Gemini 2.0 Flash",
-                        "description": "Well rounded",
-                        "detailed_description": ("🌟 Well-rounded model - Good balance of speed and "
-                                               "capability for everyday tasks with multimodal "
-                                               "support.")
-                    },
-                    {
-                        "id": "gemini-2.0-flash-lite",
-                        "name": "Gemini 2.0 Flash Lite",
-                        "description": "Lightweight option",
-                        "detailed_description": ("💨 Lightweight option - Fast and cost-effective for "
-                                               "simple text processing and quick responses.")
-                    },
-                    {
-                        "id": "gemini-1.5-pro",
-                        "name": "Gemini 1.5 Pro",
-                        "description": "Long context",
-                        "detailed_description": ("📊 Long context specialist - Massive 2M token "
-                                               "window for processing large documents and "
-                                               "datasets.")
-                    },
+                    # Free tier models (recommended)
                     {
                         "id": "gemini-1.5-flash",
                         "name": "Gemini 1.5 Flash", 
-                        "description": "Speed & efficiency",
+                        "description": "Speed & efficiency (FREE)",
                         "detailed_description": ("⚡ Speed and efficiency - Quick responses with good "
-                                               "capability, ideal for high-throughput applications.")
+                                               "capability, ideal for high-throughput applications. "
+                                               "✅ FREE tier available")
                     },
                     {
                         "id": "gemini-1.5-flash-8b",
                         "name": "Gemini 1.5 Flash 8B",
-                        "description": "Most affordable",
+                        "description": "Most affordable (FREE)",
                         "detailed_description": ("💰 Most affordable - Budget-friendly option for "
-                                               "basic text tasks and simple processing needs.")
+                                               "basic text tasks and simple processing needs. "
+                                               "✅ FREE tier available")
+                    },
+                    {
+                        "id": "gemini-1.5-pro",
+                        "name": "Gemini 1.5 Pro",
+                        "description": "Long context (FREE with limits)",
+                        "detailed_description": ("📊 Long context specialist - Massive 2M token "
+                                               "window for processing large documents. "
+                                               "⚠️ FREE tier has rate limits")
+                    },
+                    
+                    # Paid models (require billing)
+                    {
+                        "id": "gemini-2.0-flash",
+                        "name": "Gemini 2.0 Flash",
+                        "description": "Latest multimodal (PAID)",
+                        "detailed_description": ("🌟 Latest multimodal model - Advanced capabilities "
+                                               "for text, images, and complex reasoning. "
+                                               "💳 Requires billing setup")
+                    },
+                    {
+                        "id": "gemini-2.0-flash-lite",
+                        "name": "Gemini 2.0 Flash Lite",
+                        "description": "Lightweight latest (PAID)",
+                        "detailed_description": ("💨 Lightweight latest generation - Fast performance "
+                                               "with modern capabilities at lower cost. "
+                                               "💳 Requires billing setup")
+                    },
+                    {
+                        "id": "gemini-2.5-pro-exp",
+                        "name": "Gemini 2.5 Pro (Experimental)",
+                        "description": "Advanced experimental (PAID)",
+                        "detailed_description": ("🧪 Experimental advanced model - Cutting-edge "
+                                               "capabilities for complex tasks and reasoning. "
+                                               "💳 Requires billing setup")
+                    },
+                    {
+                        "id": "gemini-2.5-flash-exp",
+                        "name": "Gemini 2.5 Flash (Experimental)",
+                        "description": "Fast experimental (PAID)",
+                        "detailed_description": ("⚡ Experimental fast model - Latest speed optimizations "
+                                               "with experimental features. "
+                                               "💳 Requires billing setup")
                     }
                 ],
                 "api_key_prefix": "AIza",
@@ -280,8 +286,8 @@ class SettingsManager:
                 }
             ],
             "hotkey": "cmd+shift+a",
-            "llm_provider": "openai",
-            "model": "gpt-3.5-turbo",
+            "llm_provider": "gemini",
+            "model": "gemini-1.5-flash",
             "show_notifications": True,
             "launch_at_startup": False,
             "openai_api_key": "",

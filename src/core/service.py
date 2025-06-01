@@ -74,13 +74,14 @@ class PotterService:
                 logger.warning("⚠️ Using default settings (no settings manager)")
             
             # Configure LLM provider
-            provider = settings.get("llm_provider", "openai")
-            model = settings.get("model", "gpt-3.5-turbo")
+            provider = settings.get("llm_provider", "gemini")
+            model = settings.get("model", "gpt-4o-mini")
             
             # Get API key based on provider
             api_key_field = f"{provider}_api_key"
             api_key = settings.get(api_key_field, "").strip()
             logger.info(f"🔑 Loading {provider} API key from field '{api_key_field}'")
+            logger.info(f"🔍 DEBUG: Provider={provider}, API key field={api_key_field}, Key found={bool(api_key)}")
             
             if not api_key:
                 api_key = get_api_key_from_env(provider)
@@ -88,6 +89,9 @@ class PotterService:
                     logger.info(f"🔑 Found {provider} API key in environment")
                 else:
                     logger.warning(f"⚠️ No {provider} API key found in settings or environment")
+                    logger.error(f"🔍 FAILURE: {provider} API key completely missing")
+                    logger.error(f"🔍 Available settings: {list(settings.keys())}")
+                    logger.error(f"🔍 All API key fields: {[(k, bool(v)) for k, v in settings.items() if 'api_key' in k]}")
             else:
                 # Mask the key for logging
                 masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
@@ -98,36 +102,43 @@ class PotterService:
                 success = self.llm_manager.setup_provider(provider, api_key, model)
                 if success:
                     logger.info(f"✅ {provider} provider initialized successfully")
+                    logger.info(f"🔍 LLM manager state: current_provider={self.llm_manager.get_current_provider()}, available={self.llm_manager.is_available()}")
                 else:
                     logger.error(f"❌ Failed to initialize {provider} provider despite valid key")
+                    logger.error(f"🔍 LLM manager state: current_provider={self.llm_manager.get_current_provider()}, available={self.llm_manager.is_available()}")
+                    logger.error(f"🔍 This means the provider setup itself failed - check logs for provider-specific errors")
             else:
                 if api_key:
                     logger.error(f"❌ {provider} API key format is invalid")
+                    logger.error(f"🔍 Key length: {len(api_key)}, starts with: {api_key[:10] if len(api_key) > 10 else api_key}")
+                else:
+                    logger.error(f"❌ {provider} API key is missing")
                 logger.warning(f"⚠️ {provider} API key not configured - text processing will fail")
             
             # Configure hotkey
             hotkey_str = settings.get("hotkey", "cmd+shift+a")
             self.hotkey_manager.update_hotkey(hotkey_str)
             
-            # Configure text processor with prompts
+            # Load prompts from settings 
+            prompts_data = settings.get("prompts", [])
             prompts = {}
-            for prompt_config in settings.get("prompts", []):
-                name = prompt_config.get("name", "")
-                text = prompt_config.get("text", "")
+            for prompt_data in prompts_data:
+                name = prompt_data.get("name", "")
+                text = prompt_data.get("text", "")
                 if name and text:
                     prompts[name] = text
             
             if not prompts:
-                prompts = self._get_default_prompts()
+                # Use default prompts if none configured
+                default_prompts = self._get_default_settings()["prompts"]
+                for prompt_data in default_prompts:
+                    prompts[prompt_data["name"]] = prompt_data["text"]
             
             self.text_processor.update_prompts(prompts)
             
-            # Configure AI settings
-            self.text_processor.update_settings(
-                model=settings.get("model", "gpt-3.5-turbo"),
-                max_tokens=settings.get("max_tokens", 1000),
-                temperature=settings.get("temperature", 0.7)
-            )
+            # Set model - always use a model (default if not specified)
+            model = settings.get("model", "gpt-4o-mini")  # Use OpenAI default if not in settings
+            self.text_processor.set_model(model)
             
             # Configure notifications
             notifications_enabled = settings.get("notifications", True)
@@ -149,10 +160,8 @@ class PotterService:
                 {"name": "casual", "text": "Please rewrite the following text in a casual, relaxed tone."}
             ],
             "hotkey": "cmd+shift+a",
-            "llm_provider": "openai",
-            "model": "gpt-3.5-turbo",
-            "max_tokens": 1000,
-            "temperature": 0.7,
+            "llm_provider": "gemini",
+            "model": "gpt-4o-mini",
             "notifications": True,
             "openai_api_key": "",
             "anthropic_api_key": "",
@@ -319,8 +328,9 @@ class PotterService:
         self.notification_manager.show_hotkey_detected()
         logger.debug("📢 Hotkey detection notification sent")
         
-        # Process text
+        # Process text with comprehensive error recovery
         logger.debug("🔄 Starting text processing...")
+        success = False
         try:
             success = self.text_processor.process_clipboard_text(
                 notification_callback=self.notification_manager.show_notification,
@@ -345,8 +355,19 @@ class PotterService:
             traceback.print_exc()
             self._handle_error(f"Unexpected error: {str(e)}")
         finally:
-            # Ensure processing state is cleared
+            # CRITICAL: Always reset processing state regardless of success/failure
+            # This ensures hotkeys continue working after any error
+            logger.debug("🔄 Resetting processing state in finally block")
             self._set_processing_state(False)
+            
+            # Additional safety: Clear any stuck processing flags in text processor
+            if hasattr(self.text_processor, 'is_processing'):
+                self.text_processor.is_processing = False
+                logger.debug("🔄 Reset text processor processing flag")
+            
+            # Log final state for debugging
+            logger.debug(f"🔍 Final processing state: {self.is_processing}")
+            logger.info("🎯 Hotkey handler completed - system ready for next hotkey")
     
     def _handle_mode_change(self, mode: str):
         """Handle mode change from tray menu"""
@@ -446,8 +467,8 @@ class PotterService:
                 self.settings_manager.save_settings(new_settings)
             
             # Update LLM client if provider/API key changed
-            provider = new_settings.get("llm_provider", "openai")
-            model = new_settings.get("model", "gpt-3.5-turbo")
+            provider = new_settings.get("llm_provider", "gemini")
+            model = new_settings.get("model", "gpt-4o-mini")
             api_key_field = f"{provider}_api_key"
             api_key = new_settings.get(api_key_field, "")
             

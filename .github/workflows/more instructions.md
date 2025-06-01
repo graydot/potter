@@ -50,20 +50,22 @@ settings window on bottom left - done
 
 
 actual functionality
-* doesn't log when combo is hit, so i don't know if it is detecting. it worked once.
+* doesn't log when combo is hit, so i don't know if it is detecting. - done
+* it worked once. then stopped working
 * also update with latest model names by googling. for example anthropic has claude 4 now. - done
 * i also ahven't tested permissions
 -- reset and check
 -- does it detect when given
 -- what happens if silently removed from system settings
 -- notifications do not show at all
-* clicking on menu bar icon should start recording
+* clicking on menu bar icon should start recording - kind of done
 * menu bar drop downs (permissions) when clicked should open corresponding settings
 
 cleanup
 * delte old code such as potter original
 * settings file is too big.
-move code to a single place so that we can use this with ios app too
+* move code to a single place so that we can use this with ios app too
+* responsive layout so that when text size changes it still works. 
 
 
 QOL
