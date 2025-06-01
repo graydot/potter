@@ -8,6 +8,7 @@ import os
 import logging
 from typing import Optional
 from abc import ABC, abstractmethod
+from utils.exception_reporter import report_exception, report_error, exception_handler, safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class OpenAIProvider(LLMProvider):
         self.api_key = None
         self.is_initialized = False
     
+    @exception_handler
     def setup_client(self, api_key: str) -> bool:
         """Initialize OpenAI client"""
         self.api_key = api_key
@@ -78,16 +80,18 @@ class OpenAIProvider(LLMProvider):
             return True
                 
         except ImportError as e:
-            logger.error(f"❌ OpenAI library not available: {e}")
+            report_error(f"OpenAI library not available: {e}", {"provider": "openai"})
             return False
         except Exception as e:
-            logger.error(f"❌ Failed to initialize OpenAI client: {e}")
+            report_exception(e, {"provider": "openai", "action": "setup_client"}, 
+                           extra_info="Failed to initialize OpenAI client")
             return False
     
     def process_text(self, text: str, prompt: str, model: str) -> Optional[str]:
         """Process text using OpenAI API"""
         if not self.is_initialized or not self.client:
-            logger.error("❌ OpenAI client not initialized")
+            report_error("OpenAI client not initialized", 
+                        {"provider": "openai", "model": model})
             return None
         
         try:
@@ -109,7 +113,8 @@ class OpenAIProvider(LLMProvider):
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": f"{prompt}\n\n{text}"
+                                # Avoid logging actual text for PII protection
+                                "text": f"{prompt}\n\n[TEXT_CONTENT]"
                             }
                         ]
                     }
@@ -144,15 +149,21 @@ class OpenAIProvider(LLMProvider):
                     logger.info(f"✅ OpenAI API call successful, response length: {len(content)} chars")
                     return content.strip()
                 else:
-                    logger.error("❌ No content found in OpenAI response")
+                    report_error("No content found in OpenAI response", 
+                               {"provider": "openai", "model": model})
                     return None
             else:
-                logger.error("❌ Invalid OpenAI response structure")
+                report_error("Invalid OpenAI response structure", 
+                           {"provider": "openai", "model": model})
                 return None
                 
         except Exception as e:
-            error_msg = str(e)
-            logger.error(f"❌ OpenAI API error: {error_msg}")
+            report_exception(e, {
+                "provider": "openai", 
+                "model": model,
+                "text_length": len(text),
+                "prompt_length": len(prompt)
+            }, extra_info="OpenAI API call failed")
             return None
     
     def _is_reasoning_model(self, model: str) -> bool:

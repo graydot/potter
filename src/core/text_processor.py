@@ -6,45 +6,56 @@ Handles clipboard operations and text processing workflows
 
 import time
 import logging
-from typing import Optional, Dict, Callable
+from typing import Optional, Callable
 import pyperclip
 from utils.llm_client import LLMClientManager
+from utils.prompts_manager import get_prompts_manager
+from utils.exception_reporter import report_exception, report_error
 
 logger = logging.getLogger(__name__)
 
 
 class TextProcessor:
-    """Handles text processing workflows and clipboard operations"""
+    """Handles text processing workflows and clipboard operations - pure orchestrator"""
     
-    def __init__(self, llm_manager: LLMClientManager, prompts: Dict[str, str] = None):
+    def __init__(self, llm_manager: LLMClientManager, settings_manager=None):
         self.llm_manager = llm_manager
-        self.prompts = prompts or {}
-        self.current_mode = 'polish'
-        # Set a sensible default model - will be overridden by settings if provided
-        self.current_model = "gpt-4o-mini"  # Good default with balance of cost/quality
-    
-    def update_prompts(self, prompts: Dict[str, str]):
-        """Update the available prompts"""
-        self.prompts = prompts
+        self.settings_manager = settings_manager
+        self.prompts_manager = get_prompts_manager(settings_manager)
         
-        # Ensure current mode is still valid
-        if self.current_mode not in self.prompts:
-            self.current_mode = next(iter(self.prompts.keys())) if self.prompts else 'polish'
+        # Validate that we can get initial mode (will throw if no prompts)
+        try:
+            current_mode = self._get_current_mode()
+            logger.info(f"TextProcessor initialized, current mode: {current_mode}")
+        except RuntimeError as e:
+            report_error(str(e), {"component": "text_processor"})
+            raise RuntimeError("Cannot initialize TextProcessor: " + str(e))
+    
+    def _get_current_mode(self) -> str:
+        """Get current mode from settings or prompts manager default"""
+        if self.settings_manager:
+            # Get from settings first
+            current_mode = self.settings_manager.get("current_prompt", None)
+            if current_mode and self.prompts_manager.validate_mode(current_mode):
+                return current_mode
+        
+        # Fall back to prompts manager default (will throw if no prompts)
+        return self.prompts_manager.get_default_mode()
     
     def change_mode(self, mode: str) -> bool:
         """Change the current processing mode"""
-        if mode in self.prompts:
-            self.current_mode = mode
+        if self.prompts_manager.validate_mode(mode):
+            # Save to settings if available
+            if self.settings_manager:
+                current_settings = self.settings_manager.get_all_settings()
+                current_settings["current_prompt"] = mode
+                self.settings_manager.save_settings(current_settings)
+            
             logger.info(f"Changed mode to: {mode}")
             return True
         else:
             logger.warning(f"Invalid mode: {mode}")
             return False
-    
-    def set_model(self, model: str):
-        """Set the model to use (optional, will use provider default if not set)"""
-        self.current_model = model
-        logger.info(f"Set model to: {model}")
     
     def get_clipboard_text(self) -> Optional[str]:
         """Get text from clipboard"""
@@ -57,7 +68,7 @@ class TextProcessor:
             logger.info(f"✅ Successfully read {len(clipboard_text)} characters from clipboard")
             return clipboard_text
         except Exception as e:
-            logger.error(f"❌ Failed to read clipboard: {e}")
+            report_exception(e, {"component": "text_processor", "action": "get_clipboard"})
             return None
     
     def set_clipboard_text(self, text: str) -> bool:
@@ -68,7 +79,7 @@ class TextProcessor:
             logger.info("✅ Successfully copied processed text to clipboard")
             return True
         except Exception as e:
-            logger.error(f"❌ Failed to copy text to clipboard: {e}")
+            report_exception(e, {"component": "text_processor", "action": "set_clipboard"})
             return False
     
     def verify_clipboard_update(self, expected_text: str) -> bool:
@@ -83,35 +94,58 @@ class TextProcessor:
     
     def process_text_with_current_mode(self, text: str) -> Optional[str]:
         """Process text using the current mode/prompt"""
-        if not self.llm_manager.is_available():
-            logger.error("❌ LLM client not available")
-            return None
-        
-        current_prompt = self.prompts.get(self.current_mode)
-        if not current_prompt:
-            logger.error(f"❌ No prompt found for mode: {self.current_mode}")
-            return None
-        
-        logger.info(f"🤖 Sending text to LLM (mode: {self.current_mode})...")
         try:
+            # Get current mode from settings/prompts manager
+            current_mode = self._get_current_mode()
+            
+            # Get current model from LLM manager (will throw if not available)
+            if not self.llm_manager.is_available():
+                raise RuntimeError("LLM client not available - check API key configuration")
+            
+            current_model = self.llm_manager.get_current_model()
+            if not current_model:
+                # Get default from current provider
+                current_provider = self.llm_manager.get_current_provider()
+                if not current_provider or current_provider not in self.llm_manager.providers:
+                    raise RuntimeError("No valid LLM provider configured")
+                
+                provider = self.llm_manager.providers[current_provider]
+                current_model = provider.get_default_model()
+                logger.info(f"Using default model for {current_provider}: {current_model}")
+            
+            # Get prompt text from prompts manager
+            current_prompt = self.prompts_manager.get_prompt_text(current_mode)
+            if not current_prompt:
+                error_msg = f"No prompt found for mode: {current_mode}"
+                report_error(error_msg, {"mode": current_mode, "component": "text_processor"})
+                return None
+            
+            logger.info(f"🤖 Sending text to LLM (mode: {current_mode}, model: {current_model})...")
             result = self.llm_manager.process_text(
                 text=text,
                 prompt=current_prompt,
-                model=self.current_model  # Will use provider default if None
+                model=current_model
             )
+            
             if result:
                 logger.info(f"✅ LLM processing completed successfully ({len(result)} characters returned)")
             else:
-                logger.error("❌ LLM processing returned empty result")
+                report_error("LLM processing returned empty result", 
+                           {"mode": current_mode, "model": current_model})
+            
             return result
+            
         except Exception as e:
-            logger.error(f"❌ Error during LLM processing: {e}")
+            report_exception(e, {
+                "component": "text_processor",
+                "action": "process_text"
+            }, extra_info="Failed to process text with current mode")
             return None
     
     def process_clipboard_text(self, 
-                              notification_callback: Callable[[str, str, bool], None] = None,
-                              progress_callback: Callable[[bool], None] = None,
-                              error_callback: Callable[[str], None] = None) -> bool:
+                               notification_callback: Callable[[str, str, bool], None] = None,
+                               progress_callback: Callable[[bool], None] = None,
+                               error_callback: Callable[[str], None] = None) -> bool:
         """
         Main function to process clipboard text with LLM
         
@@ -134,7 +168,7 @@ class TextProcessor:
             if progress_callback:
                 progress_callback(processing)
         
-        def report_error(error_message: str):
+        def report_error_callback(error_message: str):
             if error_callback:
                 error_callback(error_message)
         
@@ -145,29 +179,18 @@ class TextProcessor:
         try:
             # Check if LLM client is available first
             if not self.llm_manager.is_available():
-                # Get the INTENDED provider from settings, not the current (failed) one
-                try:
-                    from settings.settings_manager import SettingsManager
-                    settings_manager = SettingsManager()
-                    intended_provider = settings_manager.get_current_provider()
-                    logger.error(f"🔍 Intended provider from settings: {intended_provider}")
-                    logger.error(f"🔍 LLM manager current provider: {self.llm_manager.get_current_provider()}")
-                    logger.error(f"🔍 LLM manager available: {self.llm_manager.is_available()}")
-                    
-                    # Check if API key exists for intended provider
-                    api_key_field = f"{intended_provider}_api_key"
-                    api_key = settings_manager.get(api_key_field, "").strip()
-                    logger.error(f"🔍 {intended_provider} API key field '{api_key_field}': {'found' if api_key else 'NOT FOUND'}")
-                    
-                    provider_name = intended_provider.title()
-                except Exception as e:
-                    logger.error(f"❌ Failed to get intended provider from settings: {e}")
-                    provider_name = "LLM"
+                provider_name = "LLM"
+                if self.settings_manager:
+                    try:
+                        intended_provider = self.settings_manager.get_current_provider()
+                        provider_name = intended_provider.title()
+                    except Exception:
+                        pass
                 
                 error_msg = f"{provider_name} API key not configured. Please check Settings."
                 logger.error(f"❌ {error_msg}")
                 show_notification("Configuration Error", error_msg, is_error=True)
-                report_error(f"{provider_name} API key not configured")
+                report_error_callback(f"{provider_name} API key not configured")
                 return False
             
             # Get text from clipboard
@@ -176,7 +199,7 @@ class TextProcessor:
                 error_msg = "No text found in clipboard. Copy some text first, then press the hotkey."
                 logger.warning(f"⚠️ {error_msg}")
                 show_notification("No Text", error_msg, is_error=True)
-                report_error("No text in clipboard")
+                report_error_callback("No text in clipboard")
                 return False
             
             logger.info(f"📝 Processing clipboard text ({len(clipboard_text)} chars): {clipboard_text[:50]}...")
@@ -184,7 +207,6 @@ class TextProcessor:
             # Process with LLM
             processed_text = self.process_text_with_current_mode(clipboard_text)
             if not processed_text:
-                # Get more specific error from LLM manager
                 provider = self.llm_manager.get_current_provider() or "LLM"
                 if not self.llm_manager.is_available():
                     error_msg = f"{provider.title()} client not properly initialized"
@@ -195,7 +217,7 @@ class TextProcessor:
                 
                 logger.error(f"❌ {error_msg}")
                 show_notification("AI Processing Failed", error_msg, is_error=True)
-                report_error(short_error)
+                report_error_callback(short_error)
                 return False
             
             logger.info(f"🎆 Processed text ({len(processed_text)} chars): {processed_text[:50]}...")
@@ -205,7 +227,7 @@ class TextProcessor:
                 error_msg = "Failed to copy processed text to clipboard"
                 logger.error(f"❌ {error_msg}")
                 show_notification("Clipboard Error", error_msg, is_error=True)
-                report_error("Clipboard write failed")
+                report_error_callback("Clipboard write failed")
                 return False
             
             logger.info("✅ Processed text copied to clipboard")
@@ -215,11 +237,12 @@ class TextProcessor:
                 error_msg = "Failed to update clipboard with processed text"
                 logger.error(f"❌ {error_msg}")
                 show_notification("Clipboard Error", error_msg, is_error=True)
-                report_error("Clipboard verification failed")
+                report_error_callback("Clipboard verification failed")
                 return False
             
-            # Success notification
-            success_msg = f"✅ Text {self.current_mode}d and copied to clipboard! Press Cmd+V to paste."
+            # Success notification - get current mode dynamically
+            current_mode = self._get_current_mode()
+            success_msg = f"✅ Text {current_mode}d and copied to clipboard! Press Cmd+V to paste."
             logger.info("✅ Text processing workflow completed successfully")
             show_notification("Processing Complete", success_msg, is_error=False)
             
@@ -230,21 +253,26 @@ class TextProcessor:
             logger.error(error_msg)
             import traceback
             traceback.print_exc()
-            show_notification("Processing Error", "An unexpected error occurred. Check logs for details.", is_error=True)
-            report_error(f"Unexpected error: {str(e)}")
+            show_notification("Processing Error", 
+                              "An unexpected error occurred. Check logs for details.", 
+                              is_error=True)
+            report_error_callback(f"Unexpected error: {str(e)}")
             return False
         finally:
             # Always stop processing indicator
             set_processing(False)
     
     def get_current_mode(self) -> str:
-        """Get the current processing mode"""
-        return self.current_mode
+        """Get the current processing mode from settings/prompts manager"""
+        return self._get_current_mode()
     
     def get_available_modes(self) -> list:
-        """Get list of available processing modes"""
-        return list(self.prompts.keys())
+        """Get list of available processing modes from prompts manager"""
+        try:
+            return list(self.prompts_manager.get_prompts().keys())
+        except RuntimeError:
+            return []  # No prompts available
     
     def get_mode_description(self, mode: str) -> Optional[str]:
-        """Get description/prompt for a specific mode"""
-        return self.prompts.get(mode) 
+        """Get description/prompt for a specific mode from prompts manager"""
+        return self.prompts_manager.get_prompt_text(mode) 

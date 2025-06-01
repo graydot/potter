@@ -60,6 +60,8 @@ actual functionality
 -- notifications do not show at all
 * clicking on menu bar icon should start recording - kind of done
 * menu bar drop downs (permissions) when clicked should open corresponding settings
+* still usees temp in some places. is it necessary?
+- we will not use keys from env
 
 cleanup
 * delte old code such as potter original
