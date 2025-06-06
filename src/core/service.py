@@ -37,7 +37,13 @@ class PotterService:
         self.instance_checker = SingleInstanceChecker()
         self.permission_manager = PermissionManager()
         self.llm_manager = LLMClientManager()
-        self.text_processor = TextProcessor(self.llm_manager)
+        
+        # Settings management (create first)
+        self.settings_manager = SettingsManager() if SETTINGS_UI_AVAILABLE else None
+        
+        # Text processor needs settings manager
+        self.text_processor = TextProcessor(self.llm_manager, self.settings_manager)
+        
         self.hotkey_manager = HotkeyManager(on_hotkey_pressed=self._handle_hotkey_pressed)
         self.tray_icon_manager = TrayIconManager(
             on_mode_change=self._handle_mode_change,
@@ -48,8 +54,6 @@ class PotterService:
         )
         self.notification_manager = NotificationManager()
         
-        # Settings management
-        self.settings_manager = SettingsManager() if SETTINGS_UI_AVAILABLE else None
         self.settings_window = None
         
         # State
@@ -91,7 +95,8 @@ class PotterService:
                     logger.warning(f"⚠️ No {provider} API key found in settings or environment")
                     logger.error(f"🔍 FAILURE: {provider} API key completely missing")
                     logger.error(f"🔍 Available settings: {list(settings.keys())}")
-                    logger.error(f"🔍 All API key fields: {[(k, bool(v)) for k, v in settings.items() if 'api_key' in k]}")
+                    all_api_keys = [(k, bool(v)) for k, v in settings.items() if 'api_key' in k]
+                    logger.error(f"🔍 All API key fields: {all_api_keys}")
             else:
                 # Mask the key for logging
                 masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
@@ -102,15 +107,22 @@ class PotterService:
                 success = self.llm_manager.setup_provider(provider, api_key, model)
                 if success:
                     logger.info(f"✅ {provider} provider initialized successfully")
-                    logger.info(f"🔍 LLM manager state: current_provider={self.llm_manager.get_current_provider()}, available={self.llm_manager.is_available()}")
+                    current_provider = self.llm_manager.get_current_provider()
+                    is_available = self.llm_manager.is_available()
+                    logger.info(f"🔍 LLM manager state: current_provider={current_provider}, available={is_available}")
                 else:
                     logger.error(f"❌ Failed to initialize {provider} provider despite valid key")
-                    logger.error(f"🔍 LLM manager state: current_provider={self.llm_manager.get_current_provider()}, available={self.llm_manager.is_available()}")
-                    logger.error(f"🔍 This means the provider setup itself failed - check logs for provider-specific errors")
+                    current_provider = self.llm_manager.get_current_provider()
+                    is_available = self.llm_manager.is_available()
+                    logger.error(f"🔍 LLM manager state: current_provider={current_provider}, available={is_available}")
+                    logger.error("🔍 This means the provider setup itself failed - check logs for provider-specific errors")
             else:
                 if api_key:
                     logger.error(f"❌ {provider} API key format is invalid")
-                    logger.error(f"🔍 Key length: {len(api_key)}, starts with: {api_key[:10] if len(api_key) > 10 else api_key}")
+                    if len(api_key) > 10:
+                        logger.error(f"🔍 Key length: {len(api_key)}, starts with: {api_key[:10]}")
+                    else:
+                        logger.error(f"🔍 Key length: {len(api_key)}, full key: {api_key}")
                 else:
                     logger.error(f"❌ {provider} API key is missing")
                 logger.warning(f"⚠️ {provider} API key not configured - text processing will fail")
@@ -178,9 +190,7 @@ class PotterService:
     
     def _apply_default_settings(self):
         """Apply default settings when loading fails"""
-        self.text_processor.update_prompts(self._get_default_prompts())
         self.hotkey_manager.update_hotkey("cmd+shift+a")
-        self.text_processor.update_settings()
         self.notification_manager.set_notifications_enabled(True)
         logger.info("Applied default settings")
     

@@ -5,37 +5,26 @@ Refactored main entry point using modular architecture
 """
 
 import sys
-import logging
 from pathlib import Path
 
 # Add src to path for imports
 src_path = Path(__file__).parent
 sys.path.insert(0, str(src_path))
 
-# Import the main service
-from core.service import PotterService
+# Import after path setup
+from core.service import PotterService  # noqa: E402
+from utils.logging_config import setup_logging, get_logger  # noqa: E402
 
-# Configure logging - use appropriate location for app bundle vs development
-if getattr(sys, 'frozen', False):
-    # Running as PyInstaller bundle - log to user's home directory
-    log_path = Path.home() / 'Library' / 'Logs' / 'potter.log'
-else:
-    # Running from source - log to project directory
-    log_path = src_path / 'potter.log'
-
-# Ensure log directory exists
-log_path.parent.mkdir(parents=True, exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_path),
-        logging.StreamHandler()
-    ]
+# Set up logging with rotation and proper configuration
+setup_logging(
+    level='INFO',
+    console=True,
+    file=True,
+    max_bytes=10 * 1024 * 1024,  # 10MB
+    backup_count=5
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def main():

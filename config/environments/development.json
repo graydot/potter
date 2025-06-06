@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "Potter Test",
+    "environment": "development",
+    "debug": true
+  },
+  "logging": {
+    "level": "DEBUG"
+  },
+  "api": {
+    "rate_limit": 1000
+  }
+}

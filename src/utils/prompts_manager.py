@@ -17,8 +17,18 @@ class PromptsManager:
         self.settings_manager = settings_manager
         self._cached_prompts = None
     
+    def _get_default_prompts(self) -> Dict[str, str]:
+        """Get default prompts as fallback"""
+        return {
+            "summarize": "Please provide a concise summary of the following text. Focus on the key points and main ideas. Keep it brief but comprehensive, capturing the essential information in a clear and organized way.",
+            "formal": "Please rewrite the following text in a formal, professional tone. Use proper business language and structure. Ensure the tone is respectful, authoritative, and appropriate for professional communication.",
+            "casual": "Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and approachable. Use everyday language while maintaining clarity and keeping the core message intact.",
+            "friendly": "Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and personable. Add warmth and approachability while keeping the message clear and engaging.",
+            "polish": "Please polish the following text by fixing any grammatical issues, typos, or awkward phrasing. Make it sound natural and human while keeping it direct and clear. Double-check that the tone is appropriate and not offensive, but maintain the original intent and directness."
+        }
+    
     def get_prompts(self) -> Dict[str, str]:
-        """Get prompts dictionary, throw exception if none available"""
+        """Get prompts dictionary, use defaults if none available"""
         if self._cached_prompts is not None:
             return self._cached_prompts
         
@@ -34,28 +44,31 @@ class PromptsManager:
                     if name and text:
                         prompts[name] = text
             
-            # If no prompts found, this is an error condition
+            # If no prompts found, use defaults instead of crashing
             if not prompts:
-                error_msg = "No prompts configured. Please add prompts in Settings."
-                report_error(error_msg, {"source": "prompts_manager"})
-                raise RuntimeError(error_msg)
+                prompts = self._get_default_prompts()
+                logger.info("No prompts configured in settings, using default prompts")
+                report_error("No prompts configured in settings, using defaults", 
+                           {"source": "prompts_manager", "action": "fallback_to_defaults"})
             
             self._cached_prompts = prompts
             logger.info(f"✅ Loaded {len(prompts)} prompts: {list(prompts.keys())}")
             return prompts
             
         except Exception as e:
-            if "No prompts configured" in str(e):
-                raise  # Re-raise configuration errors
-            
-            # Other errors, report and re-raise
+            # On any error, use defaults to prevent crash
+            logger.error(f"Error loading prompts: {e}")
             report_exception(e, {"source": "prompts_manager"}, 
-                             extra_info="Failed to load prompts")
-            raise RuntimeError(f"Failed to load prompts: {e}")
+                           extra_info="Failed to load prompts, using defaults")
+            
+            prompts = self._get_default_prompts()
+            logger.info("Using default prompts due to error")
+            self._cached_prompts = prompts
+            return prompts
     
     def get_default_mode(self) -> str:
-        """Get the default/first available mode, throw exception if none"""
-        prompts = self.get_prompts()  # Will throw if no prompts
+        """Get the default/first available mode"""
+        prompts = self.get_prompts()  # Will never throw now, always returns defaults if needed
         
         # Return first available prompt
         first_mode = next(iter(prompts.keys()))
