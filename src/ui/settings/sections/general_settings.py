@@ -84,6 +84,9 @@ class GeneralSettingsSection:
         # Notifications section
         y_offset = self._create_notifications_section(y_offset)
         
+        # Permissions section
+        y_offset = self._create_permissions_section(y_offset)
+        
         # About section
         y_offset = self._create_about_section(y_offset)
         
@@ -262,6 +265,37 @@ class GeneralSettingsSection:
         
         return y_offset - 40
     
+    def _create_permissions_section(self, y_offset: int) -> int:
+        """Create permissions settings section"""
+        # Section title
+        section_title = create_label(
+            "Permissions",
+            NSMakeRect(20, y_offset, 200, 20),
+            font=NSFont.boldSystemFontOfSize_(14)
+        )
+        self.view.addSubview_(section_title)
+        
+        y_offset -= 35
+        
+        # Reset permissions button
+        reset_button = create_button(
+            "Reset All Permissions",
+            NSMakeRect(20, y_offset, 180, 25),
+            action=self.resetPermissions_,
+            target=self
+        )
+        self.view.addSubview_(reset_button)
+        
+        y_offset -= 30
+        
+        desc = create_description_label(
+            "Reset all system permissions for Potter (accessibility, notifications, etc.)",
+            NSMakeRect(20, y_offset, 600, 20)
+        )
+        self.view.addSubview_(desc)
+        
+        return y_offset - 40
+    
     def _create_about_section(self, y_offset: int) -> int:
         """Create about section"""
         # Section title
@@ -393,6 +427,138 @@ class GeneralSettingsSection:
         """Open support page"""
         url = NSURL.URLWithString_("https://potter.app/support")
         NSWorkspace.sharedWorkspace().openURL_(url)
+    
+    def resetPermissions_(self, sender):
+        """Reset all permissions for the Potter app with confirmation dialogs"""
+        import subprocess
+        from AppKit import NSAlert, NSAlertFirstButtonReturn, NSAlertStyleCritical, NSAlertStyleInformational
+        
+        try:
+            # Show confirmation dialog first
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Reset All Permissions")
+            alert.setInformativeText_(
+                "This will reset ALL system permissions for Potter, including:\n\n"
+                "• Accessibility (required for global hotkeys)\n"
+                "• Notifications\n"
+                "• Any other granted permissions\n\n"
+                "You will need to re-grant permissions and restart the app. Continue?"
+            )
+            alert.setAlertStyle_(NSAlertStyleCritical)
+            alert.addButtonWithTitle_("Reset Permissions")
+            alert.addButtonWithTitle_("Cancel")
+            
+            # Set themed icon - get parent window to access _set_dialog_icon method
+            parent_window = self.view.window()
+            if parent_window and hasattr(parent_window.windowController(), '_set_dialog_icon'):
+                parent_window.windowController()._set_dialog_icon(alert)
+            
+            response = alert.runModal()
+            if response != NSAlertFirstButtonReturn:  # User clicked Cancel
+                logger.debug("Permission reset cancelled by user")
+                return
+            
+            # Run the tccutil reset command for our app bundle ID
+            bundle_id = "com.potter.app"
+            
+            try:
+                # Reset all permissions for our bundle ID
+                result = subprocess.run(['tccutil', 'reset', 'All', bundle_id], 
+                                      capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    # Success - show confirmation and offer to restart
+                    success_alert = NSAlert.alloc().init()
+                    success_alert.setMessageText_("Permissions Reset Successfully")
+                    success_alert.setInformativeText_(
+                        "All permissions for Potter have been reset.\n\n"
+                        "Potter needs to be restarted for changes to take effect. "
+                        "Would you like to restart now?"
+                    )
+                    success_alert.setAlertStyle_(NSAlertStyleInformational)
+                    success_alert.addButtonWithTitle_("Restart Potter")
+                    success_alert.addButtonWithTitle_("Later")
+                    
+                    # Set themed icon
+                    if parent_window and hasattr(parent_window.windowController(), '_set_dialog_icon'):
+                        parent_window.windowController()._set_dialog_icon(success_alert)
+                    
+                    restart_response = success_alert.runModal()
+                    if restart_response == NSAlertFirstButtonReturn:  # Restart
+                        self._restart_app()
+                    
+                    logger.info("Permissions reset successfully")
+                        
+                else:
+                    # Command failed
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                    self._show_permission_reset_error(f"Failed to reset permissions: {error_msg}")
+                    
+            except subprocess.TimeoutExpired:
+                self._show_permission_reset_error("Permission reset timed out. Please try again.")
+            except FileNotFoundError:
+                self._show_permission_reset_error("tccutil command not found. This feature requires macOS 10.11 or later.")
+            except Exception as e:
+                self._show_permission_reset_error(f"Unexpected error: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Error in resetPermissions: {e}")
+            self._show_permission_reset_error(f"Failed to reset permissions: {str(e)}")
+    
+    def _show_permission_reset_error(self, message: str):
+        """Show permission reset error dialog with themed icon"""
+        from AppKit import NSAlert, NSAlertStyleCritical
+        
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Permission Reset Failed")
+        alert.setInformativeText_(message)
+        alert.setAlertStyle_(NSAlertStyleCritical)
+        
+        # Set themed icon
+        parent_window = self.view.window()
+        if parent_window and hasattr(parent_window.windowController(), '_set_dialog_icon'):
+            parent_window.windowController()._set_dialog_icon(alert)
+        
+        alert.runModal()
+        logger.error(f"Permission reset error: {message}")
+    
+    def _restart_app(self):
+        """Restart the Potter application"""
+        import sys
+        
+        try:
+            logger.info("Restarting Potter application...")
+            
+            # Get the executable path
+            if getattr(sys, 'frozen', False):
+                # Running as app bundle
+                executable_path = sys.executable
+            else:
+                # Running in development - restart Python script
+                executable_path = sys.executable
+                script_path = sys.argv[0]
+            
+            # Close current window
+            if self.view.window():
+                self.view.window().close()
+            
+            # Quit current app and restart
+            import subprocess
+            if getattr(sys, 'frozen', False):
+                # App bundle - restart the .app
+                app_bundle = executable_path.split('/Contents/MacOS/')[0]
+                subprocess.Popen(['open', app_bundle])
+            else:
+                # Development - restart Python script
+                subprocess.Popen([executable_path, script_path])
+            
+            # Quit current instance
+            from AppKit import NSApplication
+            NSApplication.sharedApplication().terminate_(None)
+            
+        except Exception as e:
+            logger.error(f"Error restarting app: {e}")
+            self._show_permission_reset_error(f"Failed to restart Potter: {str(e)}. Please restart manually.")
     
     # Helper methods
     def _is_launch_at_startup_enabled(self) -> bool:

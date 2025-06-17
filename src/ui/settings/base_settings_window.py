@@ -19,6 +19,7 @@ import objc
 
 from .widgets.theme_aware_icon import ThemeAwareIcon
 from .utils import WindowPositioning
+from .widgets.ui_helpers import create_header_label
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +27,9 @@ logger = logging.getLogger(__name__)
 class BaseSettingsWindow(NSWindowController):
     """Base class for settings windows with sidebar navigation"""
 
-    def init(self):
+    def __init__(self):
         """Initialize base settings window"""
-        self = objc.super(BaseSettingsWindow, self).init()
-        if self is None:
-            return None
+        objc.super(BaseSettingsWindow, self).__init__()
         
         # UI elements
         self.current_section = 0
@@ -51,7 +50,7 @@ class BaseSettingsWindow(NSWindowController):
         # Window positioning
         self.window_positioning = WindowPositioning("settings")
         
-        return self
+        logger.debug("BaseSettingsWindow initialized")
         
     def createWindow(self, title: str = "Settings", 
                      width: int = 900, height: int = 650,
@@ -143,6 +142,9 @@ class BaseSettingsWindow(NSWindowController):
         else:
             bg_color = NSColor.windowBackgroundColor()
         self.sidebar_container.layer().setBackgroundColor_(bg_color.CGColor())
+        
+        # Initialize buttons list
+        self.sidebar_buttons = []
     
     def _createContentArea(self):
         """Create scrollable content area"""
@@ -184,8 +186,7 @@ class BaseSettingsWindow(NSWindowController):
         self.current_section = section
         
         # Update sidebar selection
-        for i, button in enumerate(self.sidebar_buttons):
-            button.setState_(1 if i == section else 0)
+        self._updateSidebarSelection_(section)
         
         # Clear content container
         for subview in list(self.content_container.subviews()):
@@ -207,6 +208,18 @@ class BaseSettingsWindow(NSWindowController):
             self.content_scroll_view.reflectScrolledClipView_(
                 self.content_scroll_view.contentView()
             )
+    
+    def _updateSidebarSelection_(self, selected_section: int):
+        """Update sidebar button selection states"""
+        for i, button in enumerate(self.sidebar_buttons):
+            if i == selected_section:
+                # Selected state
+                button.setState_(1)  # NSControlStateValueOn
+                button.setFont_(NSFont.boldSystemFontOfSize_(14))
+            else:
+                # Unselected state
+                button.setState_(0)  # NSControlStateValueOff
+                button.setFont_(NSFont.systemFontOfSize_(14))
     
     def switchSection_(self, sender):
         """Handle sidebar button clicks"""
@@ -244,24 +257,35 @@ class BaseSettingsWindow(NSWindowController):
     def _register_for_appearance_changes(self):
         """Register for system appearance change notifications"""
         try:
-            NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
-                self, "appearanceDidChange:", 
-                "NSSystemColorsDidChangeNotification", None
+            notification_center = NSNotificationCenter.defaultCenter()
+            # Try to get the notification name safely
+            try:
+                from AppKit import NSApplicationDidChangeEffectiveAppearanceNotification
+                notification_name = NSApplicationDidChangeEffectiveAppearanceNotification
+            except ImportError:
+                # Fallback for older macOS/PyObjC versions
+                notification_name = "NSApplicationDidChangeEffectiveAppearanceNotification"
+            
+            notification_center.addObserver_selector_name_object_(
+                self,
+                objc.selector(self.appearanceDidChange_, signature=b'v@:@'),
+                notification_name,
+                None
             )
             logger.debug("Registered for appearance change notifications")
         except Exception as e:
-            logger.error(f"Error registering for appearance changes: {e}")
+            logger.error(f"Failed to register for appearance changes: {e}")
     
     def appearanceDidChange_(self, notification):
         """Handle system appearance changes"""
-        logger.debug("System appearance changed, updating icons")
         try:
+            logger.debug("System appearance changed - updating UI")
             self._update_dock_icon()
             
             # Update tray icon if available
             self._update_tray_icon()
         except Exception as e:
-            logger.error(f"Error updating icons for appearance change: {e}")
+            logger.error(f"Error handling appearance change: {e}")
     
     def _update_tray_icon(self):
         """Update tray icon for appearance change"""
@@ -274,6 +298,91 @@ class BaseSettingsWindow(NSWindowController):
                 potter_module.service.tray_icon.update_icon_for_appearance()
         except Exception as e:
             logger.debug(f"Could not update tray icon: {e}")
+    
+    def _get_current_appearance(self) -> str:
+        """
+        Get current macOS appearance
+        
+        Returns:
+            str: 'dark' for dark mode, 'light' for light mode
+        """
+        try:
+            from AppKit import NSApplication
+            import subprocess
+            
+            # Method 1: Try NSApplication effective appearance
+            app = NSApplication.sharedApplication()
+            if hasattr(app, 'effectiveAppearance'):
+                app_appearance = app.effectiveAppearance()
+                if app_appearance:
+                    appearance_name = str(app_appearance.name())
+                    if "Dark" in appearance_name:
+                        return 'dark'
+                    else:
+                        return 'light'
+            
+            # Method 2: Check system defaults
+            result = subprocess.run(
+                ['defaults', 'read', '-g', 'AppleInterfaceStyle'], 
+                capture_output=True, 
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0:
+                interface_style = result.stdout.strip()
+                return 'dark' if interface_style == "Dark" else 'light'
+            
+        except Exception as e:
+            logger.debug(f"Error detecting appearance: {e}")
+        
+        # Default to light mode
+        return 'light'
+    
+    def _set_dialog_icon(self, alert_object):
+        """
+        Set themed icon on NSAlert dialog based on current appearance
+        
+        Args:
+            alert_object: NSAlert object to set icon on
+        """
+        try:
+            current_appearance = self._get_current_appearance()
+            
+            # Use opposite icon for contrast (dark theme -> light icon, light theme -> dark icon)
+            icon_filename = 'light.png' if current_appearance == 'dark' else 'dark.png'
+            
+            # Build path based on runtime environment
+            if getattr(sys, 'frozen', False):
+                # Running as app bundle
+                app_bundle_path = os.path.dirname(sys.executable)
+                icon_path = os.path.join(app_bundle_path, '..', 'Resources', 'assets', icon_filename)
+            else:
+                # Running in development - navigate from current file to project root
+                current_file = os.path.abspath(__file__)
+                # From src/ui/settings/base_settings_window.py to project root
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file))))
+                icon_path = os.path.join(project_root, 'assets', icon_filename)
+            
+            if os.path.exists(icon_path):
+                # Load and configure icon
+                logo_image = NSImage.alloc().initWithContentsOfFile_(icon_path)
+                if logo_image:
+                    # Resize to appropriate dialog icon size
+                    logo_image.setSize_(NSMakeSize(64, 64))
+                    
+                    # Set the icon on the alert
+                    if hasattr(alert_object, 'setIcon_'):
+                        alert_object.setIcon_(logo_image)
+                        logger.debug(f"Dialog icon set using {icon_filename}")
+                    else:
+                        logger.warning("Alert object does not have setIcon_ method")
+                else:
+                    logger.warning(f"Could not load icon image from {icon_path}")
+            else:
+                logger.warning(f"Icon file not found at {icon_path}")
+                
+        except Exception as e:
+            logger.error(f"Error setting dialog icon: {e}")
     
     # Window delegate methods
     def windowShouldClose_(self, window):
@@ -310,5 +419,6 @@ class BaseSettingsWindow(NSWindowController):
         if self.on_settings_changed:
             try:
                 self.on_settings_changed()
+                logger.debug("Settings change callback executed")
             except Exception as e:
-                logger.error(f"Error in settings changed callback: {e}") 
+                logger.error(f"Error in settings change callback: {e}") 

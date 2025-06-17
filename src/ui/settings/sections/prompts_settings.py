@@ -365,7 +365,7 @@ class PromptsSettingsSection:
         logger.info(f"Duplicated prompt as: {copy_name}")
         
     def deletePrompt_(self, sender):
-        """Delete selected prompt"""
+        """Delete selected prompt with confirmation dialog"""
         row = self.table_view.selectedRow()
         if row < 0:
             return
@@ -373,21 +373,42 @@ class PromptsSettingsSection:
         prompt = self.data_source.prompts[row]
         logger.debug(f"Deleting prompt: {prompt['name']}")
         
-        # Animate removal
-        self.table_view.beginUpdates()
-        self.table_view.removeRowsAtIndexes_withAnimation_(
-            NSIndexSet.indexSetWithIndex_(row),
-            NSTableViewAnimationSlideUp
-        )
-        self.table_view.endUpdates()
+        # Show confirmation dialog with themed icon
+        from AppKit import NSAlert, NSAlertFirstButtonReturn
         
-        # Remove from data
-        self.data_source.prompts.pop(row)
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(f"Delete prompt '{prompt['name']}'?")
+        alert.setInformativeText_("This action cannot be undone.")
+        alert.addButtonWithTitle_("Delete")
+        alert.addButtonWithTitle_("Cancel")
+        alert.setAlertStyle_(2)  # NSAlertStyleCritical
         
-        # Save
-        self._save_prompts()
+        # Set themed icon - get parent window to access _set_dialog_icon method
+        parent_window = self.view.window()
+        if parent_window and hasattr(parent_window.windowController(), '_set_dialog_icon'):
+            parent_window.windowController()._set_dialog_icon(alert)
         
-        logger.info(f"Deleted prompt: {prompt['name']}")
+        # Show modal dialog
+        response = alert.runModal()
+        
+        if response == NSAlertFirstButtonReturn:  # Delete button clicked
+            # Animate removal
+            self.table_view.beginUpdates()
+            self.table_view.removeRowsAtIndexes_withAnimation_(
+                NSIndexSet.indexSetWithIndex_(row),
+                NSTableViewAnimationSlideUp
+            )
+            self.table_view.endUpdates()
+            
+            # Remove from data
+            self.data_source.prompts.pop(row)
+            
+            # Save
+            self._save_prompts()
+            
+            logger.info(f"Deleted prompt: {prompt['name']}")
+        else:
+            logger.debug("Delete prompt cancelled by user")
         
     # Table view delegate methods
     def tableViewSelectionDidChange_(self, notification):

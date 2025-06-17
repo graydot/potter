@@ -273,9 +273,32 @@ class LogsSettingsSection:
         self._load_logs()
         
     def clearLogs_(self, sender):
-        """Clear log display"""
+        """Clear log display with confirmation dialog"""
         logger.debug("Clearing log display")
-        self.text_view.setString_("")
+        
+        # Show confirmation dialog with themed icon
+        from AppKit import NSAlert, NSAlertFirstButtonReturn
+        
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Clear all logs?")
+        alert.setInformativeText_("This will clear the log display. The log file will remain unchanged.")
+        alert.addButtonWithTitle_("Clear")
+        alert.addButtonWithTitle_("Cancel")
+        alert.setAlertStyle_(1)  # NSAlertStyleInformational
+        
+        # Set themed icon - get parent window to access _set_dialog_icon method
+        parent_window = self.view.window()
+        if parent_window and hasattr(parent_window.windowController(), '_set_dialog_icon'):
+            parent_window.windowController()._set_dialog_icon(alert)
+        
+        # Show modal dialog
+        response = alert.runModal()
+        
+        if response == NSAlertFirstButtonReturn:  # Clear button clicked
+            self.text_view.setString_("")
+            logger.info("Log display cleared by user")
+        else:
+            logger.debug("Clear logs cancelled by user")
         
     def exportLogs_(self, sender):
         """Export logs to file"""
