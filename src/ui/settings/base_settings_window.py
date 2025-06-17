@@ -13,13 +13,12 @@ from AppKit import (
     NSMakeRect, NSMakeSize, NSWindowStyleMaskTitled, NSWindowStyleMaskClosable,
     NSWindowStyleMaskResizable, NSBackingStoreBuffered, NSNormalWindowLevel,
     NSViewWidthSizable, NSViewHeightSizable, NSSplitViewDividerStyleThin,
-    NSColor, NSImage, NSApplication, NSNotificationCenter
+    NSColor, NSImage, NSApplication, NSNotificationCenter, NSFont
 )
 import objc
 
 from .widgets.theme_aware_icon import ThemeAwareIcon
 from .utils import WindowPositioning
-from .widgets.ui_helpers import create_header_label
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ class BaseSettingsWindow(NSWindowController):
         
         logger.debug("BaseSettingsWindow initialized")
         
-    def createWindow(self, title: str = "Settings", 
+    def createWindow(self, title: str = "Potter Settings", 
                      width: int = 900, height: int = 650,
                      min_width: int = 800, min_height: int = 600):
         """
@@ -67,7 +66,7 @@ class BaseSettingsWindow(NSWindowController):
         """
         logger.debug(f"Creating settings window: {title}")
         
-        # Create window
+        # Create window with exact spec dimensions
         frame = NSMakeRect(100, 100, width, height)
         window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             frame,

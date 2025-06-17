@@ -44,9 +44,9 @@ class GeneralSettingsSection:
         self.show_dock_icon_switch = None
         self.show_notifications_switch = None
         
-    def create_view(self, width: int = 700, height: int = 600) -> NSView:
+    def create_view(self, width: int = 700, height: int = 900) -> NSView:
         """
-        Create the general settings view
+        Create the general settings view matching exact specification
         
         Args:
             width: View width
@@ -57,40 +57,240 @@ class GeneralSettingsSection:
         """
         logger.debug("Creating general settings view")
         
-        # Create main view
+        # Create main view with exact spec dimensions
         self.view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, width, height))
         
-        y_offset = height - 40
+        # Y-axis origin: 850px (content flows downward) - matching spec
+        y_pos = 850
         
-        # Title
-        title = create_label(
-            "General",
-            NSMakeRect(20, y_offset, 200, 30),
-            font=NSFont.boldSystemFontOfSize_(18)
-        )
-        self.view.addSubview_(title)
+        # Section header - (40, y_pos, 620, 35) - "General Settings"
+        header = self._create_section_header("General Settings", y_pos)
+        self.view.addSubview_(header)
+        y_pos -= 50
         
-        y_offset -= 50
+        # Separator - (40, y_pos-50, 620, 1)
+        separator = self._create_section_separator(y_pos)
+        self.view.addSubview_(separator)
+        y_pos -= 40
         
-        # Startup section
-        y_offset = self._create_startup_section(y_offset)
+        # AI Provider Configuration Section
+        y_pos = self._create_ai_provider_section(y_pos)
         
-        # Updates section
-        y_offset = self._create_updates_section(y_offset)
+        # Global Hotkey Section
+        y_pos = self._create_hotkey_section(y_pos)
         
-        # Appearance section
-        y_offset = self._create_appearance_section(y_offset)
+        # Permissions Section
+        y_pos = self._create_permissions_section(y_pos)
         
-        # Notifications section
-        y_offset = self._create_notifications_section(y_offset)
-        
-        # Permissions section
-        y_offset = self._create_permissions_section(y_offset)
-        
-        # About section
-        y_offset = self._create_about_section(y_offset)
+        # Application Preferences Section
+        y_pos = self._create_application_preferences_section(y_pos)
         
         return self.view
+    
+    def _create_section_header(self, title: str, y_position: float):
+        """Create a modern section header matching spec"""
+        from AppKit import NSTextField, NSColor
+        header = NSTextField.alloc().initWithFrame_(NSMakeRect(40, y_position, 620, 35))
+        header.setStringValue_(title)
+        header.setFont_(NSFont.boldSystemFontOfSize_(24))
+        header.setBezeled_(False)
+        header.setDrawsBackground_(False)
+        header.setEditable_(False)
+        header.setTextColor_(NSColor.labelColor())
+        return header
+    
+    def _create_section_separator(self, y_position: float):
+        """Create a visual separator matching spec"""
+        from AppKit import NSView, NSColor
+        separator = NSView.alloc().initWithFrame_(NSMakeRect(40, y_position, 620, 1))
+        separator.setWantsLayer_(True)
+        separator.layer().setBackgroundColor_(NSColor.separatorColor().CGColor())
+        return separator
+    
+    def _create_ai_provider_section(self, y_pos: int) -> int:
+        """Create AI Provider Configuration section matching spec"""
+        # LLM Provider section
+        llm_section_label = create_label(
+            "AI Provider Configuration",
+            NSMakeRect(40, y_pos, 620, 20),
+            font=NSFont.boldSystemFontOfSize_(16)
+        )
+        self.view.addSubview_(llm_section_label)
+        y_pos -= 35
+        
+        # Provider selection - Label: (40, y_pos, 120, 22), Popup: (160, y_pos, 200, 22)
+        provider_label = create_label("Provider:", NSMakeRect(40, y_pos, 120, 22))
+        self.view.addSubview_(provider_label)
+        
+        # Create popup with provider options
+        self.provider_popup = create_popup_button(
+            NSMakeRect(160, y_pos, 200, 22),
+            items=["OpenAI", "Anthropic", "Google"],
+            action=self.providerChanged_,
+            target=self
+        )
+        self.view.addSubview_(self.provider_popup)
+        y_pos -= 30
+        
+        # API Key section
+        api_key_label = create_label("API Key:", NSMakeRect(40, y_pos, 120, 22))
+        self.view.addSubview_(api_key_label)
+        
+        # API Key field: (160, y_pos, 300, 22)
+        self.api_key_field = create_text_field(NSMakeRect(160, y_pos, 300, 22))
+        self.api_key_field.setFont_(NSFont.monospacedSystemFontOfSize_weight_(12, 0))
+        self.view.addSubview_(self.api_key_field)
+        
+        # Verify & Save button: (510, y_pos, 110, 22) - RIGHT EDGE AT 620px
+        verify_button = create_button(
+            "Verify & Save",
+            NSMakeRect(510, y_pos, 110, 22),
+            action=self.verifyApiKey_,
+            target=self
+        )
+        self.view.addSubview_(verify_button)
+        
+        # Validation label: (160, y_pos-25, 400, 20)
+        self.api_validation_label = create_label("", NSMakeRect(160, y_pos - 25, 400, 20))
+        self.view.addSubview_(self.api_validation_label)
+        y_pos -= 50  # Extra space for validation label
+        
+        # Model selection - Label: (40, y_pos, 120, 22), Popup: (160, y_pos, 250, 22)
+        model_label = create_label("Model:", NSMakeRect(40, y_pos, 120, 22))
+        self.view.addSubview_(model_label)
+        
+        self.model_popup = create_popup_button(
+            NSMakeRect(160, y_pos, 250, 22),
+            items=["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
+            action=self.modelChanged_,
+            target=self
+        )
+        self.view.addSubview_(self.model_popup)
+        y_pos -= 50
+        
+        return y_pos
+        
+    def _create_hotkey_section(self, y_pos: int) -> int:
+        """Create Global Hotkey section matching spec"""
+        # Hotkey section
+        hotkey_section_label = create_label(
+            "Global Hotkey",
+            NSMakeRect(40, y_pos, 620, 20),
+            font=NSFont.boldSystemFontOfSize_(16)
+        )
+        self.view.addSubview_(hotkey_section_label)
+        y_pos -= 35
+        
+        # Hotkey field - (40, y_pos, 120, 22) for label, (160, y_pos, 350, 30) for field
+        hotkey_label = create_label("Hotkey:", NSMakeRect(40, y_pos, 120, 22))
+        self.view.addSubview_(hotkey_label)
+        
+        # Create hotkey capture control placeholder
+        self.hotkey_field = create_text_field(NSMakeRect(160, y_pos, 350, 30))
+        self.hotkey_field.setPlaceholderString_("Click to set hotkey")
+        self.view.addSubview_(self.hotkey_field)
+        
+        # Reset button: (540, y_pos, 80, 22) - RIGHT EDGE AT 620px
+        reset_button = create_button(
+            "Reset",
+            NSMakeRect(540, y_pos, 80, 22),
+            action=self.resetHotkey_,
+            target=self
+        )
+        self.view.addSubview_(reset_button)
+        y_pos -= 50
+        
+        return y_pos
+        
+    def _create_application_preferences_section(self, y_pos: int) -> int:
+        """Create Application Preferences section matching spec"""
+        # Application Preferences section
+        prefs_section_label = create_label(
+            "Application Preferences", 
+            NSMakeRect(40, y_pos, 620, 20),
+            font=NSFont.boldSystemFontOfSize_(16)
+        )
+        self.view.addSubview_(prefs_section_label)
+        y_pos -= 35
+        
+        # Notifications toggle - (40, y_pos, 580, 30) - RIGHT EDGE AT 620px
+        notifications_container, self.notifications_switch = self._create_modern_switch(
+            NSMakeRect(40, y_pos, 580, 30),
+            "Show notifications",
+            self.settings_manager.get("show_notifications", False)
+        )
+        self.notifications_switch.setTarget_(self)
+        self.notifications_switch.setAction_("toggleNotifications_")
+        self.view.addSubview_(notifications_container)
+        y_pos -= 40
+        
+        # Launch at startup toggle - (40, y_pos, 580, 30) - RIGHT EDGE AT 620px  
+        startup_container, self.startup_switch = self._create_modern_switch(
+            NSMakeRect(40, y_pos, 580, 30),
+            "Launch at startup",
+            self._is_launch_at_startup_enabled()
+        )
+        self.startup_switch.setTarget_(self)
+        self.startup_switch.setAction_("toggleLaunchAtStartup_")
+        self.view.addSubview_(startup_container)
+        
+        return y_pos - 50
+        
+    def _create_modern_switch(self, frame, title: str, initial_state: bool = False):
+        """Create a modern switch control matching spec - returns (container, switch)"""
+        from AppKit import NSView, NSTextField, NSSwitch, NSButton, NSButtonTypeSwitch, NSColor
+        
+        container = NSView.alloc().initWithFrame_(frame)
+        
+        # Label
+        label = NSTextField.alloc().initWithFrame_(
+            NSMakeRect(0, 5, frame.size.width - 60, 20)
+        )
+        label.setStringValue_(title)
+        label.setBezeled_(False)
+        label.setDrawsBackground_(False)
+        label.setEditable_(False)
+        label.setFont_(NSFont.systemFontOfSize_(14))
+        label.setTextColor_(NSColor.labelColor())
+        container.addSubview_(label)
+        
+        # Switch positioned at right edge - (530, 0, 50, 30) within container  
+        try:
+            switch = NSSwitch.alloc().initWithFrame_(NSMakeRect(530, 0, 50, 30))
+            switch.setState_(1 if initial_state else 0)
+        except Exception:
+            # Fallback for older macOS
+            switch = NSButton.alloc().initWithFrame_(NSMakeRect(530, 0, 50, 30))
+            switch.setButtonType_(NSButtonTypeSwitch)
+            switch.setState_(1 if initial_state else 0)
+        
+        container.addSubview_(switch)
+        
+        return container, switch
+    
+    # Action methods for new sections
+    def providerChanged_(self, sender):
+        """Handle provider change"""
+        logger.debug("Provider changed")
+        if self.on_settings_changed:
+            self.on_settings_changed()
+            
+    def verifyApiKey_(self, sender):
+        """Handle API key verification"""
+        logger.debug("Verifying API key")
+        # TODO: Implement API key verification
+        
+    def modelChanged_(self, sender):
+        """Handle model change"""
+        logger.debug("Model changed")
+        if self.on_settings_changed:
+            self.on_settings_changed()
+            
+    def resetHotkey_(self, sender):
+        """Handle hotkey reset"""
+        logger.debug("Resetting hotkey")
+        if self.on_settings_changed:
+            self.on_settings_changed()
     
     def _create_startup_section(self, y_offset: int) -> int:
         """Create startup settings section"""
