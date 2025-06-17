@@ -6,6 +6,12 @@ let package = Package(
     platforms: [
         .macOS(.v13)
     ],
+    products: [
+        .executable(
+            name: "Potter",
+            targets: ["Potter"]
+        ),
+    ],
     dependencies: [
         // Add dependencies here if needed
     ],
@@ -14,6 +20,11 @@ let package = Package(
             name: "Potter",
             dependencies: [],
             path: "Sources"
+        ),
+        .testTarget(
+            name: "PotterTests",
+            dependencies: ["Potter"],
+            path: "Tests"
         ),
     ]
 )
