@@ -499,6 +499,46 @@ struct ModernSettingsView: View {
                 .padding()
             }
             
+            // Credits Section
+            GroupBox("Credits") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Developed by")
+                            .foregroundColor(.secondary)
+                        
+                        Button("graydot") {
+                            if let url = URL(string: "https://graydot.ai") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.blue)
+                        .underline()
+                        
+                        Text("with")
+                            .foregroundColor(.secondary)
+                        
+                        Text("♥")
+                            .foregroundColor(.red)
+                    }
+                    
+                    HStack {
+                        Text("Learn more:")
+                            .foregroundColor(.secondary)
+                        
+                        Button("Potter Product Page") {
+                            if let url = URL(string: "https://graydot.ai/products/potter/") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.blue)
+                        .underline()
+                    }
+                }
+                .padding()
+            }
+            
             Spacer()
         }
     }
