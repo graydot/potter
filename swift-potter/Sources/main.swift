@@ -31,12 +31,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return // Exit if user chose to exit this process
         }
         
+        setupEditMenu() // This is the key fix for keyboard shortcuts!
         loadSavedPromptSelection()
         setupMenuBar()
         setupCore()
         requestAccessibilityPermissions()
         checkAndShowSettingsIfNeeded()
         startMenuUpdateTimer()
+    }
+    
+    // MARK: - Edit Menu Setup (Fixes keyboard shortcuts in modals)
+    private func setupEditMenu() {
+        let mainMenu = NSMenu()
+        NSApp.mainMenu = mainMenu
+        
+        // App menu
+        let appMenuItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+        
+        appMenu.addItem(NSMenuItem(title: "Quit Potter", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        
+        // Edit menu - THIS IS THE CRUCIAL PART
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+        
+        // Undo/Redo first
+        editMenu.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
+        let redoItem = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redoItem.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(redoItem)
+        
+        editMenu.addItem(NSMenuItem.separator())
+        
+        // Standard text editing
+        editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
     }
     
     private func checkForDuplicateProcesses() -> Bool {
