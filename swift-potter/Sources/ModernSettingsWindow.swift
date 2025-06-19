@@ -172,9 +172,9 @@ struct ModernSettingsView: View {
     
     let sections = [
         ("General", "gear"),
-        ("Prompts", "text.bubble"),
-        ("About", "slider.horizontal.3"),
-        ("Logs", "doc.text")
+        ("Prompts", "bubble.left.and.bubble.right"),
+        ("About", "info.circle"),
+        ("Logs", "list.bullet.rectangle")
     ]
     
     var body: some View {
