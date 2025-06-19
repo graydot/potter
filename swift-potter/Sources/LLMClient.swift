@@ -122,9 +122,7 @@ class OpenAIClient: LLMClient {
             messages: [
                 OpenAIMessage(role: "system", content: prompt),
                 OpenAIMessage(role: "user", content: text)
-            ],
-            temperature: 0.7,
-            max_tokens: 2000
+            ]
         )
         
         let jsonData = try JSONEncoder().encode(requestBody)
@@ -312,8 +310,6 @@ class GoogleClient: LLMClient {
 struct OpenAIRequest: Codable {
     let model: String
     let messages: [OpenAIMessage]
-    let temperature: Double
-    let max_tokens: Int
 }
 
 struct OpenAIMessage: Codable {
@@ -329,10 +325,10 @@ struct OpenAIChoice: Codable {
     let message: OpenAIMessage
 }
 
-// Anthropic Models
+// Anthropic Models  
 struct AnthropicRequest: Codable {
     let model: String
-    let max_tokens: Int
+    let max_tokens: Int  // Required for Anthropic
     let messages: [AnthropicMessage]
 }
 
