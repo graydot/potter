@@ -19,11 +19,15 @@ class PromptManagerTests: XCTestCase {
         
         try! FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         
-        // Change to temp directory to use config/ subdirectory
-        FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
+        // Set up PromptManager to use test file instead of real Application Support
+        let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
+        PromptManager.shared.setTestFileURL(testPromptsFile)
     }
     
     override func tearDown() {
+        // Restore PromptManager to use real file path
+        PromptManager.shared.setTestFileURL(nil)
+        
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
         
@@ -33,7 +37,7 @@ class PromptManagerTests: XCTestCase {
         super.tearDown()
     }
     
-    func testLoadPromptsCreatesDefaultFile_DISABLED() {
+    func testLoadPromptsCreatesDefaultFile() {
         let manager = PromptManager.shared
         let prompts = manager.loadPrompts()
         
@@ -45,9 +49,8 @@ class PromptManagerTests: XCTestCase {
         XCTAssertTrue(prompts.contains { $0.name == "friendly" })
         
         // Check file was created
-        let configDir = tempDirectoryURL.appendingPathComponent("config")
-        let promptsFile = configDir.appendingPathComponent("prompts.json")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: promptsFile.path))
+        let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: testPromptsFile.path))
     }
     
     func testSaveAndLoadPrompts() {
@@ -98,16 +101,13 @@ class PromptManagerTests: XCTestCase {
         XCTAssertEqual(originalPrompt.prompt, decodedPrompt.prompt)
     }
     
-    func testCorruptedFileRecovery_DISABLED() throws {
+    func testCorruptedFileRecovery() throws {
         let manager = PromptManager.shared
-        let configDir = tempDirectoryURL.appendingPathComponent("config")
-        try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
         
-        let promptsFile = configDir.appendingPathComponent("prompts.json")
-        
-        // Write corrupted JSON
+        // Write corrupted JSON directly to the test file
         let corruptedData = "{ invalid json".data(using: .utf8)!
-        try corruptedData.write(to: promptsFile)
+        try corruptedData.write(to: testPromptsFile)
         
         // Should recover with defaults
         let prompts = manager.loadPrompts()

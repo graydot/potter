@@ -30,7 +30,15 @@ struct PromptItem: Identifiable, Equatable, Codable {
 class PromptManager {
     static let shared = PromptManager()
     
+    // For testing - allows override of file path
+    private var testFileURL: URL?
+    
     private var promptsFileURL: URL {
+        // Use test file URL if set (for testing)
+        if let testURL = testFileURL {
+            return testURL
+        }
+        
         // Always use Application Support to ensure consistency between command line and app bundle
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let potterDir = appSupport.appendingPathComponent("Potter")
@@ -39,6 +47,15 @@ class PromptManager {
         try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
         
         return potterDir.appendingPathComponent("prompts.json")
+    }
+    
+    // For testing - allows setting a custom file path
+    func setTestFileURL(_ url: URL?) {
+        testFileURL = url
+        if let url = url {
+            // Create parent directory if needed
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
     }
     
     func loadPrompts() -> [PromptItem] {
