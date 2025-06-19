@@ -44,19 +44,11 @@ class ProcessManager {
     private let lockFileName = "potter.lock"
     
     private var lockFileURL: URL {
-        if Bundle.main.bundleIdentifier != nil {
-            // Production: Application Support
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let potterDir = appSupport.appendingPathComponent("Potter")
-            try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
-            return potterDir.appendingPathComponent(lockFileName)
-        } else {
-            // Development: config/ directory
-            let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            let configDir = currentDir.appendingPathComponent("config")
-            try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            return configDir.appendingPathComponent(lockFileName)
-        }
+        // Always use Application Support to ensure consistency between command line and app bundle
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let potterDir = appSupport.appendingPathComponent("Potter")
+        try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
+        return potterDir.appendingPathComponent(lockFileName)
     }
     
     func checkForDuplicateProcesses() -> ProcessCheckResult {
@@ -110,10 +102,47 @@ class ProcessManager {
         return nil
     }
     
+    private func compareBuildInfo(current: BuildInfo, other: BuildInfo) -> String {
+        // Compare versions
+        if current.version != other.version {
+            return "Different versions (this: \(current.version), running: \(other.version))"
+        }
+        
+        // Compare build dates
+        let dateFormatter = DateFormatter.buildDateFormatter
+        if let currentDate = dateFormatter.date(from: current.buildDate),
+           let otherDate = dateFormatter.date(from: other.buildDate) {
+            
+            let timeDifference = abs(currentDate.timeIntervalSince(otherDate))
+            
+            if timeDifference < 60 { // Less than 1 minute apart
+                return "Both builds are essentially the same"
+            } else if currentDate > otherDate {
+                return "This build is newer than the running one"
+            } else {
+                return "The running build is newer than this one"
+            }
+        }
+        
+        // Compare build IDs as fallback
+        if current.buildId == other.buildId {
+            return "Both builds are identical"
+        } else {
+            return "Different builds"
+        }
+    }
+    
     func showDuplicateProcessDialog(otherProcesses: [RunningPotterProcess]) -> DuplicateProcessAction {
         let currentBuild = BuildInfo.current()
         
         var message = "Potter is already running.\n\n"
+        
+        // Add comparison summary at the top
+        if let otherProcess = otherProcesses.first,
+           let buildInfo = otherProcess.buildInfo {
+            let comparison = compareBuildInfo(current: currentBuild, other: buildInfo)
+            message += "📊 Summary: \(comparison)\n\n"
+        }
         
         // Current instance info
         message += "This Instance:\n"

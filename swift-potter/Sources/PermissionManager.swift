@@ -74,16 +74,32 @@ class PermissionManager: ObservableObject {
     private var permissionCheckTimer: Timer?
     private var checkStartTime: Date?
     
+    // Track initial states to detect changes since app launch
+    private var initialAccessibilityStatus: PermissionStatus = .unknown
+    private var hasPromptedForRestartThisSession = false
+    
     static let shared = PermissionManager()
     
     init() {
         checkAllPermissions()
+        // Store initial state after first check
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.initialAccessibilityStatus = self.accessibilityStatus
+        }
     }
     
     // MARK: - Permission Checking
     func checkAllPermissions() {
         checkAccessibilityPermission()
         checkNotificationPermission()
+        
+        // Force reset checking state if it's been too long
+        if isCheckingPermissions {
+            if let startTime = checkStartTime, Date().timeIntervalSince(startTime) > 600 { // 10 minutes
+                PotterLogger.shared.warning("permissions", "⚠️ Permission checking stuck - forcing reset")
+                stopPermissionMonitoring()
+            }
+        }
     }
     
     private func checkAccessibilityPermission() {
@@ -91,16 +107,39 @@ class PermissionManager: ObservableObject {
         accessibilityStatus = trusted ? .granted : .denied
         
         PotterLogger.shared.info("permissions", "🔐 Accessibility: \(accessibilityStatus.displayText)")
+        
+        // Only prompt for restart if:
+        // 1. We haven't already prompted this session
+        // 2. Permission changed from not-granted to granted since app launch
+        // 3. We're currently monitoring (user just granted permission)
+        if !hasPromptedForRestartThisSession && 
+           initialAccessibilityStatus != .granted && 
+           accessibilityStatus == .granted && 
+           isCheckingPermissions {
+            
+            PotterLogger.shared.info("permissions", "🔐 Accessibility permission newly granted since launch - prompting for restart")
+            hasPromptedForRestartThisSession = true
+            stopPermissionMonitoring()
+            
+            // Delay prompt slightly to let UI update
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.promptForRestart()
+            }
+        }
     }
     
     private func checkNotificationPermission() {
-        // Check if we're running as a proper app bundle
-        guard Bundle.main.bundleIdentifier != nil else {
+        // Check if we're running in debug mode without proper bundle
+        let isDebugMode = Bundle.main.bundleIdentifier == nil
+        
+        if isDebugMode {
+            // For debug mode, simulate a reasonable notification status
             notificationsStatus = .notDetermined
-            PotterLogger.shared.warning("permissions", "📱 Notifications: Not available in debug mode")
+            PotterLogger.shared.info("permissions", "📱 Notifications: \(notificationsStatus.displayText) (debug mode)")
             return
         }
         
+        // For production builds with proper bundle identifier
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
                 switch settings.authorizationStatus {
@@ -133,8 +172,10 @@ class PermissionManager: ObservableObject {
     func requestNotificationPermission() {
         PotterLogger.shared.info("permissions", "📱 Requesting notification permission...")
         
-        // Check if we're running as a proper app bundle
-        guard Bundle.main.bundleIdentifier != nil else {
+        // Check if we're running in debug mode without proper bundle
+        let isDebugMode = Bundle.main.bundleIdentifier == nil
+        
+        if isDebugMode {
             PotterLogger.shared.warning("permissions", "📱 Notification permission not available in debug mode")
             openSystemSettings(for: .notifications)
             return
@@ -307,6 +348,11 @@ class PermissionManager: ObservableObject {
             (.accessibility, accessibilityStatus),
             (.notifications, notificationsStatus)
         ]
+    }
+    
+    func forceStopChecking() {
+        PotterLogger.shared.info("permissions", "🛑 Force stopping permission checking")
+        stopPermissionMonitoring()
     }
     
     func hasRequiredPermissions() -> Bool {

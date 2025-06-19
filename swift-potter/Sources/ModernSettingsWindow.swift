@@ -31,25 +31,14 @@ class PromptManager {
     static let shared = PromptManager()
     
     private var promptsFileURL: URL {
-        if Bundle.main.bundleIdentifier != nil {
-            // Production: Application Support
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let potterDir = appSupport.appendingPathComponent("Potter")
-            
-            // Create directory if it doesn't exist
-            try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
-            
-            return potterDir.appendingPathComponent("prompts.json")
-        } else {
-            // Development: config/ directory
-            let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            let configDir = currentDir.appendingPathComponent("config")
-            
-            // Create directory if it doesn't exist
-            try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            
-            return configDir.appendingPathComponent("prompts.json")
-        }
+        // Always use Application Support to ensure consistency between command line and app bundle
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let potterDir = appSupport.appendingPathComponent("Potter")
+        
+        // Create directory if it doesn't exist
+        try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
+        
+        return potterDir.appendingPathComponent("prompts.json")
     }
     
     func loadPrompts() -> [PromptItem] {
@@ -57,7 +46,7 @@ class PromptManager {
         if !FileManager.default.fileExists(atPath: promptsFileURL.path) {
             let defaults = defaultPrompts()
             savePrompts(defaults)
-            PotterLogger.shared.info("prompts", "📄 Created new prompts file with \(defaults.count) default prompts at \(promptsFileURL.path)")
+            PotterLogger.shared.debug("prompts", "📄 Created new prompts file with \(defaults.count) default prompts at \(promptsFileURL.path)")
             return defaults
         }
         
@@ -65,14 +54,14 @@ class PromptManager {
         do {
             let data = try Data(contentsOf: promptsFileURL)
             let prompts = try JSONDecoder().decode([PromptItem].self, from: data)
-            PotterLogger.shared.info("prompts", "📖 Loaded \(prompts.count) prompts from \(promptsFileURL.path)")
+            PotterLogger.shared.debug("prompts", "📖 Loaded \(prompts.count) prompts from \(promptsFileURL.path)")
             return prompts
         } catch {
             PotterLogger.shared.error("prompts", "📖 Failed to load prompts file: \(error.localizedDescription)")
             // If file is corrupted, recreate with defaults
             let defaults = defaultPrompts()
             savePrompts(defaults)
-            PotterLogger.shared.info("prompts", "📄 Recreated corrupted prompts file with defaults")
+            PotterLogger.shared.warning("prompts", "📄 Recreated corrupted prompts file with defaults")
             return defaults
         }
     }
@@ -81,7 +70,7 @@ class PromptManager {
         do {
             let data = try JSONEncoder().encode(prompts)
             try data.write(to: promptsFileURL)
-            PotterLogger.shared.info("prompts", "💾 Saved \(prompts.count) prompts to \(promptsFileURL.path)")
+            PotterLogger.shared.debug("prompts", "💾 Saved \(prompts.count) prompts to \(promptsFileURL.path)")
         } catch {
             PotterLogger.shared.error("prompts", "💾 Failed to save prompts: \(error.localizedDescription)")
         }
@@ -153,6 +142,7 @@ struct ModernSettingsView: View {
     @State private var selectedSection = 0
     @StateObject private var settings = PotterSettings()
     @StateObject private var logger = PotterLogger.shared
+    @StateObject private var loginItemsManager = LoginItemsManager.shared
     @State private var logFilter: PotterLogger.LogEntry.LogLevel? = nil
     @Environment(\.colorScheme) var colorScheme
     
@@ -298,6 +288,12 @@ struct ModernSettingsView: View {
                 }
                 .padding(.bottom, 10)
                 
+                // Start at Login Section
+                GroupBox("Startup") {
+                    startAtLoginView
+                        .padding(.vertical, 8)
+                }
+                .padding(.bottom, 10)
                 
                 // Extra padding at bottom for scrolling
                 Color.clear
@@ -309,6 +305,32 @@ struct ModernSettingsView: View {
     }
     
     // Permissions are now integrated into the General tab
+    
+    private var startAtLoginView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Toggle("Start Potter at login", isOn: Binding(
+                    get: { loginItemsManager.isEnabled },
+                    set: { newValue in
+                        if newValue {
+                            loginItemsManager.enable()
+                        } else {
+                            loginItemsManager.disable()
+                        }
+                    }
+                ))
+                Spacer()
+            }
+            
+            Text("Potter will automatically start when you log in to your Mac.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.leading, 20) // Align with checkbox text
+        }
+        .onAppear {
+            loginItemsManager.checkCurrentStatus()
+        }
+    }
     
     private var promptsSection: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -488,7 +510,7 @@ struct ModernSettingsView: View {
     private var logsSectionControls: some View {
         HStack {
             Text("Filter:")
-            Picker("Filter", selection: $logFilter) {
+            Picker("", selection: $logFilter) {
                 Text("All").tag(nil as PotterLogger.LogEntry.LogLevel?)
                 Text("Info").tag(PotterLogger.LogEntry.LogLevel.info as PotterLogger.LogEntry.LogLevel?)
                 Text("Warning").tag(PotterLogger.LogEntry.LogLevel.warning as PotterLogger.LogEntry.LogLevel?)
@@ -518,10 +540,10 @@ struct ModernSettingsView: View {
     
     private var logsSectionContent: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
                 let filteredLogs = logger.filteredEntries(level: logFilter)
                 ForEach(Array(filteredLogs.enumerated()), id: \.offset) { _, logEntry in
-                    logEntryRow(logEntry)
+                    selectableLogEntryRow(logEntry)
                 }
             }
             .padding(.vertical, 8)
@@ -534,35 +556,22 @@ struct ModernSettingsView: View {
         )
     }
     
-    private func logEntryRow(_ logEntry: PotterLogger.LogEntry) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+    private func selectableLogEntryRow(_ logEntry: PotterLogger.LogEntry) -> some View {
+        let timestamp = DateFormatter.timeFormatter.string(from: logEntry.timestamp)
+        let logText = "\(timestamp) - \(logEntry.component) - \(logEntry.level.rawValue) - \(logEntry.message)"
+        
+        return HStack(alignment: .top, spacing: 8) {
             Circle()
                 .fill(Color(logEntry.level.color))
                 .frame(width: 6, height: 6)
                 .padding(.top, 6)
             
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(DateFormatter.timeFormatter.string(from: logEntry.timestamp))
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    
-                    Text(logEntry.component)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundColor(Color(logEntry.level.color))
-                        .fontWeight(.medium)
-                    
-                    Text(logEntry.level.rawValue)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundColor(Color(logEntry.level.color))
-                        .fontWeight(.bold)
-                }
-                
-                Text(logEntry.message)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(logText)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
@@ -693,7 +702,7 @@ struct HotkeyConfigurationView: View {
                     resetToDefault()
                 }
                 .buttonStyle(.bordered)
-                .disabled(isCapturingHotkey || !isAccessibilityGranted)
+                .disabled(isCapturingHotkey)
             }
             
             // Accessibility warning when permissions not granted
@@ -770,7 +779,7 @@ struct HotkeyConfigurationView: View {
         warningMessage = ""
         isKeyCaptureFocused = true
         
-        PotterLogger.shared.info("settings", "🎹 Started hotkey capture mode")
+        PotterLogger.shared.debug("settings", "🎹 Started hotkey capture mode")
     }
     
     private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
@@ -925,7 +934,10 @@ struct HotkeyConfigurationView: View {
         
         PotterLogger.shared.info("settings", "🎹 Applied new hotkey: \(currentHotkey.joined(separator: "+"))")
         
-        // TODO: Save to settings and update global hotkey system
+        // Update the global hotkey system
+        if let potterCore = NSApplication.shared.delegate as? AppDelegate {
+            potterCore.potterCore.updateHotkey(currentHotkey)
+        }
     }
     
     private func cancelHotkeyCapture() {
@@ -935,7 +947,7 @@ struct HotkeyConfigurationView: View {
         capturedKeys.removeAll()
         warningMessage = ""
         
-        PotterLogger.shared.info("settings", "🎹 Cancelled hotkey capture - restored previous combo")
+        PotterLogger.shared.debug("settings", "🎹 Cancelled hotkey capture - restored previous combo")
     }
     
     private func resetToDefault() {
@@ -948,11 +960,15 @@ struct HotkeyConfigurationView: View {
         
         PotterLogger.shared.info("settings", "🎹 Reset hotkey to default")
         
-        // TODO: Save to settings and update global hotkey system
+        // Update the global hotkey system
+        if let potterCore = NSApplication.shared.delegate as? AppDelegate {
+            potterCore.potterCore.updateHotkey(currentHotkey)
+        }
     }
 }
 
-// MARK: - Prompt Edit Dialog
+
+// MARK: - Simple Prompt Edit Dialog
 @available(macOS 14.0, *)
 struct PromptEditDialog: View {
     @Binding var isPresented: Bool
@@ -963,187 +979,47 @@ struct PromptEditDialog: View {
     
     @State private var name: String = ""
     @State private var prompt: String = ""
-    @State private var errorMessage: String = ""
-    @FocusState private var isNameFocused: Bool
-    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header with app icon
-            HStack(spacing: 16) {
-                Image(systemName: "wand.and.stars")
-                    .font(.system(size: 32))
-                    .foregroundColor(.blue)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(isEditing ? "Edit Prompt" : "New Prompt")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    
-                    Text(isEditing ? "Modify the existing prompt" : "Create a new prompt for text processing")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
+        VStack(spacing: 20) {
+            Text(isEditing ? "Edit Prompt" : "New Prompt")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Name:")
+                TextField("Prompt name", text: $name)
+                    .textFieldStyle(.roundedBorder)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-            .padding(.bottom, 16)
             
-            Divider()
-            
-            // Form content
-            VStack(alignment: .leading, spacing: 20) {
-                // Name field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Name")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                    
-                    TextField("Enter prompt name", text: $name)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($isNameFocused)
-                        .onSubmit {
-                            // Move focus to prompt field when name is submitted
-                        }
-                    
-                    Text("Must be unique and descriptive")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                // Prompt field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Prompt Text")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                    
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if #available(macOS 14.0, *) {
-                            TextEditor(text: $prompt)
-                                .frame(minHeight: 150, maxHeight: 250)
-                                .padding(8)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color(NSColor.separatorColor), lineWidth: 1)
-                                )
-                                .onKeyPress { keyPress in
-                                    if keyPress.key == .escape {
-                                        cancelDialog()
-                                        return .handled
-                                    }
-                                    return .ignored
-                                }
-                        } else {
-                            TextField("Enter prompt text", text: $prompt, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(minHeight: 120)
-                        }
-                        
-                        Text("\(prompt.count)/500 characters")
-                            .font(.caption)
-                            .foregroundColor(prompt.count > 500 ? .red : .secondary)
-                    }
-                    
-                    Text("Describe what you want the AI to do with the selected text")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                // Error message
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Prompt:")
+                TextEditor(text: $prompt)
+                    .frame(minHeight: 100)
+                    .border(Color.gray, width: 1)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
             
-            Divider()
-            
-            // Footer buttons
             HStack {
                 Button("Cancel") {
-                    cancelDialog()
+                    isPresented = false
                 }
-                .buttonStyle(.bordered)
-                .keyboardShortcut(.escape, modifiers: [])
                 
                 Spacer()
                 
-                Button(isEditing ? "Update" : "Create") {
-                    savePrompt()
+                Button("Save") {
+                    onSave(name, prompt)
+                    isPresented = false
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(!isValidInput())
+                .disabled(name.isEmpty || prompt.isEmpty)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
         }
-        .frame(width: 600, height: 500)
-        .background(Color(NSColor.windowBackgroundColor))
+        .padding()
+        .frame(width: 400, height: 300)
         .onAppear {
-            loadExistingData()
-            isNameFocused = true
+            if let existing = existingPrompt {
+                name = existing.name
+                prompt = existing.prompt
+            }
         }
-    }
-    
-    private func loadExistingData() {
-        if let existing = existingPrompt {
-            name = existing.name
-            prompt = existing.prompt
-        }
-    }
-    
-    private func isValidInput() -> Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        prompt.count <= 500 &&
-        (isEditing || !existingPromptNames.contains(name.trimmingCharacters(in: .whitespacesAndNewlines))) &&
-        (!isEditing || existingPrompt?.name == name || !existingPromptNames.contains(name.trimmingCharacters(in: .whitespacesAndNewlines)))
-    }
-    
-    private func savePrompt() {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Validate name uniqueness
-        if !isEditing && existingPromptNames.contains(trimmedName) {
-            errorMessage = "A prompt with this name already exists"
-            return
-        }
-        
-        if isEditing && existingPrompt?.name != trimmedName && existingPromptNames.contains(trimmedName) {
-            errorMessage = "A prompt with this name already exists"
-            return
-        }
-        
-        // Validate prompt length
-        if trimmedPrompt.count > 500 {
-            errorMessage = "Prompt text must be 500 characters or less"
-            return
-        }
-        
-        // Validate required fields
-        if trimmedName.isEmpty {
-            errorMessage = "Name is required"
-            return
-        }
-        
-        if trimmedPrompt.isEmpty {
-            errorMessage = "Prompt text is required"
-            return
-        }
-        
-        onSave(trimmedName, trimmedPrompt)
-        isPresented = false
-    }
-    
-    private func cancelDialog() {
-        isPresented = false
     }
 }

@@ -55,8 +55,8 @@ class LLMManager: ObservableObject {
             let key = "api_key_\(provider.rawValue)"
             if let apiKey = UserDefaults.standard.string(forKey: key), !apiKey.isEmpty {
                 apiKeys[provider] = apiKey
-                // Mark as valid if previously saved (will be re-validated on first use)
-                validationStates[provider] = .valid
+                // Don't mark as valid automatically - require re-validation
+                validationStates[provider] = ValidationState.none
             }
         }
         
@@ -65,7 +65,10 @@ class LLMManager: ObservableObject {
             selectedModel = selectedProvider.models.first { $0.id == modelId }
         }
         
-        selectedModel = selectedModel ?? selectedProvider.models.first
+        // Always ensure a model is selected for the current provider
+        if selectedModel == nil || selectedModel?.provider != selectedProvider {
+            selectedModel = selectedProvider.models.first
+        }
     }
     
     func saveSettings() {
@@ -123,25 +126,15 @@ class LLMManager: ObservableObject {
         
         do {
             let client = createClient(for: provider, apiKey: apiKey)
-            let isValid = try await client.validateAPIKey(apiKey)
+            _ = try await client.validateAPIKey(apiKey)
             
-            if isValid {
-                // Validation successful
-                validationStates[provider] = .valid
-                apiKeys[provider] = apiKey
-                clients[provider] = client
-                saveSettings()
-                
-                PotterLogger.shared.info("llm_manager", "✅ \(provider.displayName) API key validated successfully")
-                
-                // Show success feedback briefly
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    // Keep the valid state but don't show temporary success message
-                }
-            } else {
-                validationStates[provider] = .invalid("Invalid API key")
-                PotterLogger.shared.warning("llm_manager", "❌ \(provider.displayName) API key validation failed")
-            }
+            // If we get here, validation succeeded
+            validationStates[provider] = .valid
+            apiKeys[provider] = apiKey
+            clients[provider] = client
+            saveSettings()
+            
+            PotterLogger.shared.info("llm_manager", "✅ \(provider.displayName) API key validated successfully")
         } catch {
             let errorMessage = error.localizedDescription
             validationStates[provider] = .invalid(errorMessage)
@@ -200,6 +193,7 @@ class LLMManager: ObservableObject {
     }
     
     func hasValidProvider() -> Bool {
-        return validationStates.values.contains { $0.isValid }
+        // Check if we have any API keys (assume they're valid if previously saved)
+        return !apiKeys.isEmpty && apiKeys.values.contains { !$0.isEmpty }
     }
 }

@@ -12,6 +12,81 @@ except ImportError:
     print("   Install with: pip install Pillow")
     exit(1)
 
+def draw_cauldron_icon(draw, center_x, center_y):
+    """Draw a magical cauldron icon with gradient colors"""
+    
+    # Scale factor for the icon
+    scale = 0.8
+    
+    # Colors for gradient effect
+    cauldron_colors = ['#8B5CF6', '#EC4899', '#F97316']  # Purple to pink to orange
+    rim_color = '#FBBF24'  # Golden rim
+    particle_colors = ['#F97316', '#EC4899', '#8B5CF6']
+    
+    # Draw magical particles above the cauldron
+    particles = [
+        (center_x - 30, center_y - 60, 4, 4),
+        (center_x - 10, center_y - 70, 6, 6),
+        (center_x + 15, center_y - 65, 3, 3),
+        (center_x + 5, center_y - 50, 4, 4),
+        (center_x - 20, center_y - 45, 3, 3),
+        (center_x + 25, center_y - 50, 4, 4),
+    ]
+    
+    for i, (px, py, pw, ph) in enumerate(particles):
+        color = particle_colors[i % len(particle_colors)]
+        draw.ellipse([px-pw//2, py-ph//2, px+pw//2, py+ph//2], fill=color)
+    
+    # Draw cauldron body (gradient effect by drawing multiple ellipses)
+    cauldron_width = 80
+    cauldron_height = 60
+    
+    # Create gradient effect
+    for i in range(cauldron_height):
+        progress = i / cauldron_height
+        if progress < 0.5:
+            # Purple to pink
+            color_progress = progress * 2
+            r = int(139 + (236 - 139) * color_progress)
+            g = int(92 + (72 - 92) * color_progress)
+            b = int(246 + (153 - 246) * color_progress)
+        else:
+            # Pink to orange
+            color_progress = (progress - 0.5) * 2
+            r = int(236 + (249 - 236) * color_progress)
+            g = int(72 + (115 - 72) * color_progress)
+            b = int(153 + (22 - 153) * color_progress)
+        
+        color = f'#{r:02x}{g:02x}{b:02x}'
+        y_pos = center_y - cauldron_height//2 + i
+        width_at_y = cauldron_width * (0.7 + 0.3 * (1 - abs(i - cauldron_height//2) / (cauldron_height//2)))
+        
+        draw.ellipse([
+            center_x - width_at_y//2, y_pos,
+            center_x + width_at_y//2, y_pos + 2
+        ], fill=color)
+    
+    # Draw cauldron rim (golden)
+    draw.ellipse([
+        center_x - cauldron_width//2 - 5, center_y - cauldron_height//2 - 5,
+        center_x + cauldron_width//2 + 5, center_y - cauldron_height//2 + 5
+    ], fill=rim_color)
+    
+    # Draw cauldron legs
+    leg_color = '#D97706'  # Darker orange
+    leg_positions = [center_x - 30, center_x, center_x + 30]
+    leg_y = center_y + cauldron_height//2 + 10
+    
+    for leg_x in leg_positions:
+        draw.ellipse([leg_x - 4, leg_y - 3, leg_x + 4, leg_y + 3], fill=leg_color)
+    
+    # Draw handle
+    handle_color = '#FFFFFF'
+    draw.rectangle([
+        center_x - 2, center_y - 10,
+        center_x + 2, center_y + 10
+    ], fill=handle_color)
+
 def create_dmg_background():
     """Create a professional DMG background image"""
     
@@ -40,10 +115,13 @@ def create_dmg_background():
         subtitle_font = ImageFont.load_default()
         instruction_font = ImageFont.load_default()
     
-    # Colors
+    # Colors - magical theme
     primary_color = '#2c3e50'
     secondary_color = '#7f8c8d'
-    accent_color = '#3498db'
+    accent_color = '#8B5CF6'  # Purple for magical theme
+    
+    # Draw magical cauldron icon in the center
+    draw_cauldron_icon(draw, width//2, height//2 - 30)
     
     # Draw title
     title_text = "Potter"

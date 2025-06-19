@@ -8,22 +8,27 @@ struct LLMModel: Identifiable, Hashable {
     let provider: LLMProvider
     
     static let openAIModels = [
-        LLMModel(id: "gpt-4o", name: "GPT-4o", description: "Most capable model, excellent for complex reasoning and analysis", provider: .openAI),
-        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast and efficient, great for most tasks with good quality", provider: .openAI),
-        LLMModel(id: "gpt-4-turbo", name: "GPT-4 Turbo", description: "High performance with large context window, ideal for long documents", provider: .openAI),
-        LLMModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Quick responses, cost-effective for simple tasks", provider: .openAI)
+        LLMModel(id: "o4-mini", name: "o4-mini", description: "Latest reasoning model, excellent for math, coding, and logical tasks", provider: .openAI),
+        LLMModel(id: "o3", name: "o3", description: "Most powerful reasoning model for complex scientific and technical problems", provider: .openAI),
+        LLMModel(id: "gpt-4.1", name: "GPT-4.1", description: "Latest GPT model with major improvements in coding and instruction following", provider: .openAI),
+        LLMModel(id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Fast and efficient with excellent performance, 83% cheaper than GPT-4o", provider: .openAI),
+        LLMModel(id: "gpt-4o", name: "GPT-4o", description: "Flagship multimodal model, excellent for complex reasoning and analysis", provider: .openAI),
+        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Cost-effective with good performance for most tasks", provider: .openAI),
+        LLMModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Legacy model, quick responses and cost-effective for simple tasks", provider: .openAI)
     ]
     
     static let anthropicModels = [
+        LLMModel(id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Latest flagship model with enhanced reasoning and coding capabilities", provider: .anthropic),
         LLMModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", description: "Excellent for creative writing and complex analysis", provider: .anthropic),
         LLMModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic),
-        LLMModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", description: "Most capable model, best for research and complex reasoning", provider: .anthropic)
+        LLMModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", description: "Legacy model for complex reasoning and research", provider: .anthropic)
     ]
     
     static let googleModels = [
+        LLMModel(id: "gemini-2.5-pro-exp", name: "Gemini 2.5 Pro Experimental", description: "Latest experimental model with enhanced reasoning and multimodal capabilities", provider: .google),
+        LLMModel(id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash Experimental", description: "Next-generation flash model with improved performance and efficiency", provider: .google),
         LLMModel(id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Advanced reasoning with large context, great for research", provider: .google),
-        LLMModel(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast and efficient, optimized for speed", provider: .google),
-        LLMModel(id: "gemini-pro", name: "Gemini Pro", description: "Balanced performance for general use", provider: .google)
+        LLMModel(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast and efficient, optimized for speed", provider: .google)
     ]
 }
 
@@ -57,6 +62,14 @@ enum LLMProvider: String, CaseIterable, Identifiable, Hashable {
         case .google: return "AIza..."
         }
     }
+    
+    var apiKeyURL: String {
+        switch self {
+        case .openAI: return "https://platform.openai.com/api-keys"
+        case .anthropic: return "https://console.anthropic.com/settings/keys"
+        case .google: return "https://aistudio.google.com/app/apikey"
+        }
+    }
 }
 
 // MARK: - LLM Client Protocol
@@ -80,8 +93,21 @@ class OpenAIClient: LLMClient {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         
-        let (_, response) = try await URLSession.shared.data(for: request)
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        PotterLogger.shared.info("validation", "🔍 OpenAI validation URL: \(url.absoluteString)")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        
+        PotterLogger.shared.info("validation", "📡 OpenAI response status: \(statusCode)")
+        
+        if statusCode != 200 {
+            let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
+            PotterLogger.shared.error("validation", "❌ OpenAI validation failed - Response: \(errorBody)")
+            throw LLMError.apiError(statusCode, errorBody)
+        }
+        
+        return true
     }
     
     func processText(_ text: String, prompt: String, model: String) async throws -> String {
@@ -142,6 +168,8 @@ class AnthropicClient: LLMClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         
+        PotterLogger.shared.info("validation", "🔍 Anthropic validation URL: \(url.absoluteString)")
+        
         let testBody = AnthropicRequest(
             model: "claude-3-5-haiku-20241022",
             max_tokens: 1,
@@ -150,8 +178,19 @@ class AnthropicClient: LLMClient {
         
         request.httpBody = try JSONEncoder().encode(testBody)
         
-        let (_, response) = try await URLSession.shared.data(for: request)
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        
+        PotterLogger.shared.info("validation", "📡 Anthropic response status: \(statusCode)")
+        
+        if statusCode != 200 {
+            let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
+            PotterLogger.shared.error("validation", "❌ Anthropic validation failed - Response: \(errorBody)")
+            throw LLMError.apiError(statusCode, errorBody)
+        }
+        
+        return true
     }
     
     func processText(_ text: String, prompt: String, model: String) async throws -> String {
@@ -202,10 +241,12 @@ class GoogleClient: LLMClient {
     }
     
     func validateAPIKey(_ apiKey: String) async throws -> Bool {
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=\(apiKey)")!
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=\(apiKey)")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        PotterLogger.shared.info("validation", "🔍 Google validation URL: \(url.absoluteString)")
         
         let testBody = GoogleRequest(
             contents: [GoogleContent(parts: [GooglePart(text: "test")])]
@@ -213,8 +254,19 @@ class GoogleClient: LLMClient {
         
         request.httpBody = try JSONEncoder().encode(testBody)
         
-        let (_, response) = try await URLSession.shared.data(for: request)
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? 0
+        
+        PotterLogger.shared.info("validation", "📡 Google response status: \(statusCode)")
+        
+        if statusCode != 200 {
+            let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
+            PotterLogger.shared.error("validation", "❌ Google validation failed - Response: \(errorBody)")
+            throw LLMError.apiError(statusCode, errorBody)
+        }
+        
+        return true
     }
     
     func processText(_ text: String, prompt: String, model: String) async throws -> String {

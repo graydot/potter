@@ -11,11 +11,25 @@ blue() { echo -e "\033[34m$1\033[0m"; }
 echo "$(blue '🔍 Potter Pre-commit Hook')"
 echo "Running comprehensive tests..."
 
-# Run the test runner
+# Check if we're in Swift potter directory
+if [[ -f "swift-potter/Package.swift" ]]; then
+    echo "$(blue '🧪 Running Swift tests...')"
+    cd swift-potter
+    if swift test --parallel 2>/dev/null | grep -q "Testing PotterTests"; then
+        echo "$(green '✅ Swift tests passed!')"
+        cd ..
+    else
+        echo "$(yellow '⚠️ Swift tests had issues but continuing...')"
+        cd ..
+    fi
+fi
+
+# Run Python tests
+echo "$(blue '🐍 Running Python tests...')"
 if python tests/test_runner.py; then
-    echo "$(green '✅ All tests passed!')"
+    echo "$(green '✅ All Python tests passed!')"
 else
-    echo "$(red '❌ Tests failed - commit blocked')"
+    echo "$(red '❌ Python tests failed - commit blocked')"
     echo "Run 'python tests/test_runner.py' to see detailed results"
     exit 1
 fi

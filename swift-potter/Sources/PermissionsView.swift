@@ -95,7 +95,7 @@ struct PermissionsView: View {
                         handlePermissionAction(for: permission, status: status)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(permissionManager.isCheckingPermissions || (permission == .notifications && !notificationsEnabled))
+                    .disabled(permission == .notifications && !notificationsEnabled)
                 }
             }
             .padding(.vertical, 8)
@@ -128,7 +128,7 @@ struct PermissionsView: View {
                     showingResetConfirmation = true
                 }
                 .buttonStyle(.bordered)
-                .disabled(isResettingPermissions || permissionManager.isCheckingPermissions)
+                .disabled(isResettingPermissions)
                 
                 if isResettingPermissions {
                     ProgressView()
@@ -253,7 +253,6 @@ struct PermissionsView: View {
                     handlePermissionAction(for: .accessibility, status: status)
                 }
                 .buttonStyle(.bordered)
-                .disabled(permissionManager.isCheckingPermissions)
             }
         }
     }
@@ -290,6 +289,11 @@ struct PermissionsView: View {
                         // Save to UserDefaults
                         UserDefaults.standard.set(newValue, forKey: "notifications_enabled")
                         PotterLogger.shared.info("settings", "📱 Notifications enabled: \(newValue)")
+                        
+                        // Re-check permissions when notifications are enabled
+                        if newValue {
+                            permissionManager.checkAllPermissions()
+                        }
                     }
             }
             
@@ -367,7 +371,7 @@ struct PermissionsView: View {
                     handlePermissionAction(for: .notifications, status: status)
                 }
                 .buttonStyle(.bordered)
-                .disabled(permissionManager.isCheckingPermissions || !notificationsEnabled)
+                .disabled(!notificationsEnabled)
             }
         }
     }
@@ -422,11 +426,9 @@ struct PermissionsView: View {
     private func actionButtonText(for permission: PermissionType, status: PermissionStatus) -> String {
         switch status {
         case .granted:
-            return "Manage"
-        case .denied, .notDetermined:
-            return "Give Permission"
-        case .unknown:
-            return "Check"
+            return "Open Settings"
+        case .denied, .notDetermined, .unknown:
+            return "Open Settings"
         }
     }
     

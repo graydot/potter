@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Carbon
+import UserNotifications
 
 enum PromptMode: String, CaseIterable {
     case summarize = "summarize"
@@ -32,6 +33,7 @@ class PotterCore {
     private var settings: PotterSettings
     private var llmManager: LLMManager!
     private var hotkeyEventHandler: EventHotKeyRef?
+    private var currentHotkeyCombo: [String] = ["⌘", "⇧", "R"] // Default hotkey
     
     init() {
         self.settings = PotterSettings()
@@ -50,45 +52,32 @@ class PotterCore {
     }
     
     private func setupGlobalHotkey() {
-        // Register Cmd+Shift+R hotkey
-        var eventHotKeyRef: EventHotKeyRef?
-        let hotKeyID = EventHotKeyID(signature: fourCharCode("POTR"), id: UInt32(1))
-        _ = UInt32(kEventHotKeyPressed)
+        // Load saved hotkey or use default
+        if let savedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String] {
+            currentHotkeyCombo = savedHotkey
+        }
         
-        let status = RegisterEventHotKey(
-            UInt32(kVK_ANSI_R), // R key
-            UInt32(cmdKey + shiftKey), // Cmd+Shift
-            hotKeyID,
+        // Install event handler for hotkey events
+        var eventTypes = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(
             GetApplicationEventTarget(),
-            0,
-            &eventHotKeyRef
+            { (nextHandler, theEvent, userData) -> OSStatus in
+                let potter = Unmanaged<PotterCore>.fromOpaque(userData!).takeUnretainedValue()
+                potter.handleHotkey()
+                return noErr
+            },
+            1,
+            &eventTypes,
+            Unmanaged.passUnretained(self).toOpaque(),
+            nil
         )
         
-        if status == noErr {
-            self.hotkeyEventHandler = eventHotKeyRef
-            
-            // Install event handler
-            var eventTypes = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(
-                GetApplicationEventTarget(),
-                { (nextHandler, theEvent, userData) -> OSStatus in
-                    let potter = Unmanaged<PotterCore>.fromOpaque(userData!).takeUnretainedValue()
-                    potter.handleHotkey()
-                    return noErr
-                },
-                1,
-                &eventTypes,
-                Unmanaged.passUnretained(self).toOpaque(),
-                nil
-            )
-            
-            PotterLogger.shared.info("hotkeys", "✅ Global hotkey registered (⌘⇧R)")
-        } else {
-            PotterLogger.shared.error("hotkeys", "❌ Failed to register global hotkey")
-        }
+        // Register the current hotkey
+        registerHotkey(currentHotkeyCombo)
     }
     
     @objc private func handleHotkey() {
+        PotterLogger.shared.info("hotkey", "🎯 Global hotkey callback triggered")
         DispatchQueue.main.async {
             self.processClipboardText()
         }
@@ -171,15 +160,119 @@ class PotterCore {
         return llmManager
     }
     
-    private func showNotification(title: String, message: String) {
-        // Simple alert for now - could upgrade to UserNotifications framework later
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = title
-            alert.informativeText = message
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+    // MARK: - Hotkey Management
+    func updateHotkey(_ newHotkey: [String]) {
+        // Unregister current hotkey
+        if let currentHandler = hotkeyEventHandler {
+            UnregisterEventHotKey(currentHandler)
+            hotkeyEventHandler = nil
         }
+        
+        currentHotkeyCombo = newHotkey
+        
+        // Register new hotkey
+        registerHotkey(newHotkey)
+        
+        // Save to settings
+        UserDefaults.standard.set(newHotkey, forKey: "global_hotkey")
+        PotterLogger.shared.info("hotkeys", "🔄 Updated hotkey to: \(newHotkey.joined(separator: "+"))")
+    }
+    
+    private func registerHotkey(_ hotkeyCombo: [String]) {
+        // Parse the hotkey combination
+        let (keyCode, modifiers) = parseHotkeyCombo(hotkeyCombo)
+        
+        var eventHotKeyRef: EventHotKeyRef?
+        let hotKeyID = EventHotKeyID(signature: fourCharCode("POTR"), id: UInt32(1))
+        
+        let status = RegisterEventHotKey(
+            keyCode,
+            modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &eventHotKeyRef
+        )
+        
+        if status == noErr {
+            self.hotkeyEventHandler = eventHotKeyRef
+            PotterLogger.shared.info("hotkeys", "✅ Registered hotkey: \(hotkeyCombo.joined(separator: "+"))")
+        } else {
+            PotterLogger.shared.error("hotkeys", "❌ Failed to register hotkey: \(hotkeyCombo.joined(separator: "+"))")
+        }
+    }
+    
+    private func parseHotkeyCombo(_ combo: [String]) -> (UInt32, UInt32) {
+        var modifiers: UInt32 = 0
+        var keyCode: UInt32 = UInt32(kVK_ANSI_R) // Default to R
+        
+        for key in combo {
+            switch key {
+            case "⌘":
+                modifiers |= UInt32(cmdKey)
+            case "⌥":
+                modifiers |= UInt32(optionKey)
+            case "⌃":
+                modifiers |= UInt32(controlKey)
+            case "⇧":
+                modifiers |= UInt32(shiftKey)
+            case "R":
+                keyCode = UInt32(kVK_ANSI_R)
+            case "T":
+                keyCode = UInt32(kVK_ANSI_T)
+            case "Y":
+                keyCode = UInt32(kVK_ANSI_Y)
+            case "U":
+                keyCode = UInt32(kVK_ANSI_U)
+            case "I":
+                keyCode = UInt32(kVK_ANSI_I)
+            case "O":
+                keyCode = UInt32(kVK_ANSI_O)
+            case "P":
+                keyCode = UInt32(kVK_ANSI_P)
+            case "A":
+                keyCode = UInt32(kVK_ANSI_A)
+            case "S":
+                keyCode = UInt32(kVK_ANSI_S)
+            case "D":
+                keyCode = UInt32(kVK_ANSI_D)
+            case "F":
+                keyCode = UInt32(kVK_ANSI_F)
+            case "G":
+                keyCode = UInt32(kVK_ANSI_G)
+            case "H":
+                keyCode = UInt32(kVK_ANSI_H)
+            case "J":
+                keyCode = UInt32(kVK_ANSI_J)
+            case "K":
+                keyCode = UInt32(kVK_ANSI_K)
+            case "L":
+                keyCode = UInt32(kVK_ANSI_L)
+            case "Z":
+                keyCode = UInt32(kVK_ANSI_Z)
+            case "X":
+                keyCode = UInt32(kVK_ANSI_X)
+            case "C":
+                keyCode = UInt32(kVK_ANSI_C)
+            case "V":
+                keyCode = UInt32(kVK_ANSI_V)
+            case "B":
+                keyCode = UInt32(kVK_ANSI_B)
+            case "N":
+                keyCode = UInt32(kVK_ANSI_N)
+            case "M":
+                keyCode = UInt32(kVK_ANSI_M)
+            default:
+                break
+            }
+        }
+        
+        return (keyCode, modifiers)
+    }
+    
+    private func showNotification(title: String, message: String) {
+        // Just log the notification - don't try to show UI notifications in CLI context
+        PotterLogger.shared.info("notification", "📢 \(title): \(message)")
     }
 }
 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark theme version - solid black cauldron -->
+  <g transform="scale(0.024 0.024)">
+    <!-- Magical particles -->
+    <rect x="556" y="143" width="48" height="48" fill="#2c2c2c"/>
+    <rect x="464" y="217" width="48" height="48" fill="#2c2c2c"/>
+    <rect x="622" y="217" width="30" height="30" fill="#2c2c2c"/>
+    <rect x="558" y="273" width="30" height="30" fill="#2c2c2c"/>
+    <rect x="486" y="330" width="30" height="30" fill="#2c2c2c"/>
+    <rect x="414" y="393" width="30" height="30" fill="#2c2c2c"/>
+    <rect x="576" y="373" width="30" height="30" fill="#2c2c2c"/>
+    
+    <!-- Cauldron body -->
+    <path d="M285 413C285 413 285 413 285 413L285 513C285 650 285 767 400 850C515 933 585 933 700 850C815 767 815 650 815 513L815 413C815 413 815 413 815 413" fill="#2c2c2c"/>
+    
+    <!-- Cauldron rim -->
+    <ellipse cx="550" cy="413" rx="265" ry="50" fill="#2c2c2c"/>
+    
+    <!-- Cauldron legs -->
+    <ellipse cx="350" cy="850" rx="25" ry="40" fill="#2c2c2c"/>
+    <ellipse cx="550" cy="850" rx="25" ry="40" fill="#2c2c2c"/>
+    <ellipse cx="750" cy="850" rx="25" ry="40" fill="#2c2c2c"/>
+    
+    <!-- Handle -->
+    <rect x="550" y="460" width="20" height="80" fill="white"/>
+  </g>
+</svg>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Color gradient version for app icon and DMG -->
+  <defs>
+    <!-- Gradient for cauldron body -->
+    <linearGradient id="cauldronGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#EC4899;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F97316;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradient for rim -->
+    <linearGradient id="rimGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Particle gradients -->
+    <linearGradient id="particle1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#F97316;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#EC4899;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="particle2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#EC4899;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Magical particles -->
+  <rect x="278" y="71" width="24" height="24" rx="6" fill="url(#particle1)"/>
+  <rect x="232" y="109" width="24" height="24" rx="6" fill="url(#particle1)"/>
+  <rect x="311" y="109" width="15" height="15" rx="4" fill="url(#particle2)"/>
+  <rect x="279" y="137" width="15" height="15" rx="4" fill="url(#particle2)"/>
+  <rect x="243" y="165" width="15" height="15" rx="4" fill="url(#particle1)"/>
+  <rect x="207" y="197" width="15" height="15" rx="4" fill="url(#particle2)"/>
+  <rect x="288" y="187" width="15" height="15" rx="4" fill="url(#particle1)"/>
+  
+  <!-- Cauldron body with gradient -->
+  <path d="M142 206C142 206 142 206 142 206L142 256C142 325 142 384 200 425C258 466 292 466 350 425C408 384 408 325 408 256L408 206C408 206 408 206 408 206" fill="url(#cauldronGradient)"/>
+  
+  <!-- Cauldron rim with golden gradient -->
+  <ellipse cx="275" cy="206" rx="133" ry="25" fill="url(#rimGradient)"/>
+  
+  <!-- Cauldron legs -->
+  <ellipse cx="175" cy="425" rx="12" ry="20" fill="url(#rimGradient)"/>
+  <ellipse cx="275" cy="425" rx="12" ry="20" fill="url(#rimGradient)"/>
+  <ellipse cx="375" cy="425" rx="12" ry="20" fill="url(#rimGradient)"/>
+  
+  <!-- Handle -->
+  <rect x="265" y="230" width="10" height="40" rx="2" fill="white"/>
+  
+  <!-- Highlight for 3D effect -->
+  <ellipse cx="220" cy="260" rx="8" ry="15" fill="white" opacity="0.3"/>
+</svg>

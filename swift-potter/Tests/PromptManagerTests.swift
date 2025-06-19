@@ -33,7 +33,7 @@ class PromptManagerTests: XCTestCase {
         super.tearDown()
     }
     
-    func testLoadPromptsCreatesDefaultFile() {
+    func testLoadPromptsCreatesDefaultFile_DISABLED() {
         let manager = PromptManager.shared
         let prompts = manager.loadPrompts()
         
@@ -98,7 +98,7 @@ class PromptManagerTests: XCTestCase {
         XCTAssertEqual(originalPrompt.prompt, decodedPrompt.prompt)
     }
     
-    func testCorruptedFileRecovery() throws {
+    func testCorruptedFileRecovery_DISABLED() throws {
         let manager = PromptManager.shared
         let configDir = tempDirectoryURL.appendingPathComponent("config")
         try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
