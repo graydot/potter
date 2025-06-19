@@ -173,7 +173,7 @@ struct ModernSettingsView: View {
     let sections = [
         ("General", "gear"),
         ("Prompts", "text.bubble"),
-        ("Advanced", "slider.horizontal.3"),
+        ("About", "slider.horizontal.3"),
         ("Logs", "doc.text")
     ]
     
@@ -477,7 +477,7 @@ struct ModernSettingsView: View {
     
     private var advancedSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Advanced Settings")
+            Text("About")
                 .font(.title)
                 .fontWeight(.semibold)
             
@@ -499,10 +499,10 @@ struct ModernSettingsView: View {
                 .padding()
             }
             
-            // Credits Section
-            GroupBox("Credits") {
+            // About Section
+            GroupBox("About") {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Text("Developed by")
                             .foregroundColor(.secondary)
                         
@@ -523,10 +523,10 @@ struct ModernSettingsView: View {
                     }
                     
                     HStack {
-                        Text("Learn more:")
+                        Text("Product link for Potter:")
                             .foregroundColor(.secondary)
                         
-                        Button("Potter Product Page") {
+                        Button("potter") {
                             if let url = URL(string: "https://graydot.ai/products/potter/") {
                                 NSWorkspace.shared.open(url)
                             }
