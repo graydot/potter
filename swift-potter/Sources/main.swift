@@ -256,7 +256,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         
         switch state {
         case .normal:
-            // Use the original cauldron design for normal state
+            // Use the Potter pot design for normal state
             drawCauldronIcon(isDarkMode: isDarkMode, size: size)
         case .processing:
             // Draw yellow animated spinner
@@ -280,56 +280,64 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func drawCauldronIcon(isDarkMode: Bool, size: NSSize) {
-        // Use appropriate color for the theme
-        let color = NSColor.controlAccentColor
-        color.setFill()
-        color.setStroke()
+        // Use appropriate colors for light/dark mode
+        let potColor: NSColor
+        let steamColor: NSColor
+        let handleColor: NSColor
+        
+        if isDarkMode {
+            // White pot for dark mode
+            potColor = NSColor.white
+            steamColor = NSColor.lightGray
+            handleColor = NSColor.lightGray
+        } else {
+            // Black pot for light mode
+            potColor = NSColor.black
+            steamColor = NSColor.darkGray
+            handleColor = NSColor.darkGray
+        }
         
         // Scale everything down to fit in 18x18
-        let scale: CGFloat = 0.8
+        let scale: CGFloat = 0.9
         let offsetX: CGFloat = (18 * (1 - scale)) / 2
         let offsetY: CGFloat = (18 * (1 - scale)) / 2
         
-        // Draw magical particles (small squares)
-        let particles = [
-            NSRect(x: 8 + offsetX, y: 15 + offsetY, width: 1.5, height: 1.5),
-            NSRect(x: 6 + offsetX, y: 13 + offsetY, width: 1.5, height: 1.5),
-            NSRect(x: 10 + offsetX, y: 13.5 + offsetY, width: 1, height: 1),
-            NSRect(x: 9 + offsetX, y: 12 + offsetY, width: 1, height: 1),
-            NSRect(x: 5 + offsetX, y: 11 + offsetY, width: 1, height: 1),
+        // Draw steam particles (small circles)
+        steamColor.setFill()
+        let steamParticles = [
+            NSRect(x: 7 + offsetX, y: 3 + offsetY, width: 1, height: 1),
+            NSRect(x: 9 + offsetX, y: 2.5 + offsetY, width: 0.8, height: 0.8),
+            NSRect(x: 11 + offsetX, y: 3.5 + offsetY, width: 0.7, height: 0.7),
         ]
         
-        for particle in particles {
-            NSBezierPath(roundedRect: particle, xRadius: 0.5, yRadius: 0.5).fill()
+        for particle in steamParticles {
+            NSBezierPath(ovalIn: particle).fill()
         }
         
-        // Draw cauldron body (rounded bottom)
-        let cauldronBody = NSBezierPath()
-        cauldronBody.move(to: NSPoint(x: 4 + offsetX, y: 8 + offsetY))
-        cauldronBody.line(to: NSPoint(x: 4 + offsetX, y: 6 + offsetY))
-        cauldronBody.curve(to: NSPoint(x: 14 + offsetX, y: 6 + offsetY), 
-                          controlPoint1: NSPoint(x: 4 + offsetX, y: 3 + offsetY), 
-                          controlPoint2: NSPoint(x: 14 + offsetX, y: 3 + offsetY))
-        cauldronBody.line(to: NSPoint(x: 14 + offsetX, y: 8 + offsetY))
-        cauldronBody.lineWidth = 1.5
-        cauldronBody.stroke()
+        // Draw main pot body (ellipse)
+        potColor.setFill()
+        let potBody = NSBezierPath(ovalIn: NSRect(x: 4 + offsetX, y: 6.5 + offsetY, width: 10, height: 7))
+        potBody.fill()
         
-        // Draw cauldron rim (ellipse)
-        let rim = NSBezierPath(ovalIn: NSRect(x: 3.5 + offsetX, y: 7.5 + offsetY, width: 11, height: 2))
+        // Draw pot rim (darker ellipse)
+        let rimColor = isDarkMode ? NSColor.lightGray : NSColor.darkGray
+        rimColor.setFill()
+        let rim = NSBezierPath(ovalIn: NSRect(x: 3.5 + offsetX, y: 6 + offsetY, width: 11, height: 2.4))
         rim.fill()
         
-        // Draw cauldron legs (small circles)
-        let leg1 = NSBezierPath(ovalIn: NSRect(x: 5 + offsetX, y: 1 + offsetY, width: 1.5, height: 1.5))
-        let leg2 = NSBezierPath(ovalIn: NSRect(x: 8.5 + offsetX, y: 1 + offsetY, width: 1.5, height: 1.5))
-        let leg3 = NSBezierPath(ovalIn: NSRect(x: 12 + offsetX, y: 1 + offsetY, width: 1.5, height: 1.5))
+        // Draw pot spout
+        let spout = NSBezierPath(ovalIn: NSRect(x: 13 + offsetX, y: 6.8 + offsetY, width: 3, height: 1.6))
+        spout.fill()
         
-        leg1.fill()
-        leg2.fill()
-        leg3.fill()
+        // Draw pot base
+        let baseColor = isDarkMode ? NSColor.gray : NSColor.black
+        baseColor.setFill()
+        let base = NSBezierPath(ovalIn: NSRect(x: 5 + offsetX, y: 13 + offsetY, width: 8, height: 1.6))
+        base.fill()
         
-        // Draw handle (small rectangle)
-        let handle = NSRect(x: 9 + offsetX, y: 6.5 + offsetY, width: 0.8, height: 2)
-        NSColor.white.setFill()
+        // Draw handle (simple rectangle)
+        handleColor.setFill()
+        let handle = NSRect(x: 14.5 + offsetX, y: 8 + offsetY, width: 1, height: 4)
         NSBezierPath(rect: handle).fill()
     }
     
