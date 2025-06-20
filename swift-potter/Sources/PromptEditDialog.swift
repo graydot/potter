@@ -5,20 +5,32 @@ import Foundation
 class PromptEditWindow: NSWindow {
     weak var dialogController: PromptEditDialogController?
     
+    override var canBecomeKey: Bool {
+        return true
+    }
+    
+    override var canBecomeMain: Bool {
+        return true
+    }
+    
     override func keyDown(with event: NSEvent) {
         print("🔑 Window keyDown: keyCode=\(event.keyCode), chars='\(event.characters ?? "")'")
         
         // Handle Escape key
         if event.keyCode == 53 {
             print("⌨️ Escape key in window")
-            dialogController?.cancelClicked()
+            if let controller = dialogController {
+                controller.cancelClicked(NSButton()) // Create dummy button for call
+            }
             return
         }
         
-        // Handle Return key
-        if event.keyCode == 36 {
-            print("⌨️ Return key in window")
-            dialogController?.saveClicked()
+        // Handle Cmd+Return for Save
+        if event.keyCode == 36 && event.modifierFlags.contains(.command) {
+            print("⌨️ Cmd+Return key in window")
+            if let controller = dialogController {
+                controller.saveClicked(NSButton()) // Create dummy button for call
+            }
             return
         }
         
@@ -67,7 +79,7 @@ class PromptEditDialogController: NSWindowController {
         super.init(window: window)
         
         // Connect the window to this controller
-        (window as? PromptEditWindow)?.dialogController = self
+        window.dialogController = self
         
         setupWindow()
         setupUI()
@@ -125,6 +137,7 @@ class PromptEditDialogController: NSWindowController {
         nameTextField.action = #selector(nameTextChanged)
         nameTextField.isEditable = true
         nameTextField.isSelectable = true
+        nameTextField.delegate = self
         
         // Prompt section
         let promptLabel = NSTextField(labelWithString: "Prompt:")
@@ -174,16 +187,19 @@ class PromptEditDialogController: NSWindowController {
         validationLabel.isHidden = true
         
         // Buttons
-        cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked(_:)))
         cancelButton.bezelStyle = .rounded
         
-        saveButton = NSButton(title: "Save", target: self, action: #selector(saveClicked))
+        saveButton = NSButton(title: "Save", target: self, action: #selector(saveClicked(_:)))
         saveButton.bezelStyle = .rounded
         saveButton.isEnabled = false
         
         // Debug button setup
         print("🔘 Button setup - Cancel target: \(String(describing: cancelButton.target)), action: \(String(describing: cancelButton.action))")
         print("🔘 Button setup - Save target: \(String(describing: saveButton.target)), action: \(String(describing: saveButton.action))")
+        
+        // Test if buttons are responsive
+        cancelButton.isEnabled = true
         
         // Make save button prominent
         if #available(macOS 11.0, *) {
@@ -336,7 +352,8 @@ class PromptEditDialogController: NSWindowController {
         validateInput()
     }
     
-    @objc func saveClicked() {
+    @objc func saveClicked(_ sender: NSButton) {
+        print("💾💾💾 SAVE BUTTON ACTUALLY CLICKED! 💾💾💾")
         print("💾 Save button clicked! Valid input: \(isValidInput)")
         guard isValidInput else { 
             print("💾 Cannot save - validation failed")
@@ -351,7 +368,8 @@ class PromptEditDialogController: NSWindowController {
         close()
     }
     
-    @objc func cancelClicked() {
+    @objc func cancelClicked(_ sender: NSButton) {
+        print("❌❌❌ CANCEL BUTTON ACTUALLY CLICKED! ❌❌❌")
         print("❌ Cancel button clicked!")
         close()
     }
@@ -375,6 +393,14 @@ class PromptEditDialogController: NSWindowController {
         // Simple focus - just set the initial key view
         window.initialFirstResponder = nameTextField
         window.makeFirstResponder(nameTextField)
+        
+        // Debug button state after showing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("🔍 Post-show button state:")
+            print("  Cancel - enabled: \(self.cancelButton.isEnabled), superview: \(String(describing: self.cancelButton.superview))")
+            print("  Save - enabled: \(self.saveButton.isEnabled), superview: \(String(describing: self.saveButton.superview))")
+            print("  Window key: \(window.isKeyWindow), main: \(window.isMainWindow)")
+        }
     }
     
     override func close() {
@@ -385,6 +411,13 @@ class PromptEditDialogController: NSWindowController {
 // MARK: - NSTextViewDelegate
 extension PromptEditDialogController: NSTextViewDelegate {
     func textDidChange(_ notification: Notification) {
+        validateInput()
+    }
+}
+
+// MARK: - NSTextFieldDelegate  
+extension PromptEditDialogController: NSTextFieldDelegate {
+    func controlTextDidChange(_ obj: Notification) {
         validateInput()
     }
 }

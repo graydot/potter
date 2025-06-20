@@ -114,17 +114,13 @@ class LLMClientTests: XCTestCase {
         
         let request = OpenAIRequest(
             model: "gpt-4o",
-            messages: [message1, message2],
-            temperature: 0.7,
-            max_tokens: 1000
+            messages: [message1, message2]
         )
         
         XCTAssertEqual(request.model, "gpt-4o")
         XCTAssertEqual(request.messages.count, 2)
         XCTAssertEqual(request.messages[0].role, "system")
         XCTAssertEqual(request.messages[1].role, "user")
-        XCTAssertEqual(request.temperature, 0.7)
-        XCTAssertEqual(request.max_tokens, 1000)
     }
     
     func testAnthropicRequestStructure() {

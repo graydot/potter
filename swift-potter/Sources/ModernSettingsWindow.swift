@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+
 extension DateFormatter {
     static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -166,9 +167,8 @@ struct ModernSettingsView: View {
     // Prompts management
     @State private var prompts: [PromptItem] = []
     @State private var selectedPromptIndex: Int? = nil
-    @State private var showingPromptDialog = false
     @State private var showingDeleteConfirmation = false
-    @State private var isEditingPrompt = false
+    @State private var currentPromptDialog: PromptEditDialogController? = nil  // Keep strong reference
     
     let sections = [
         ("General", "gear"),
@@ -439,30 +439,7 @@ struct ModernSettingsView: View {
             
             Spacer()
         }
-        .sheet(isPresented: $showingPromptDialog) {
-            if #available(macOS 14.0, *) {
-                PromptEditDialog(
-                    isPresented: $showingPromptDialog,
-                    isEditing: isEditingPrompt,
-                    existingPrompt: selectedPromptIndex != nil ? prompts[selectedPromptIndex!] : nil,
-                    existingPromptNames: prompts.map { $0.name },
-                    onSave: { name, prompt in
-                        savePrompt(name: name, prompt: prompt)
-                    }
-                )
-            } else {
-                // Fallback for older macOS versions
-                VStack {
-                    Text("Prompt editing requires macOS 14.0 or later")
-                        .padding()
-                    Button("OK") {
-                        showingPromptDialog = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(width: 300, height: 100)
-            }
-        }
+        // Note: Prompt dialog is now handled by AppKit modal in addNewPrompt() and editPrompt() functions
         .alert("Delete Prompt", isPresented: $showingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 confirmDeletePrompt()
@@ -659,16 +636,32 @@ struct ModernSettingsView: View {
     }
     
     private func addNewPrompt() {
-        isEditingPrompt = false
-        selectedPromptIndex = nil
-        showingPromptDialog = true
+        selectedPromptIndex = nil  // Clear index for new prompt
+        currentPromptDialog = PromptEditDialogController(
+            isEditing: false,
+            existingPrompt: nil,
+            existingPromptNames: prompts.map { $0.name }
+        )
+        currentPromptDialog?.onSave = { name, prompt in
+            self.savePrompt(name: name, prompt: prompt)
+            self.currentPromptDialog = nil  // Release after save
+        }
+        currentPromptDialog?.showModal()
     }
     
     private func editPrompt(at index: Int) {
         guard index < prompts.count else { return }
-        isEditingPrompt = true
-        selectedPromptIndex = index
-        showingPromptDialog = true
+        selectedPromptIndex = index  // Set the index for editing
+        currentPromptDialog = PromptEditDialogController(
+            isEditing: true,
+            existingPrompt: prompts[index],
+            existingPromptNames: prompts.map { $0.name }
+        )
+        currentPromptDialog?.onSave = { name, prompt in
+            self.savePrompt(name: name, prompt: prompt)
+            self.currentPromptDialog = nil  // Release after save
+        }
+        currentPromptDialog?.showModal()
     }
     
     private func deleteSelectedPrompt() {
@@ -685,7 +678,7 @@ struct ModernSettingsView: View {
     }
     
     private func savePrompt(name: String, prompt: String) {
-        if isEditingPrompt, let index = selectedPromptIndex {
+        if let index = selectedPromptIndex {
             // Update existing prompt
             prompts[index].name = name
             prompts[index].prompt = prompt
@@ -1025,58 +1018,3 @@ struct HotkeyConfigurationView: View {
 }
 
 
-// MARK: - Simple Prompt Edit Dialog
-@available(macOS 14.0, *)
-struct PromptEditDialog: View {
-    @Binding var isPresented: Bool
-    let isEditing: Bool
-    let existingPrompt: PromptItem?
-    let existingPromptNames: [String]
-    let onSave: (String, String) -> Void
-    
-    @State private var name: String = ""
-    @State private var prompt: String = ""
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text(isEditing ? "Edit Prompt" : "New Prompt")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Name:")
-                TextField("Prompt name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-            }
-            
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Prompt:")
-                TextEditor(text: $prompt)
-                    .frame(minHeight: 100)
-                    .border(Color.gray, width: 1)
-            }
-            
-            HStack {
-                Button("Cancel") {
-                    isPresented = false
-                }
-                
-                Spacer()
-                
-                Button("Save") {
-                    onSave(name, prompt)
-                    isPresented = false
-                }
-                .disabled(name.isEmpty || prompt.isEmpty)
-            }
-        }
-        .padding()
-        .frame(width: 400, height: 300)
-        .onAppear {
-            if let existing = existingPrompt {
-                name = existing.name
-                prompt = existing.prompt
-            }
-        }
-    }
-}

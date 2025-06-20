@@ -25,6 +25,10 @@ class PotterCoreTests: XCTestCase {
         // Change to temp directory to use config/ subdirectory
         FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
         
+        // Set up PromptManager to use test file instead of real Application Support
+        let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
+        PromptManager.shared.setTestFileURL(testPromptsFile)
+        
         // Clear UserDefaults
         UserDefaults.standard.removeObject(forKey: "current_prompt")
         for provider in LLMProvider.allCases {
@@ -35,6 +39,9 @@ class PotterCoreTests: XCTestCase {
     }
     
     override func tearDown() async throws {
+        // Restore PromptManager to use real file path
+        PromptManager.shared.setTestFileURL(nil)
+        
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
         
