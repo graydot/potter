@@ -116,7 +116,7 @@ struct SettingsView: View {
                     Toggle("Show notifications", isOn: $settings.notificationsEnabled)
                     
                     HStack {
-                        Text("Global Hotkey: ⌘⇧R")
+                        Text("Global Hotkey: ⌘⇧9")
                         Spacer()
                         Text("(Cannot be changed)")
                             .font(.caption)

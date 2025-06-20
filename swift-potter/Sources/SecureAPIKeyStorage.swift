@@ -55,9 +55,6 @@ class SecureAPIKeyStorage {
         
         if success {
             setStorageMethod(method, for: provider)
-            PotterLogger.shared.info("api_storage", "✅ Saved API key for \(provider.rawValue) using \(method.rawValue)")
-        } else {
-            PotterLogger.shared.error("api_storage", "❌ Failed to save API key for \(provider.rawValue) using \(method.rawValue)")
         }
         
         return success
@@ -130,7 +127,6 @@ class SecureAPIKeyStorage {
     private func saveToUserDefaults(_ apiKey: String, for provider: LLMProvider) -> Bool {
         let key = "api_key_\(provider.rawValue)"
         UserDefaults.standard.set(apiKey, forKey: key)
-        PotterLogger.shared.debug("api_storage", "✅ Saved API key for \(provider.rawValue) to UserDefaults")
         return true
     }
     

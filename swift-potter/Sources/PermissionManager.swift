@@ -16,7 +16,7 @@ enum PermissionType: String, CaseIterable {
     
     var description: String {
         switch self {
-        case .accessibility: return "Required for global hotkey (⌘⇧R)"
+        case .accessibility: return "Required for global hotkey (⌘⇧9)"
         case .notifications: return "Optional for status updates"
         }
     }

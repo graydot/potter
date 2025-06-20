@@ -20,11 +20,8 @@ class KeychainManager {
     /// Load API key for provider (loads all keys once, then uses cache)
     func loadAPIKey(for provider: LLMProvider) -> String? {
         return operationQueue.sync {
-            PotterLogger.shared.debug("keychain_manager", "🔍 LoadAPIKey called for \(provider.rawValue)")
             loadAllKeysIfNeeded()
-            let result = cache[provider.rawValue]
-            PotterLogger.shared.debug("keychain_manager", "📦 Returning cached result for \(provider.rawValue): \(result != nil ? "found" : "not found")")
-            return result
+            return cache[provider.rawValue]
         }
     }
     
@@ -121,8 +118,6 @@ class KeychainManager {
     /// Check if keychain is accessible
     func isKeychainAccessible() -> Bool {
         return operationQueue.sync {
-            PotterLogger.shared.debug("keychain_manager", "🔍 Checking keychain accessibility... (KEYCHAIN ACCESS #?)")
-            
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: serviceName,
@@ -133,9 +128,7 @@ class KeychainManager {
             var result: AnyObject?
             let status = SecItemCopyMatching(query as CFDictionary, &result)
             
-            let accessible = status == errSecSuccess || status == errSecItemNotFound
-            PotterLogger.shared.debug("keychain_manager", "✅ Keychain accessibility check complete: \(accessible)")
-            return accessible
+            return status == errSecSuccess || status == errSecItemNotFound
         }
     }
     
@@ -151,11 +144,8 @@ class KeychainManager {
     /// Load all keys from keychain once (single keychain prompt)
     private func loadAllKeysIfNeeded() {
         guard !cacheLoaded else { 
-            PotterLogger.shared.debug("keychain_manager", "📦 Cache already loaded, skipping keychain access")
             return 
         }
-        
-        PotterLogger.shared.info("keychain_manager", "📦 Loading all API keys from keychain... (KEYCHAIN ACCESS #1)")
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -175,18 +165,14 @@ class KeychainManager {
            let apiKeys = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String] {
             
             cache = apiKeys
-            PotterLogger.shared.info("keychain_manager", "✅ Loaded \(cache.count) API keys from unified keychain storage")
         } else if status == errSecItemNotFound {
             // No unified storage found, try to migrate from old individual keychain items
-            PotterLogger.shared.info("keychain_manager", "🔄 No unified storage found, checking for old individual keychain items...")
             cache = migrateFromOldKeychainFormat()
         } else {
             cache = [:]
-            PotterLogger.shared.warning("keychain_manager", "⚠️ Failed to load API keys from keychain: \(status)")
         }
         
         cacheLoaded = true
-        PotterLogger.shared.info("keychain_manager", "✅ Cache loading complete, cacheLoaded=true")
     }
     
     /// Migrate from old individual keychain items to unified storage

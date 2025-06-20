@@ -531,7 +531,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     @objc func processText() {
-        PotterLogger.shared.info("hotkey", "🎯 Global hotkey triggered (⌘⇧R)")
+        PotterLogger.shared.info("hotkey", "🎯 Global hotkey triggered (⌘⇧9)")
         potterCore?.processClipboardText()
     }
     

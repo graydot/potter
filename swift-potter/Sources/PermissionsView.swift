@@ -169,7 +169,7 @@ struct PermissionsView: View {
                     HStack {
                         Text("Global Hotkey:")
                             .fontWeight(.medium)
-                        Text("⌘⇧R")
+                        Text("⌘⇧9")
                             .font(.system(.body, design: .monospaced))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
