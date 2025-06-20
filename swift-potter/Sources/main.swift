@@ -24,16 +24,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     var potterCore: PotterCore!
     var menuUpdateTimer: Timer?
     var currentPromptName: String = "summarize" // Default prompt
+    var currentMenu: NSMenu?
     
     // Icon state management
     enum IconState {
         case normal
         case processing
         case success
+        case error
     }
     private var currentIconState: IconState = .normal
     private var spinnerTimer: Timer?
     private var spinnerRotation: CGFloat = 0
+    private var currentErrorMessage: String = ""
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Check for duplicate processes first
@@ -176,8 +179,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     // Public methods to update icon state
     func setProcessingState() {
         currentIconState = .processing
+        currentErrorMessage = "" // Clear any error message
         updateMenuBarIcon()
         startSpinnerAnimation()
+        
+        // Update menu to remove error message
+        Task { @MainActor in
+            updateMenu()
+        }
     }
     
     func setSuccessState() {
@@ -193,8 +202,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     
     func setNormalState() {
         currentIconState = .normal
+        currentErrorMessage = ""
         stopSpinnerAnimation()
         updateMenuBarIcon()
+        
+        // Update menu to remove error message
+        Task { @MainActor in
+            updateMenu()
+        }
+    }
+    
+    func setErrorState(message: String) {
+        currentIconState = .error
+        currentErrorMessage = message
+        stopSpinnerAnimation()
+        updateMenuBarIcon()
+        
+        // Update menu to show error message
+        Task { @MainActor in
+            updateMenu()
+        }
+        
+        // Automatically return to normal after 10 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+            if self.currentIconState == .error {
+                self.setNormalState()
+            }
+        }
     }
     
     private func startSpinnerAnimation() {
@@ -230,6 +264,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         case .success:
             // Draw green success dot - much bigger
             NSColor.systemGreen.setFill()
+            let dotRect = NSRect(x: 2, y: 2, width: 14, height: 14)
+            let dot = NSBezierPath(ovalIn: dotRect)
+            dot.fill()
+        case .error:
+            // Draw red error dot - much bigger
+            NSColor.systemRed.setFill()
             let dotRect = NSRect(x: 2, y: 2, width: 14, height: 14)
             let dot = NSBezierPath(ovalIn: dotRect)
             dot.fill()
@@ -352,7 +392,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         processItem.target = self
         menu.addItem(processItem)
         
-        // Permission status items (right below Process Text)
+        // Show error message if in error state
+        if currentIconState == .error && !currentErrorMessage.isEmpty {
+            menu.addItem(NSMenuItem.separator())
+            let errorItem = NSMenuItem(title: "🔴 \(currentErrorMessage)", action: #selector(clearError), keyEquivalent: "")
+            errorItem.target = self
+            menu.addItem(errorItem)
+            menu.addItem(NSMenuItem.separator())
+        }
+        
+        // Permission status items (right below Process Text or error)
         addPermissionMenuItems(to: menu)
         
         menu.addItem(NSMenuItem.separator())
@@ -370,7 +419,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         quitItem.target = self
         menu.addItem(quitItem)
         
+        // Set menu normally
         statusItem?.menu = menu
+        currentMenu = menu
     }
     
     @MainActor
@@ -510,6 +561,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
             let permissionManager = PermissionManager.shared
             permissionManager.openSystemSettings(for: permission)
         }
+    }
+    
+    
+    @objc func clearError() {
+        setNormalState()
     }
     
     @objc func quit() {

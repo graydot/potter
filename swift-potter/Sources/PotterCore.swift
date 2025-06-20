@@ -8,6 +8,7 @@ protocol IconStateDelegate: AnyObject {
     func setProcessingState()
     func setSuccessState()
     func setNormalState()
+    func setErrorState(message: String)
 }
 
 enum PromptMode: String, CaseIterable {
@@ -101,6 +102,7 @@ class PotterCore {
             guard let llmManager = self.llmManager, llmManager.hasValidProvider() else {
                 PotterLogger.shared.error("text_processor", "❌ No valid LLM provider configured")
                 self.showNotification(title: "Configuration Error", message: "Please configure an API key in Settings")
+                self.iconDelegate?.setErrorState(message: "No API key configured")
                 return
             }
             
@@ -118,6 +120,7 @@ class PotterCore {
             pasteboard.clearContents()
             pasteboard.setString("No text was in clipboard", forType: .string)
             showNotification(title: "No Text", message: "No text was in clipboard - message copied to clipboard")
+            iconDelegate?.setErrorState(message: "No text in clipboard")
             return
         }
         
@@ -126,6 +129,7 @@ class PotterCore {
         if trimmedText == "No text was in clipboard" {
             PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
             showNotification(title: "No Text", message: "Still no text in clipboard")
+            iconDelegate?.setErrorState(message: "Still no text in clipboard")
             return
         }
         
@@ -172,8 +176,8 @@ class PotterCore {
             } catch {
                 PotterLogger.shared.error("text_processor", "❌ LLM processing failed: \(error.localizedDescription)")
                 await MainActor.run {
-                    // Reset icon to normal state on error
-                    self.iconDelegate?.setNormalState()
+                    // Set error state with the actual error message
+                    self.iconDelegate?.setErrorState(message: "LLM Error: \(error.localizedDescription)")
                     
                     self.showNotification(
                         title: "Processing Failed",
