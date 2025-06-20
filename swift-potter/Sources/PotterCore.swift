@@ -3,6 +3,13 @@ import AppKit
 import Carbon
 import UserNotifications
 
+// Protocol for menu bar icon updates
+protocol IconStateDelegate: AnyObject {
+    func setProcessingState()
+    func setSuccessState()
+    func setNormalState()
+}
+
 enum PromptMode: String, CaseIterable {
     case summarize = "summarize"
     case formal = "formal"
@@ -34,6 +41,9 @@ class PotterCore {
     private var llmManager: LLMManager!
     private var hotkeyEventHandler: EventHotKeyRef?
     private var currentHotkeyCombo: [String] = ["⌘", "⇧", "R"] // Default hotkey
+    
+    // Icon state delegate
+    weak var iconDelegate: IconStateDelegate?
     
     init() {
         self.settings = PotterSettings()
@@ -122,6 +132,9 @@ class PotterCore {
         PotterLogger.shared.info("text_processor", "📝 Processing \(trimmedText.count) characters")
         showNotification(title: "Processing...", message: "AI is processing your text")
         
+        // Update menu bar icon to show processing state
+        iconDelegate?.setProcessingState()
+        
         // Process with LLM
         Task {
             do {
@@ -148,6 +161,9 @@ class PotterCore {
                     pasteboard.clearContents()
                     pasteboard.setString(processedText, forType: .string)
                     
+                    // Update menu bar icon to show success state
+                    self.iconDelegate?.setSuccessState()
+                    
                     self.showNotification(
                         title: "Processing Complete",
                         message: "Text processed with '\(currentPromptName)' and copied to clipboard! Press ⌘V to paste."
@@ -156,6 +172,9 @@ class PotterCore {
             } catch {
                 PotterLogger.shared.error("text_processor", "❌ LLM processing failed: \(error.localizedDescription)")
                 await MainActor.run {
+                    // Reset icon to normal state on error
+                    self.iconDelegate?.setNormalState()
+                    
                     self.showNotification(
                         title: "Processing Failed",
                         message: "Failed to process text: \(error.localizedDescription)"

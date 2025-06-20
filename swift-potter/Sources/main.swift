@@ -19,11 +19,21 @@ print("Starting Swift version...")
 
 app.run()
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     var statusItem: NSStatusItem?
     var potterCore: PotterCore!
     var menuUpdateTimer: Timer?
     var currentPromptName: String = "summarize" // Default prompt
+    
+    // Icon state management
+    enum IconState {
+        case normal
+        case processing
+        case success
+    }
+    private var currentIconState: IconState = .normal
+    private var spinnerTimer: Timer?
+    private var spinnerRotation: CGFloat = 0
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Check for duplicate processes first
@@ -156,19 +166,80 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isDarkMode = NSApp.effectiveAppearance.name == .darkAqua
         
         // Create the cauldron icon programmatically
-        let iconImage = createCauldronIcon(forDarkMode: isDarkMode)
-        iconImage.isTemplate = true // This makes it adapt to menu bar appearance automatically
+        let iconImage = createCauldronIcon(forDarkMode: isDarkMode, state: currentIconState)
+        iconImage.isTemplate = (currentIconState == .normal) // Only use template for normal state
         button.image = iconImage
         
-        PotterLogger.shared.debug("ui", "🎨 Updated menu bar icon for \(isDarkMode ? "dark" : "light") mode")
+        PotterLogger.shared.debug("ui", "🎨 Updated menu bar icon for \(isDarkMode ? "dark" : "light") mode, state: \(currentIconState)")
     }
     
-    private func createCauldronIcon(forDarkMode isDarkMode: Bool) -> NSImage {
+    // Public methods to update icon state
+    func setProcessingState() {
+        currentIconState = .processing
+        updateMenuBarIcon()
+        startSpinnerAnimation()
+    }
+    
+    func setSuccessState() {
+        currentIconState = .success
+        stopSpinnerAnimation()
+        updateMenuBarIcon()
+        
+        // Automatically return to normal after 5 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            self.setNormalState()
+        }
+    }
+    
+    func setNormalState() {
+        currentIconState = .normal
+        stopSpinnerAnimation()
+        updateMenuBarIcon()
+    }
+    
+    private func startSpinnerAnimation() {
+        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            if self?.currentIconState == .processing {
+                self?.spinnerRotation -= 30 // Rotate 30 degrees each frame (opposite direction)
+                if self?.spinnerRotation ?? 0 <= -360 {
+                    self?.spinnerRotation = 0
+                }
+                self?.updateMenuBarIcon()
+            }
+        }
+    }
+    
+    private func stopSpinnerAnimation() {
+        spinnerTimer?.invalidate()
+        spinnerTimer = nil
+    }
+    
+    private func createCauldronIcon(forDarkMode isDarkMode: Bool, state: IconState = .normal) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size)
         
         image.lockFocus()
         
+        switch state {
+        case .normal:
+            // Use the original cauldron design for normal state
+            drawCauldronIcon(isDarkMode: isDarkMode, size: size)
+        case .processing:
+            // Draw yellow animated spinner
+            drawSpinner()
+        case .success:
+            // Draw green success dot - much bigger
+            NSColor.systemGreen.setFill()
+            let dotRect = NSRect(x: 2, y: 2, width: 14, height: 14)
+            let dot = NSBezierPath(ovalIn: dotRect)
+            dot.fill()
+        }
+        
+        image.unlockFocus()
+        return image
+    }
+    
+    private func drawCauldronIcon(isDarkMode: Bool, size: NSSize) {
         // Use appropriate color for the theme
         let color = NSColor.controlAccentColor
         color.setFill()
@@ -220,10 +291,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let handle = NSRect(x: 9 + offsetX, y: 6.5 + offsetY, width: 0.8, height: 2)
         NSColor.white.setFill()
         NSBezierPath(rect: handle).fill()
+    }
+    
+    private func drawSpinner() {
+        let center = NSPoint(x: 9, y: 9)
+        let radius: CGFloat = 7.5 // Make it bigger
         
-        image.unlockFocus()
+        // Save current graphics state
+        NSGraphicsContext.current?.saveGraphicsState()
         
-        return image
+        // Apply rotation transform around center
+        let transform = NSAffineTransform()
+        transform.translateX(by: center.x, yBy: center.y)
+        transform.rotate(byDegrees: spinnerRotation)
+        transform.translateX(by: -center.x, yBy: -center.y)
+        transform.concat()
+        
+        NSColor.systemYellow.setFill()
+        
+        // Draw spinner segments with varying opacity
+        let numberOfSegments = 8
+        for i in 0..<numberOfSegments {
+            let angle = CGFloat(i) * 360.0 / CGFloat(numberOfSegments)
+            let opacity = 1.0 - (CGFloat(i) / CGFloat(numberOfSegments)) * 0.8
+            
+            NSColor.systemYellow.withAlphaComponent(opacity).setFill()
+            
+            let segmentPath = NSBezierPath()
+            segmentPath.move(to: center)
+            
+            let startAngle = angle - 15
+            let endAngle = angle + 15
+            
+            let startPoint = NSPoint(
+                x: center.x + cos(startAngle * .pi / 180) * radius,
+                y: center.y + sin(startAngle * .pi / 180) * radius
+            )
+            
+            segmentPath.line(to: startPoint)
+            segmentPath.appendArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle)
+            segmentPath.close()
+            segmentPath.fill()
+        }
+        
+        // Restore graphics state
+        NSGraphicsContext.current?.restoreGraphicsState()
     }
     
     private func setupMenu() {
@@ -290,6 +402,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupCore() {
         potterCore = PotterCore()
+        potterCore.iconDelegate = self
         potterCore.setup()
     }
     
