@@ -1,7 +1,7 @@
 # Potter - AI Text Processing Tool for macOS
 # Makefile for building, testing, and distributing Potter
 
-.PHONY: help run build test clean install publish-github publish-appstore swift-test python-test
+.PHONY: help run build test clean install publish-github publish-appstore swift-test
 
 # Default target
 .DEFAULT_GOAL := help
@@ -24,7 +24,7 @@ help: ## Show this help message
 	@echo "Examples:"
 	@echo "  make run          # Run the Swift app in development mode"
 	@echo "  make build        # Build signed app bundle and DMG"
-	@echo "  make test         # Run all tests (Swift + Python)"
+	@echo "  make test         # Run all tests (Swift)"
 	@echo "  make publish      # Publish to GitHub releases"
 
 # Development
@@ -39,18 +39,14 @@ debug: ## Run the Swift app with verbose logging
 # Building
 build: ## Build signed Potter.app bundle with DMG (local distribution)
 	@echo "$(GREEN)🔨 Building Potter.app with code signing and DMG...$(NC)"
-	python3 scripts/build_swift_app.py --target local
+	python3 scripts/build_app.py --target local
 
 build-unsigned: ## Build unsigned Potter.app (for testing without certificates)
 	@echo "$(YELLOW)⚠️  Building unsigned Potter.app (testing only)...$(NC)"
-	python3 scripts/build_swift_app.py --target local --skip-tests
-
-build-python: ## Build the legacy Python version
-	@echo "$(GREEN)🐍 Building legacy Python Potter.app...$(NC)"
-	python3 scripts/build_app.py --target github
+	python3 scripts/build_app.py --target local --skip-tests
 
 # Testing
-test: swift-test python-test ## Run all tests (Swift and Python)
+test: swift-test ## Run all tests
 
 swift-test: ## Run Swift test suite
 	@echo "$(GREEN)🧪 Running Swift tests...$(NC)"
@@ -59,19 +55,6 @@ swift-test: ## Run Swift test suite
 swift-test-verbose: ## Run Swift tests with verbose output
 	@echo "$(GREEN)🧪 Running Swift tests (verbose)...$(NC)"
 	cd swift-potter && swift test --parallel --verbose
-
-python-test: ## Run Python test suite
-	@echo "$(GREEN)🐍 Running Python tests...$(NC)"
-	python3 run_tests.py
-
-test-single: ## Run a single test file (usage: make test-single FILE=test_name)
-	@if [ -z "$(FILE)" ]; then \
-		echo "$(RED)❌ Error: Please specify FILE=test_name$(NC)"; \
-		echo "Example: make test-single FILE=test_enhanced_settings"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)🧪 Running single test: $(FILE)...$(NC)"
-	python3 tests/$(FILE).py
 
 # Publishing
 publish: publish-github ## Alias for GitHub publish
@@ -82,7 +65,7 @@ publish-github: build ## Build and publish to GitHub releases
 
 publish-appstore: ## Build and submit to Mac App Store
 	@echo "$(GREEN)🍎 Building for Mac App Store...$(NC)"
-	python3 scripts/build_swift_app.py --target appstore
+	python3 scripts/build_app.py --target appstore
 	@echo "$(YELLOW)📤 Please manually upload to App Store Connect$(NC)"
 
 # Installation and cleanup
@@ -148,8 +131,7 @@ info: ## Show build and system information
 	@echo "Swift version: $$(swift --version | head -1)"
 	@echo "Python version: $$(python3 --version)"
 	@echo "macOS version: $$(sw_vers -productVersion)"
-	@echo "Build target: Swift Potter (primary)"
-	@echo "Legacy target: Python Potter (deprecated)"
+	@echo "Build target: Swift Potter"
 	@echo ""
 	@echo "Build artifacts:"
 	@ls -la dist/ 2>/dev/null || echo "  No build artifacts found"
@@ -166,19 +148,18 @@ status: ## Show git status and recent changes
 version: ## Show current version information
 	@echo "$(GREEN)📋 Version Information$(NC)"
 	@echo "====================="
-	@grep -n "version.*2\.0" scripts/build_swift_app.py swift-potter/Sources/ProcessManager.swift || echo "Version strings found"
+	@grep -n "version.*2\.0" scripts/build_app.py swift-potter/Sources/ProcessManager.swift || echo "Version strings found"
 	@echo ""
 	@echo "DMG name will be: Potter-2.0.dmg"
 
 # Continuous Integration helpers
 ci-test: ## Run tests suitable for CI environment
 	@echo "$(GREEN)🤖 Running CI tests...$(NC)"
-	python3 run_tests.py
 	cd swift-potter && swift test
 
 ci-build: ## Build without code signing (for CI)
 	@echo "$(GREEN)🤖 Building for CI (no signing)...$(NC)"
-	python3 scripts/build_swift_app.py --target local --skip-tests
+	python3 scripts/build_app.py --target local --skip-tests
 
 # Advanced targets
 lint: ## Run code style checks

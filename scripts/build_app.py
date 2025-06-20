@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Enhanced Potter App Builder with Code Signing Support
-Supports both GitHub releases and App Store distribution
+Swift Potter App Builder with Code Signing Support
+Creates distributable app bundle from Swift Potter project
 """
 
 import os
@@ -9,22 +9,20 @@ import sys
 import subprocess
 import shutil
 import json
-import tempfile
-import time
 import argparse
 from pathlib import Path
 import uuid
 from datetime import datetime
-import secrets
 
 # Build configuration
-BUNDLE_ID = "com.potter.app"
+BUNDLE_ID = "com.potter.swift"
 APP_NAME = "Potter"
+SWIFT_PROJECT_DIR = "swift-potter"
 
 def get_signing_config():
     """Get code signing configuration from environment"""
     config = {
-        # Developer ID (for GitHub releases)
+        # Developer ID (for local distribution)
         'developer_id_app': os.getenv('DEVELOPER_ID_APPLICATION'),
         'developer_id_installer': os.getenv('DEVELOPER_ID_INSTALLER'),
         
@@ -35,10 +33,10 @@ def get_signing_config():
         # Team and notarization
         'team_id': os.getenv('APPLE_TEAM_ID'),
         'apple_id': os.getenv('APPLE_ID'),
-        'app_password': os.getenv('APPLE_APP_PASSWORD'),  # App-specific password
-        'asc_provider': os.getenv('ASC_PROVIDER'),  # App Store Connect provider
+        'app_password': os.getenv('APPLE_APP_PASSWORD'),
+        'asc_provider': os.getenv('ASC_PROVIDER'),
         
-        # API Key for App Store Connect (alternative to app password)
+        # API Key for App Store Connect
         'api_key_id': os.getenv('ASC_API_KEY_ID'),
         'api_issuer_id': os.getenv('ASC_API_ISSUER_ID'),
         'api_key_path': os.getenv('ASC_API_KEY_PATH'),
@@ -46,16 +44,16 @@ def get_signing_config():
     
     return config
 
-def check_signing_requirements(target='github'):
+def check_signing_requirements(target='local'):
     """Check if signing requirements are met"""
     config = get_signing_config()
     
-    if target == 'github':
+    if target == 'local':
         required = ['developer_id_app', 'team_id']
         optional = ['apple_id', 'app_password']  # For notarization
     elif target == 'appstore':
         required = ['mac_app_store', 'team_id']
-        optional = ['api_key_id', 'api_issuer_id']  # For upload
+        optional = ['api_key_id', 'api_issuer_id']
     else:
         return False, "Invalid target"
     
@@ -67,17 +65,17 @@ def check_signing_requirements(target='github'):
     
     if missing_optional:
         print(f"⚠️  Optional variables missing: {', '.join(missing_optional)}")
-        if target == 'github':
+        if target == 'local':
             print("   Without these, notarization will be skipped")
         elif target == 'appstore':
             print("   Without these, App Store upload will be skipped")
     
     return True, "All requirements met"
 
-def create_entitlements_file(target='github'):
+def create_entitlements_file(target='local'):
     """Create entitlements file based on target"""
-    if target == 'github':
-        # More permissive entitlements for GitHub releases
+    if target == 'local':
+        # More permissive entitlements for local distribution
         entitlements = {
             "com.apple.security.app-sandbox": False,
             "com.apple.security.cs.allow-jit": True,
@@ -85,6 +83,7 @@ def create_entitlements_file(target='github'):
             "com.apple.security.cs.disable-library-validation": True,
             "com.apple.security.automation.apple-events": True,
             "com.apple.security.device.accessibility": True,
+            "com.apple.security.network.client": True,
         }
     else:  # appstore
         # Restricted entitlements for App Store
@@ -117,26 +116,216 @@ def create_entitlements_file(target='github'):
     
     return entitlements_file
 
-def sign_app(app_path, signing_identity, entitlements_file, target='github'):
+def run_swift_tests():
+    """Run Swift tests and return True if all tests pass"""
+    print("🧪 Running Swift test suite before build...")
+    print("=" * 50)
+    
+    if not os.path.exists(SWIFT_PROJECT_DIR):
+        print(f"❌ Swift project directory not found: {SWIFT_PROJECT_DIR}")
+        return False
+    
+    try:
+        # Change to Swift project directory
+        original_cwd = os.getcwd()
+        os.chdir(SWIFT_PROJECT_DIR)
+        
+        # Run Swift tests
+        result = subprocess.run(
+            ['swift', 'test', '--parallel'],
+            capture_output=True,
+            text=True,
+            timeout=180  # 3 minute timeout for tests
+        )
+        
+        # Return to original directory
+        os.chdir(original_cwd)
+        
+        # Print test output
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
+        
+        if result.returncode == 0:
+            print("✅ All Swift tests passed! Proceeding with build...")
+            return True
+        else:
+            print("❌ Swift tests failed! Build aborted.")
+            print("💡 Fix failing tests before building")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print("❌ Swift tests timed out after 3 minutes")
+        os.chdir(original_cwd)
+        return False
+    except Exception as e:
+        print(f"❌ Error running Swift tests: {e}")
+        os.chdir(original_cwd)
+        return False
+
+def build_swift_executable():
+    """Build the Swift executable"""
+    print("🔨 Building Swift executable...")
+    
+    if not os.path.exists(SWIFT_PROJECT_DIR):
+        print(f"❌ Swift project directory not found: {SWIFT_PROJECT_DIR}")
+        return False
+    
+    try:
+        # Change to Swift project directory
+        original_cwd = os.getcwd()
+        os.chdir(SWIFT_PROJECT_DIR)
+        
+        # Build in release mode
+        result = subprocess.run(
+            ['swift', 'build', '-c', 'release'],
+            capture_output=True,
+            text=True
+        )
+        
+        # Return to original directory
+        os.chdir(original_cwd)
+        
+        if result.returncode == 0:
+            print("✅ Swift executable built successfully!")
+            return True
+        else:
+            print(f"❌ Swift build failed: {result.stderr}")
+            if result.stdout:
+                print(f"Output: {result.stdout}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error building Swift executable: {e}")
+        os.chdir(original_cwd)
+        return False
+
+def create_app_bundle():
+    """Create the macOS app bundle structure"""
+    print("📦 Creating app bundle structure...")
+    
+    app_path = f"dist/{APP_NAME}.app"
+    
+    # Clean previous builds
+    if os.path.exists("dist"):
+        shutil.rmtree("dist")
+    
+    # Create app bundle structure
+    os.makedirs(f"{app_path}/Contents/MacOS", exist_ok=True)
+    os.makedirs(f"{app_path}/Contents/Resources", exist_ok=True)
+    
+    # Copy Swift executable
+    swift_executable = f"{SWIFT_PROJECT_DIR}/.build/release/Potter"
+    if not os.path.exists(swift_executable):
+        print(f"❌ Swift executable not found: {swift_executable}")
+        return False
+    
+    shutil.copy2(swift_executable, f"{app_path}/Contents/MacOS/{APP_NAME}")
+    
+    # Make executable
+    os.chmod(f"{app_path}/Contents/MacOS/{APP_NAME}", 0o755)
+    
+    print("✅ App bundle structure created")
+    return app_path
+
+def create_info_plist(app_path):
+    """Create Info.plist for the app bundle"""
+    print("📝 Creating Info.plist...")
+    
+    info_plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>{APP_NAME}</string>
+    <key>CFBundleIdentifier</key>
+    <string>{BUNDLE_ID}</string>
+    <key>CFBundleName</key>
+    <string>{APP_NAME}</string>
+    <key>CFBundleDisplayName</key>
+    <string>{APP_NAME}</string>
+    <key>CFBundleVersion</key>
+    <string>2.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.0</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Potter needs access to send Apple Events for system automation.</string>
+    <key>NSSystemAdministrationUsageDescription</key>
+    <string>Potter needs system access to monitor global hotkeys.</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+</dict>
+</plist>"""
+    
+    info_plist_path = f"{app_path}/Contents/Info.plist"
+    with open(info_plist_path, 'w') as f:
+        f.write(info_plist_content)
+    
+    print("✅ Info.plist created")
+    return True
+
+def copy_app_icon(app_path):
+    """Copy app icon to the bundle"""
+    print("🎨 Adding app icon...")
+    
+    # Look for icon files in various locations
+    icon_paths = [
+        'swift-potter/Resources/AppIcon.icns',
+        'assets/AppIcon.icns',
+        'assets/icon.icns',
+        'icon.icns'
+    ]
+    
+    icon_source = None
+    for icon_path in icon_paths:
+        if os.path.exists(icon_path):
+            icon_source = icon_path
+            break
+    
+    if icon_source:
+        shutil.copy2(icon_source, f"{app_path}/Contents/Resources/AppIcon.icns")
+        print(f"✅ App icon copied from {icon_source}")
+    else:
+        print("⚠️  No app icon found, using default")
+    
+    return True
+
+def sign_app(app_path, signing_identity, entitlements_file, target='local'):
     """Sign the application bundle"""
     print(f"🔐 Signing app with {signing_identity}...")
     
     try:
-        # Sign all frameworks and libraries first
-        for root, dirs, files in os.walk(app_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if (file.endswith('.dylib') or file.endswith('.so') or 
-                    'Frameworks' in root):
-                    try:
-                        subprocess.run([
-                            'codesign', '--force', '--verify', '--verbose',
-                            '--sign', signing_identity,
-                            '--timestamp',
-                            file_path
-                        ], check=True, capture_output=True)
-                    except subprocess.CalledProcessError:
-                        pass  # Some files might not be signable
+        # Sign the main executable first
+        executable_path = f"{app_path}/Contents/MacOS/{APP_NAME}"
+        
+        cmd = [
+            'codesign', '--force', '--verify', '--verbose',
+            '--sign', signing_identity,
+            '--entitlements', entitlements_file,
+            '--timestamp',
+            '--options', 'runtime',  # Required for notarization
+            executable_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"❌ Executable signing failed: {result.stderr}")
+            return False
         
         # Sign the main app bundle
         cmd = [
@@ -144,13 +333,13 @@ def sign_app(app_path, signing_identity, entitlements_file, target='github'):
             '--sign', signing_identity,
             '--entitlements', entitlements_file,
             '--timestamp',
-            '--options', 'runtime',  # Required for notarization
+            '--options', 'runtime',
             app_path
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"❌ Signing failed: {result.stderr}")
+            print(f"❌ App bundle signing failed: {result.stderr}")
             return False
         
         print("✅ App signed successfully")
@@ -251,108 +440,62 @@ def notarize_app(app_path, config):
             os.remove(zip_path)
         return False
 
-def create_app_store_package(app_path, config):
-    """Create App Store package"""
-    if not config.get('mac_installer'):
-        print("⚠️  Skipping App Store package - installer certificate not provided")
-        return None
+def generate_cool_name():
+    """Generate a cool build name"""
+    import random
     
-    print("📦 Creating App Store package...")
+    adjectives = [
+        "Swift", "Blazing", "Cosmic", "Stellar", "Quantum", "Turbo", "Lightning", 
+        "Phoenix", "Dragon", "Mystic", "Arctic", "Crimson", "Golden", "Silver",
+        "Emerald", "Sapphire", "Thunder", "Storm", "Frost", "Fire", "Shadow",
+        "Crystal", "Diamond", "Iron", "Steel", "Neon", "Cyber", "Digital",
+        "Atomic", "Nuclear", "Plasma", "Laser", "Hyper", "Ultra", "Mega",
+        "Epic", "Legendary", "Royal", "Noble", "Wild", "Fierce", "Bold"
+    ]
     
-    try:
-        pkg_path = app_path.replace('.app', '.pkg')
-        
-        cmd = [
-            'productbuild', '--component', app_path, '/Applications',
-            '--sign', config['mac_installer'],
-            pkg_path
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            print(f"❌ Package creation failed: {result.stderr}")
-            return None
-        
-        print(f"✅ App Store package created: {pkg_path}")
-        return pkg_path
-        
-    except Exception as e:
-        print(f"❌ Package creation error: {e}")
-        return None
-
-def upload_to_app_store(pkg_path, config):
-    """Upload package to App Store Connect"""
-    if not pkg_path:
-        return False
+    nouns = [
+        "Falcon", "Eagle", "Hawk", "Wolf", "Tiger", "Lion", "Dragon", "Phoenix",
+        "Thunder", "Storm", "Blaze", "Frost", "Knight", "Warrior", "Ninja",
+        "Samurai", "Wizard", "Mage", "Rocket", "Comet", "Star", "Galaxy",
+        "Nebula", "Vortex", "Cyclone", "Hurricane", "Tornado", "Avalanche",
+        "Tsunami", "Volcano", "Meteor", "Asteroid", "Planet", "Cosmos",
+        "Universe", "Dimension", "Portal", "Matrix", "Code", "Cipher", "Prism"
+    ]
     
-    # Check for API key method first (preferred)
-    if config.get('api_key_id') and config.get('api_issuer_id') and config.get('api_key_path'):
-        print("🚀 Uploading to App Store Connect (API Key method)...")
-        
-        cmd = [
-            'xcrun', 'altool', '--upload-app',
-            '--type', 'osx',
-            '--file', pkg_path,
-            '--apiKey', config['api_key_id'],
-            '--apiIssuer', config['api_issuer_id']
-        ]
-        
-    elif config.get('apple_id') and config.get('app_password'):
-        print("🚀 Uploading to App Store Connect (Apple ID method)...")
-        
-        cmd = [
-            'xcrun', 'altool', '--upload-app',
-            '--type', 'osx',
-            '--file', pkg_path,
-            '--username', config['apple_id'],
-            '--password', config['app_password']
-        ]
-        
-        if config.get('asc_provider'):
-            cmd.extend(['--asc-provider', config['asc_provider']])
-    else:
-        print("⚠️  Skipping App Store upload - credentials not provided")
-        return True
+    adjective = random.choice(adjectives)
+    noun = random.choice(nouns)
     
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print("✅ Successfully uploaded to App Store Connect")
-            return True
-        else:
-            print(f"❌ Upload failed: {result.stderr}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Upload error: {e}")
-        return False
-
-def modify_info_plist_for_target(app_path, target):
-    """Modify Info.plist based on target"""
-    plist_path = os.path.join(app_path, "Contents", "Info.plist")
-    
-    if target == 'appstore':
-        # For App Store, we might need specific modifications
-        print("ℹ️  Info.plist configured for App Store")
-    else:
-        # For GitHub releases
-        print("ℹ️  Info.plist configured for GitHub release")
-    
-    return True
+    return f"{adjective}-{noun}"
 
 def generate_build_id():
-    """Generate a unique build ID with timestamp"""
+    """Generate a unique build ID with short timestamp and cool name"""
     timestamp = datetime.now()
-    timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
-    unique_id = str(uuid.uuid4())[:8]  # Short unique identifier
+    
+    # Short timestamp: YYMMDD + 5-minute block number
+    year_short = timestamp.strftime("%y")    # Last 2 digits of year
+    month = timestamp.strftime("%m")         # Month (01-12)
+    day = timestamp.strftime("%d")           # Day (01-31)
+    
+    # Calculate 5-minute block number (0-287 for a day)
+    total_minutes = timestamp.hour * 60 + timestamp.minute
+    five_min_block = total_minutes // 5
+    block_str = f"{five_min_block:03d}"      # 3 digits with leading zeros
+    
+    short_timestamp = f"{year_short}{month}{day}{block_str}"
+    cool_name = generate_cool_name()
     
     build_id = {
-        "build_id": f"potter_{timestamp_str}_{unique_id}",
+        "build_id": f"Potter_{cool_name}_{short_timestamp}",
+        "cool_name": cool_name,
+        "short_timestamp": short_timestamp,
+        "year": year_short,
+        "month": month,
+        "day": day,
+        "five_min_block": five_min_block,
         "timestamp": timestamp.isoformat(),
         "unix_timestamp": int(timestamp.timestamp()),
-        "version": "2.0.0"  # Could be made configurable
+        "version": "2.0.0",
+        "platform": "swift"
     }
     
     return build_id
@@ -362,17 +505,18 @@ def embed_build_id(app_path):
     try:
         build_id = generate_build_id()
         
-        # Create the build ID file in the app bundle
-        resources_path = os.path.join(app_path, "Contents", "Resources")
+        resources_path = f"{app_path}/Contents/Resources"
         os.makedirs(resources_path, exist_ok=True)
         
-        build_id_file = os.path.join(resources_path, "build_id.json")
+        build_id_file = f"{resources_path}/build_id.json"
         
         with open(build_id_file, 'w') as f:
             json.dump(build_id, f, indent=2)
         
         print(f"✅ Build ID embedded: {build_id['build_id']}")
-        print(f"   Timestamp: {build_id['timestamp']}")
+        print(f"   Cool Name: {build_id['cool_name']}")
+        print(f"   Date Code: {build_id['short_timestamp']} ({build_id['year']}/{build_id['month']}/{build_id['day']} block {build_id['five_min_block']})")
+        print(f"   Full Timestamp: {build_id['timestamp']}")
         
         return True
         
@@ -380,68 +524,192 @@ def embed_build_id(app_path):
         print(f"❌ Failed to embed build ID: {e}")
         return False
 
-def run_tests():
-    """Run the test suite and return True if all tests pass"""
-    print("🧪 Running test suite before build...")
-    print("=" * 50)
-    
-    # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Navigate to project root (parent of scripts)
-    project_root = os.path.dirname(script_dir)
-    
-    # Path to the test runner
-    test_runner_path = os.path.join(project_root, 'tests', 'auto_test_runner.py')
-    
-    if not os.path.exists(test_runner_path):
-        print(f"❌ Test runner not found: {test_runner_path}")
-        print("💡 Make sure you're running this from the project root")
-        return False
+def create_dmg_professional(app_path):
+    """Create a professional DMG with custom background using modern approach"""
+    print("💿 Creating professional DMG for distribution...")
     
     try:
-        # Run the test suite
-        result = subprocess.run(
-            ['python', test_runner_path],
-            cwd=project_root,
-            capture_output=True,
-            text=True,
-            timeout=120  # 2 minute timeout for tests
-        )
+        dmg_name = f"{APP_NAME}-2.0.dmg"
+        dmg_path = f"dist/{dmg_name}"
+        source_folder = "dist/dmg_source"
         
-        # Print test output
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr)
+        # Clean up any existing files
+        for path in [dmg_path, source_folder]:
+            if os.path.exists(path):
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
         
-        if result.returncode == 0:
-            print("✅ All tests passed! Proceeding with build...")
-            return True
-        else:
-            print("❌ Tests failed! Build aborted.")
-            print("💡 Fix failing tests before building")
-            return False
+        # Create source folder structure
+        os.makedirs(source_folder, exist_ok=True)
+        
+        # Copy app to source folder
+        print("📁 Preparing DMG contents...")
+        shutil.copytree(app_path, f"{source_folder}/{APP_NAME}.app")
+        
+        # Create Applications symlink
+        subprocess.run([
+            'ln', '-s', '/Applications', f"{source_folder}/Applications"
+        ], check=True)
+        
+        # Find background image
+        background_path = None
+        background_candidates = [
+            "assets/dmg_background.png",
+            "assets/potter_dmg_background.png",
+            "dmg_background.png"
+        ]
+        
+        for bg_path in background_candidates:
+            if os.path.exists(bg_path):
+                background_path = bg_path
+                print(f"✅ Found background: {bg_path}")
+                break
+        
+        if not background_path:
+            print("⚠️  No background image found")
+        
+        # Use hdiutil create with proper formatting
+        print("🔨 Creating DMG with hdiutil...")
+        
+        cmd = [
+            'hdiutil', 'create',
+            '-volname', f"{APP_NAME} Installer",  # Use different name to avoid conflicts
+            '-srcfolder', source_folder,
+            '-ov',
+            '-format', 'UDRW',  # Read-write for customization
+            f"dist/temp_{dmg_name}"
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"❌ Initial DMG creation failed: {result.stderr}")
+            return None
+        
+        print("✅ Initial DMG created successfully")
+        
+        # Mount for customization
+        mount_point = f"/Volumes/{APP_NAME} Installer"
+        print(f"📀 Mounting DMG at {mount_point}...")
+        
+        # Unmount any existing volume
+        subprocess.run(['hdiutil', 'detach', mount_point], 
+                      capture_output=True, text=True)
+        
+        mount_result = subprocess.run([
+            'hdiutil', 'attach', f"dist/temp_{dmg_name}",
+            '-mountpoint', mount_point
+        ], capture_output=True, text=True)
+        
+        if mount_result.returncode != 0:
+            print(f"❌ Failed to mount DMG: {mount_result.stderr}")
+            return None
+        
+        print("✅ DMG mounted successfully")
+        
+        # Copy background and configure layout
+        if background_path:
+            print("🎨 Applying background image...")
+            # Create .background folder (alternative approach)
+            bg_folder = f'{mount_point}/.background'
+            os.makedirs(bg_folder, exist_ok=True)
+            bg_dest = f'{bg_folder}/background.png'
+            shutil.copy2(background_path, bg_dest)
             
-    except subprocess.TimeoutExpired:
-        print("❌ Tests timed out after 2 minutes")
-        return False
+            # Also copy to root level as fallback
+            bg_dest_root = f'{mount_point}/.background.png'
+            shutil.copy2(background_path, bg_dest_root)
+            
+            # Verify the copy worked
+            if os.path.exists(bg_dest) and os.path.exists(bg_dest_root):
+                print(f"✅ Background copied to both locations")
+            else:
+                print(f"❌ Background copy failed")
+                background_path = None  # Don't try to set it in AppleScript
+            
+        # Configure DMG appearance with AppleScript
+        print("🎭 Configuring DMG layout...")
+        applescript = f'''
+tell application "Finder"
+    tell disk "{APP_NAME} Installer"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {{400, 100, 1000, 600}}
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 100'''
+        
+        if background_path:
+            applescript += '''
+        set background picture of viewOptions to file ".background:background.png"'''
+            
+        applescript += f'''
+        set position of item "{APP_NAME}.app" to {{160, 250}}
+        set position of item "Applications" to {{440, 250}}
+        close
+        open
+        update without registering applications
+        delay 2
+    end tell
+end tell'''
+        
+        # Run AppleScript with timeout and error handling
+        try:
+            subprocess.run([
+                'osascript', '-e', applescript
+            ], timeout=30, check=False)  # Don't fail build if AppleScript fails
+            print("✅ DMG layout configured")
+        except subprocess.TimeoutExpired:
+            print("⚠️  AppleScript timed out, continuing with basic layout")
+        except Exception as e:
+            print(f"⚠️  AppleScript failed: {e}, continuing with basic layout")
+        
+        # Unmount
+        print("📤 Finalizing DMG...")
+        subprocess.run(['hdiutil', 'detach', mount_point], 
+                      capture_output=True, text=True)
+        
+        # Convert to compressed final DMG
+        subprocess.run([
+            'hdiutil', 'convert', f"dist/temp_{dmg_name}",
+            '-format', 'UDZO',
+            '-o', dmg_path
+        ], check=True)
+        
+        # Clean up
+        os.remove(f"dist/temp_{dmg_name}")
+        shutil.rmtree(source_folder)
+        
+        print(f"✅ Professional DMG created: {dmg_path}")
+        return dmg_path
+        
     except Exception as e:
-        print(f"❌ Error running tests: {e}")
-        return False
+        print(f"❌ DMG creation error: {e}")
+        # Clean up on error
+        cleanup_paths = [f"dist/temp_{dmg_name}", source_folder]
+        for path in cleanup_paths:
+            if os.path.exists(path):
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+        return None
 
-def build_app(target='github', skip_tests=False):
-    """Main build function with mandatory signing support"""
+def build_app(target='local', skip_tests=False):
+    """Main build function"""
     
     # Run tests first unless skipped
     if not skip_tests:
-        if not run_tests():
+        if not run_swift_tests():
             return False
     
-    print(f"🔄 Enhanced Potter App Builder ({target} target)")
+    print(f"🔄 Swift Potter App Builder ({target} target)")
     print("=" * 60)
     
-    # Check signing requirements (always required now)
+    # Check signing requirements
     requirements_ok, message = check_signing_requirements(target)
     if not requirements_ok:
         print(f"❌ {message}")
@@ -453,77 +721,39 @@ def build_app(target='github', skip_tests=False):
     
     config = get_signing_config()
     
-    # API key information (keep this for reference)
-    print("ℹ️  Note: API key should be configured in app settings after installation")
-    
-    # Create app icon
-    print("🎨 Creating app icon...")
-    if create_app_icon():
-        print("✅ Clean AI app icon created successfully")
-    else:
-        print("⚠️  Using default icon")
-    
-    print(f"🔨 Building Potter.app ({target} target)...")
-    print("=" * 60)
-    
-    # Clean previous builds
-    print("🧹 Cleaning previous dist...")
-    if os.path.exists("dist"):
-        shutil.rmtree("dist")
-    
-    # Create dist structure
-    os.makedirs("dist/app", exist_ok=True)
-    
-    # PyInstaller command - output to dist/app
-    cmd = [
-        'pyinstaller',
-        '--distpath=dist/app',
-        '--workpath=build',
-        '--onedir',
-        '--windowed',
-        '--name=Potter',
-        '--icon=app_icon.icns',
-        '--osx-bundle-identifier=' + BUNDLE_ID,
-        '--add-data=src/cocoa_settings.py:.',
-        '--hidden-import=six.moves',
-        '--hidden-import=six.moves.urllib',
-        '--hidden-import=six',
-        '--hidden-import=objc',
-        '--hidden-import=Foundation',
-        '--hidden-import=AppKit',
-        '--hidden-import=UserNotifications',
-        '--hidden-import=ApplicationServices',
-        '--hidden-import=Quartz',
-        '--clean',
-        'src/potter.py'
-    ]
-    
-    print("📦 Creating app bundle...")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        print(f"❌ PyInstaller failed: {result.stderr}")
+    # Build Swift executable
+    if not build_swift_executable():
         return False
     
-    print("✅ App bundle created successfully!")
-    print(f"Build output: {result.stdout if result.stdout else 'No output'}")
+    # Create app bundle
+    app_path = create_app_bundle()
+    if not app_path:
+        return False
     
-    app_path = "dist/app/Potter.app"
+    # Create Info.plist
+    if not create_info_plist(app_path):
+        return False
     
-    # Fix Info.plist for double-click launching
-    if fix_info_plist(app_path):
-        print("✅ Fixed Info.plist for double-click launching")
+    # Copy app icon
+    copy_app_icon(app_path)
     
-    # Modify Info.plist for target
-    modify_info_plist_for_target(app_path, target)
-    
-    # Embed build ID for version tracking
+    # Embed build ID
     embed_build_id(app_path)
     
-    # Code signing (always required)
+    # Create DMG BEFORE signing to avoid permission issues with signed apps
+    dmg_path = None
+    if target == 'local':
+        print("📦 Creating professional DMG before code signing...")
+        dmg_path = create_dmg_professional(app_path)
+        if dmg_path:
+            print(f"✅ Professional DMG created: {dmg_path}")
+        else:
+            print("❌ DMG creation failed, continuing with app-only build")
+    
+    # Code signing
     entitlements_file = create_entitlements_file(target)
     
-    if target == 'github':
+    if target == 'local':
         signing_identity = config['developer_id_app']
     else:  # appstore
         signing_identity = config['mac_app_store']
@@ -532,22 +762,18 @@ def build_app(target='github', skip_tests=False):
         if verify_signature(app_path):
             print("✅ App successfully signed and verified")
             
-            # Notarization (for GitHub releases - always done)
-            if target == 'github':
+            # Notarization (for local distribution)
+            if target == 'local':
                 if notarize_app(app_path, config):
                     print("✅ App notarized successfully")
                 else:
-                    print("❌ Notarization failed - this is required for distribution")
-                    return False
+                    print("⚠️  Notarization failed - app may trigger security warnings")
             
-            # App Store package creation
-            if target == 'appstore':
-                pkg_path = create_app_store_package(app_path, config)
-                if pkg_path:
-                    if upload_to_app_store(pkg_path, config):
-                        print("✅ App Store upload completed")
-                    else:
-                        print("⚠️  App Store upload failed")
+            # DMG was already created before signing
+            if target == 'local' and dmg_path:
+                print(f"✅ Distribution DMG available: {dmg_path}")
+            elif target == 'local':
+                print("⚠️  No DMG was created")
                 
         else:
             print("❌ Signature verification failed")
@@ -560,300 +786,15 @@ def build_app(target='github', skip_tests=False):
     if os.path.exists(entitlements_file):
         os.remove(entitlements_file)
     
-    print("✅ Potter.app created at:", os.path.abspath(app_path))
+    print("✅ Swift Potter.app created at:", os.path.abspath(app_path))
     
     return True
 
-def create_app_icon():
-    """Create app icon using logo.png from assets folder"""
-    print("🎨 Creating app icon from logo.png...")
-    
-    try:
-        from PIL import Image
-        
-        # Try to find logo files in assets folder
-        logo_paths = [
-            'assets/light.png',    # Prioritize light mode logo for app icon
-            'assets/logo.png',     # Fallback to regular logo
-            'assets/dark.png',     # Last resort: dark mode logo
-            os.path.join('..', 'assets', 'light.png'),
-            os.path.join('..', 'assets', 'logo.png'),
-            os.path.join('..', 'assets', 'dark.png'),
-            os.path.join(os.path.dirname(__file__), '..', 'assets', 'light.png'),
-            os.path.join(os.path.dirname(__file__), '..', 'assets', 'logo.png'),
-            os.path.join(os.path.dirname(__file__), '..', 'assets', 'dark.png')
-        ]
-        
-        logo_image = None
-        logo_source = None
-        for logo_path in logo_paths:
-            if os.path.exists(logo_path):
-                print(f"📁 Found logo at: {logo_path}")
-                logo_image = Image.open(logo_path)
-                logo_source = logo_path
-                break
-        
-        if not logo_image:
-            print("⚠️  Logo not found, creating custom app icon")
-            # Create fallback custom icon
-            logo_image = Image.new('RGBA', (1024, 1024), (70, 130, 180, 255))  # Steel blue background
-            
-            # Add simple app icon elements here if needed
-            print("✅ Created custom fallback app icon")
-        else:
-            print(f"✅ Using logo from: {logo_source}")
-            # Ensure image is in RGBA mode for proper transparency handling
-            if logo_image.mode != 'RGBA':
-                logo_image = logo_image.convert('RGBA')
-        
-        # Generate all required icon sizes for macOS app bundle
-        icon_sizes = [16, 32, 64, 128, 256, 512, 1024]
-        icon_dir = 'dist/icon_temp'
-        os.makedirs(icon_dir, exist_ok=True)
-        
-        print(f"📏 Generating icon sizes: {icon_sizes}")
-        
-        # Generate each size
-        for size in icon_sizes:
-            resized = logo_image.resize((size, size), Image.Resampling.LANCZOS)
-            icon_path = os.path.join(icon_dir, f'icon_{size}x{size}.png')
-            resized.save(icon_path, 'PNG')
-            print(f"  ✓ Created {size}x{size} icon")
-        
-        # Create .icns file using iconutil (macOS built-in tool)
-        iconset_dir = os.path.join(icon_dir, 'icon.iconset')
-        os.makedirs(iconset_dir, exist_ok=True)
-        
-        # Copy files with correct naming for iconset
-        iconset_mapping = {
-            16: ['icon_16x16.png'],
-            32: ['icon_16x16@2x.png', 'icon_32x32.png'],
-            64: ['icon_32x32@2x.png'],
-            128: ['icon_64x64@2x.png', 'icon_128x128.png'],
-            256: ['icon_128x128@2x.png', 'icon_256x256.png'],
-            512: ['icon_256x256@2x.png', 'icon_512x512.png'],
-            1024: ['icon_512x512@2x.png']
-        }
-        
-        for size, names in iconset_mapping.items():
-            src_path = os.path.join(icon_dir, f'icon_{size}x{size}.png')
-            for name in names:
-                dst_path = os.path.join(iconset_dir, name)
-                import shutil
-                shutil.copy2(src_path, dst_path)
-        
-        # Use iconutil to create .icns file
-        icns_path = 'dist/icon.icns'
-        result = subprocess.run([
-            'iconutil', '-c', 'icns', iconset_dir, '-o', icns_path
-        ], capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print(f"✅ Created .icns file: {icns_path}")
-            
-            # Clean up temporary files
-            shutil.rmtree(icon_dir)
-            return icns_path
-        else:
-            print(f"❌ iconutil failed: {result.stderr}")
-            return None
-            
-    except Exception as e:
-        print(f"❌ Error creating app icon: {e}")
-        return None
-
-def create_fallback_icon():
-    """Create a fallback custom icon if logo.png is not available"""
-    print("🎨 Creating fallback custom icon...")
-    
-    try:
-        from PIL import Image, ImageDraw
-        
-        # Create a high-resolution icon
-        size = 512
-        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        
-        # Simple background circle (subtle gray)
-        margin = 40
-        draw.ellipse([margin, margin, size-margin, size-margin], fill=(240, 240, 240, 220))
-        
-        # Scale everything proportionally
-        scale = size / 64
-        
-        # Main clipboard/copy icon (centered, black and white)
-        clip_x = int(18 * scale)
-        clip_y = int(12 * scale)
-        clip_w = int(28 * scale)
-        clip_h = int(36 * scale)
-        
-        # Clipboard body (white with black outline)
-        draw.rectangle([clip_x, clip_y, clip_x + clip_w, clip_y + clip_h], 
-                      fill='white', outline='black', width=int(3 * scale))
-        
-        # Clipboard top clip (black)
-        clip_top_x = clip_x + int(8 * scale)
-        clip_top_y = clip_y - int(4 * scale)
-        clip_top_w = int(12 * scale)
-        clip_top_h = int(6 * scale)
-        draw.rectangle([clip_top_x, clip_top_y, clip_top_x + clip_top_w, clip_top_y + clip_top_h], 
-                      fill='black')
-        
-        # Document lines (gray)
-        line_x = clip_x + int(4 * scale)
-        line_w = int(20 * scale)
-        line_h = int(2 * scale)
-        line_color = '#666666'
-        
-        draw.rectangle([line_x, clip_y + int(8 * scale), line_x + line_w, clip_y + int(8 * scale) + line_h], 
-                      fill=line_color)
-        draw.rectangle([line_x, clip_y + int(14 * scale), line_x + line_w, clip_y + int(14 * scale) + line_h], 
-                      fill=line_color)
-        draw.rectangle([line_x, clip_y + int(20 * scale), line_x + int(16 * scale), clip_y + int(20 * scale) + line_h], 
-                      fill=line_color)
-        draw.rectangle([line_x, clip_y + int(26 * scale), line_x + int(18 * scale), clip_y + int(26 * scale) + line_h], 
-                      fill=line_color)
-        
-        # AI Sparkle at bottom right (inspired by the provided icon)
-        sparkle_x = int(44 * scale)
-        sparkle_y = int(44 * scale)
-        sparkle_size = int(8 * scale)
-        
-        # Create the 4-pointed diamond star with blue gradient effect
-        # Main diamond shape
-        points = [
-            (sparkle_x, sparkle_y - sparkle_size),  # Top
-            (sparkle_x + sparkle_size, sparkle_y),   # Right
-            (sparkle_x, sparkle_y + sparkle_size),   # Bottom
-            (sparkle_x - sparkle_size, sparkle_y)    # Left
-        ]
-        
-        # Draw the sparkle with gradient-like effect
-        # Outer layer (darker blue)
-        draw.polygon(points, fill='#4A90E2')
-        
-        # Inner layer (lighter blue) - smaller diamond
-        inner_size = sparkle_size - int(2 * scale)
-        inner_points = [
-            (sparkle_x, sparkle_y - inner_size),
-            (sparkle_x + inner_size, sparkle_y),
-            (sparkle_x, sparkle_y + inner_size),
-            (sparkle_x - inner_size, sparkle_y)
-        ]
-        draw.polygon(inner_points, fill='#7BB3F0')
-        
-        # Center highlight (very light blue/white)
-        center_size = sparkle_size - int(4 * scale)
-        if center_size > 0:
-            center_points = [
-                (sparkle_x, sparkle_y - center_size),
-                (sparkle_x + center_size, sparkle_y),
-                (sparkle_x, sparkle_y + center_size),
-                (sparkle_x - center_size, sparkle_y)
-            ]
-            draw.polygon(center_points, fill='#B8D4F1')
-        
-        # Save as PNG first
-        image.save('app_icon.png')
-        
-        # Convert to .icns using macOS built-in tool
-        if os.path.exists('app_icon.png'):
-            # Create iconset directory
-            os.makedirs('app_icon.iconset', exist_ok=True)
-            
-            # Generate different sizes
-            sizes = [16, 32, 64, 128, 256, 512, 1024]
-            for size in sizes:
-                resized = image.resize((size, size), Image.Resampling.LANCZOS)
-                resized.save(f'app_icon.iconset/icon_{size}x{size}.png')
-                if size <= 512:  # Also create @2x versions
-                    resized.save(f'app_icon.iconset/icon_{size//2}x{size//2}@2x.png')
-            
-            # Convert to .icns
-            try:
-                subprocess.run(['iconutil', '-c', 'icns', 'app_icon.iconset'], check=True)
-                print("✅ Fallback custom icon created successfully")
-                
-                # Clean up
-                shutil.rmtree('app_icon.iconset')
-                os.remove('app_icon.png')
-                return True
-            except subprocess.CalledProcessError:
-                print("⚠️  Could not create .icns file, using PNG instead")
-                os.rename('app_icon.png', 'app_icon.icns')
-                return True
-        
-    except ImportError:
-        print("⚠️  PIL not available, creating simple icon...")
-        # Create a simple text-based icon
-        with open('app_icon.icns', 'w') as f:
-            f.write('')  # Empty file, PyInstaller will use default
-        return True
-    
-    except Exception as e:
-        print(f"⚠️  Could not create fallback icon: {e}")
-        # Create empty icon file
-        with open('app_icon.icns', 'w') as f:
-            f.write('')
-        return True
-
-def fix_info_plist(app_path):
-    """Fix the Info.plist file after PyInstaller creates it"""
-    info_plist_path = f"{app_path}/Contents/Info.plist"
-    
-    # Create proper Info.plist for background app that can be double-clicked
-    info_plist_content = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>Potter</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.potter.app</string>
-    <key>CFBundleName</key>
-    <string>Potter</string>
-    <key>CFBundleDisplayName</key>
-    <string>Potter</string>
-    <key>CFBundleVersion</key>
-    <string>2.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>2.0</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleIconFile</key>
-    <string>app_icon.icns</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSSupportsAutomaticGraphicsSwitching</key>
-    <true/>
-    <key>LSMinimumSystemVersion</key>
-    <string>10.14</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Potter needs access to send keystroke events for pasting processed text.</string>
-    <key>NSSystemAdministrationUsageDescription</key>
-    <string>Potter needs system access to monitor global hotkeys.</string>
-    <key>LSEnvironment</key>
-    <dict>
-        <key>PYTHONPATH</key>
-        <string>.</string>
-    </dict>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-</dict>
-</plist>"""
-    
-    with open(info_plist_path, 'w') as f:
-        f.write(info_plist_content)
-    
-    print("✅ Fixed Info.plist for double-click launching")
-
 def main():
     """Main build process with CLI support"""
-    parser = argparse.ArgumentParser(description='Enhanced Potter App Builder')
-    parser.add_argument('--target', choices=['github', 'appstore'], default='github',
-                       help='Build target: github (for GitHub releases) or appstore (for App Store)')
+    parser = argparse.ArgumentParser(description='Swift Potter App Builder')
+    parser.add_argument('--target', choices=['local', 'appstore'], default='local',
+                       help='Build target: local (for local distribution) or appstore (for App Store)')
     parser.add_argument('--skip-tests', action='store_true',
                        help='Skip running tests before building')
     
@@ -866,11 +807,11 @@ def main():
         print("=" * 60)
         print("To enable code signing, set these environment variables:")
         print("")
-        print("For GitHub releases:")
+        print("For local distribution:")
         print("  export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (TEAM_ID)'")
         print("  export APPLE_TEAM_ID='YOUR_TEAM_ID'")
         print("")
-        print("For notarization (required for GitHub releases):")
+        print("For notarization (recommended for local distribution):")
         print("  export APPLE_ID='your@apple.id'")
         print("  export APPLE_APP_PASSWORD='app-specific-password'")
         print("")
@@ -878,12 +819,7 @@ def main():
         print("  export MAC_APP_STORE_CERTIFICATE='3rd Party Mac Developer Application: Your Name (TEAM_ID)'")
         print("  export MAC_INSTALLER_CERTIFICATE='3rd Party Mac Developer Installer: Your Name (TEAM_ID)'")
         print("")
-        print("For App Store Connect uploads:")
-        print("  export ASC_API_KEY_ID='your-api-key-id'")
-        print("  export ASC_API_ISSUER_ID='your-issuer-id'")
-        print("  export ASC_API_KEY_PATH='/path/to/AuthKey_KEYID.p8'")
-        print("")
-        print("💡 All builds are now signed and notarized for security")
+        print("💡 All builds are signed and notarized for security")
         print("=" * 60)
         print("")
     
@@ -893,20 +829,20 @@ def main():
     )
     
     if success:
-        print("\n🎉 Build completed successfully!")
-        if args.target == 'github':
-            print("📋 Next steps for GitHub release:")
-            print("  1. Test the signed app: open dist/app/Potter.app")
-            print("  2. Create DMG: ./scripts/test_dmg_creation.sh")
-            print("  3. Upload to GitHub releases")
+        print("\n🎉 Swift Potter build completed successfully!")
+        if args.target == 'local':
+            print("📋 Next steps for local testing:")
+            print("  1. Test the signed app: open dist/Potter.app")
+            print("  2. Install to Applications: cp -r dist/Potter.app /Applications/")
+            print("  3. Distribute via DMG: dist/Potter-1.0.dmg")
         elif args.target == 'appstore':
             print("📋 Next steps for App Store:")
             print("  1. Check App Store Connect for upload status")
             print("  2. Submit for review in App Store Connect")
         sys.exit(0)
     else:
-        print("\n❌ Build failed!")
+        print("\n❌ Swift Potter build failed!")
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    main()

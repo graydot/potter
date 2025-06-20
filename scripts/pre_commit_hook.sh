@@ -24,21 +24,11 @@ if [[ -f "swift-potter/Package.swift" ]]; then
     fi
 fi
 
-# Run Python tests
-echo "$(blue '🐍 Running Python tests...')"
-if python tests/test_runner.py; then
-    echo "$(green '✅ All Python tests passed!')"
-else
-    echo "$(red '❌ Python tests failed - commit blocked')"
-    echo "Run 'python tests/test_runner.py' to see detailed results"
-    exit 1
-fi
+# Check for Swift file changes to offer release creation
+SWIFT_CHANGED=$(git diff --cached --name-only | grep -E '\.(swift)$' | wc -l)
 
-# Check for Python file changes to offer release creation
-PYTHON_CHANGED=$(git diff --cached --name-only | grep -E '\.(py)$' | wc -l)
-
-if [[ $PYTHON_CHANGED -gt 0 ]]; then
-    echo "$(yellow '📦 Python files changed.')"
+if [[ $SWIFT_CHANGED -gt 0 ]]; then
+    echo "$(yellow '📦 Swift files changed.')"
     read -p "$(yellow 'Create a GitHub release? (y/N): ')" CREATE_RELEASE
     
     if [[ "$CREATE_RELEASE" =~ ^[Yy]$ ]]; then
