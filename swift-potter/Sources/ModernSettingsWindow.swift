@@ -883,6 +883,11 @@ struct HotkeyConfigurationView: View {
         warningMessage = ""
         isKeyCaptureFocused = true
         
+        // Disable global hotkey during capture to prevent interference
+        if let potterCore = NSApplication.shared.delegate as? AppDelegate {
+            potterCore.potterCore.disableGlobalHotkey()
+        }
+        
         PotterLogger.shared.debug("settings", "🎹 Started hotkey capture mode")
     }
     
@@ -1038,7 +1043,7 @@ struct HotkeyConfigurationView: View {
         
         PotterLogger.shared.info("settings", "🎹 Applied new hotkey: \(currentHotkey.joined(separator: "+"))")
         
-        // Update the global hotkey system
+        // Update the global hotkey system (this will re-enable it with new combo)
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
             potterCore.potterCore.updateHotkey(currentHotkey)
         }
@@ -1050,6 +1055,11 @@ struct HotkeyConfigurationView: View {
         isKeyCaptureFocused = false
         capturedKeys.removeAll()
         warningMessage = ""
+        
+        // Re-enable global hotkey with previous combo
+        if let potterCore = NSApplication.shared.delegate as? AppDelegate {
+            potterCore.potterCore.enableGlobalHotkey()
+        }
         
         PotterLogger.shared.debug("settings", "🎹 Cancelled hotkey capture - restored previous combo")
     }

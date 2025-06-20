@@ -216,6 +216,22 @@ class PotterCore {
         PotterLogger.shared.info("hotkeys", "🔄 Updated hotkey to: \(newHotkey.joined(separator: "+"))")
     }
     
+    func disableGlobalHotkey() {
+        if let currentHandler = hotkeyEventHandler {
+            UnregisterEventHotKey(currentHandler)
+            hotkeyEventHandler = nil
+            PotterLogger.shared.debug("hotkeys", "⏸️ Temporarily disabled global hotkey")
+        }
+    }
+    
+    func enableGlobalHotkey() {
+        // Only re-register if we don't already have a handler
+        if hotkeyEventHandler == nil {
+            registerHotkey(currentHotkeyCombo)
+            PotterLogger.shared.debug("hotkeys", "▶️ Re-enabled global hotkey")
+        }
+    }
+    
     private func registerHotkey(_ hotkeyCombo: [String]) {
         // Parse the hotkey combination
         let (keyCode, modifiers) = parseHotkeyCombo(hotkeyCombo)
