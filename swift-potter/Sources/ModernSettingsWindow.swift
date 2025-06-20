@@ -737,8 +737,8 @@ struct ModernSettingsView: View {
 struct HotkeyConfigurationView: View {
     @State private var isCapturingHotkey = false
     @State private var capturedKeys: [String] = []
-    @State private var currentHotkey = ["⌘", "⇧", "R"]
-    @State private var previousHotkey = ["⌘", "⇧", "R"] // Store previous combo for ESC
+    @State private var currentHotkey = ["⌘", "⇧", "9"]
+    @State private var previousHotkey = ["⌘", "⇧", "9"] // Store previous combo for ESC
     @State private var warningMessage = ""
     @FocusState private var isKeyCaptureFocused: Bool
     @StateObject private var permissionManager = PermissionManager.shared
@@ -1055,8 +1055,8 @@ struct HotkeyConfigurationView: View {
     }
     
     private func resetToDefault() {
-        currentHotkey = ["⌘", "⇧", "R"]
-        previousHotkey = ["⌘", "⇧", "R"]
+        currentHotkey = ["⌘", "⇧", "9"]
+        previousHotkey = ["⌘", "⇧", "9"]
         warningMessage = ""
         capturedKeys.removeAll()
         isCapturingHotkey = false
