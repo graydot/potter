@@ -470,10 +470,26 @@ struct ModernSettingsView: View {
                 .fontWeight(.semibold)
             
             GroupBox("Build Information") {
-                VStack(alignment: .leading, spacing: 10) {
-                    infoRow("Build ID:", "swift_dev_build")
-                    infoRow("Version:", "development")
-                    infoRow("Built:", DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .short))
+                VStack(alignment: .leading, spacing: 12) {
+                    let buildInfo = BuildInfo.current()
+                    
+                    // Featured build name with emphasis
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Build Name")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(buildInfo.buildName)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                    }
+                    
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    infoRow("Build ID:", buildInfo.buildId)
+                    infoRow("Version:", "\(buildInfo.version) • \(buildInfo.versionCodename)")
+                    infoRow("Built:", buildInfo.buildDate)
                 }
                 .padding()
             }

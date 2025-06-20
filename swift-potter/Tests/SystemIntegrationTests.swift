@@ -176,7 +176,7 @@ class SystemIntegrationTests: TestBase {
         
         XCTAssertFalse(buildInfo.buildId.isEmpty)
         XCTAssertTrue(buildInfo.buildId.hasSuffix("-DEV"))
-        XCTAssertEqual(buildInfo.version, "1.0.0-dev")
+        XCTAssertEqual(buildInfo.version, "2.0.0-dev")
         XCTAssertFalse(buildInfo.buildDate.isEmpty)
         XCTAssertEqual(buildInfo.processId, getpid())
         XCTAssertFalse(buildInfo.buildDate.isEmpty)

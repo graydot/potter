@@ -7,13 +7,61 @@ struct BuildInfo {
     let version: String
     let buildDate: String
     let processId: Int32
+    let buildName: String
+    let versionCodename: String
     
     static func current() -> BuildInfo {
+        let creativeNames = CreativeBuildNames.generate()
         return BuildInfo(
             buildId: UUID().uuidString.prefix(8).uppercased() + "-DEV",
             version: "2.0.0-dev",
             buildDate: DateFormatter.buildDateFormatter.string(from: Date()),
-            processId: getpid()
+            processId: getpid(),
+            buildName: creativeNames.buildName,
+            versionCodename: creativeNames.versionCodename
+        )
+    }
+}
+
+// MARK: - Creative Build Names Generator
+struct CreativeBuildNames {
+    static func generate() -> (buildName: String, versionCodename: String) {
+        let adjectives = [
+            "Swift", "Clever", "Nimble", "Brilliant", "Elegant", "Graceful",
+            "Luminous", "Radiant", "Stellar", "Cosmic", "Ethereal", "Mystical",
+            "Quantum", "Phoenix", "Tornado", "Lightning", "Thunder", "Aurora"
+        ]
+        
+        let nouns = [
+            "Potter", "Alchemist", "Wizard", "Sage", "Oracle", "Mage",
+            "Artisan", "Craftsman", "Sculptor", "Weaver", "Architect", "Builder",
+            "Voyager", "Explorer", "Pioneer", "Pathfinder", "Trailblazer", "Navigator"
+        ]
+        
+        let versionNames = [
+            "Midnight Codex", "Digital Sorcery", "Swift Enchantment", "Code Alchemy",
+            "Text Transmutation", "AI Resonance", "Neural Harmony", "Data Symphony",
+            "Quantum Quill", "Silicon Dreams", "Binary Ballet", "Algorithm Aria",
+            "Compiler Crescendo", "Runtime Rhapsody", "Memory Melody", "Thread Tango"
+        ]
+        
+        // Use consistent random seed based on build date for reproducible names
+        let today = Date()
+        let dayComponent = Calendar.current.component(.day, from: today)
+        let monthComponent = Calendar.current.component(.month, from: today)
+        let yearComponent = Calendar.current.component(.year, from: today)
+        let seed = dayComponent + (monthComponent * 31)
+        
+        let adjective = adjectives[seed % adjectives.count]
+        let noun = nouns[(seed + 7) % nouns.count]
+        let versionName = versionNames[(seed + 13) % versionNames.count]
+        
+        // Generate build number based on date for uniqueness
+        let buildNumber = ((yearComponent - 2024) * 365) + ((monthComponent - 1) * 31) + dayComponent
+        
+        return (
+            buildName: "\(adjective) \(noun) #\(buildNumber)",
+            versionCodename: versionName
         )
     }
 }
@@ -73,7 +121,9 @@ class ProcessManager {
                                 buildId: lockInfo?["buildId"] as? String ?? "Unknown",
                                 version: lockInfo?["version"] as? String ?? "Unknown", 
                                 buildDate: lockInfo?["buildDate"] as? String ?? "Unknown",
-                                processId: existingPid
+                                processId: existingPid,
+                                buildName: lockInfo?["buildName"] as? String ?? "Unknown Build",
+                                versionCodename: lockInfo?["versionCodename"] as? String ?? "Unknown Codename"
                             ),
                             launchPath: "Potter Application"
                         )
@@ -207,6 +257,8 @@ class ProcessManager {
             "version": "\(currentBuild.version)",
             "buildDate": "\(currentBuild.buildDate)",
             "processId": \(currentBuild.processId),
+            "buildName": "\(currentBuild.buildName)",
+            "versionCodename": "\(currentBuild.versionCodename)",
             "timestamp": "\(ISO8601DateFormatter().string(from: Date()))"
         }
         """.data(using: .utf8)
