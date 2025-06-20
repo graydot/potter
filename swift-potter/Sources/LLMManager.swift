@@ -196,7 +196,15 @@ class LLMManager: ObservableObject {
     
     // MARK: - Validation Helpers
     func isProviderConfigured(_ provider: LLMProvider) -> Bool {
-        return validationStates[provider]?.isValid == true
+        // Check if we have a valid API key in memory first
+        if validationStates[provider]?.isValid == true {
+            return true
+        }
+        
+        // If not validated in memory, check if we have a stored key
+        // This makes the system robust across app restarts
+        let apiKey = getAPIKey(for: provider)
+        return !apiKey.isEmpty
     }
     
     func getCurrentValidationState() -> ValidationState {
@@ -204,7 +212,7 @@ class LLMManager: ObservableObject {
     }
     
     func hasValidProvider() -> Bool {
-        // Check if we have any API keys (assume they're valid if previously saved)
-        return !apiKeys.isEmpty && apiKeys.values.contains { !$0.isEmpty }
+        // Check if the currently selected provider is configured
+        return isProviderConfigured(selectedProvider)
     }
 }
