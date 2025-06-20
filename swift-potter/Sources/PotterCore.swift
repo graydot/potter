@@ -111,7 +111,15 @@ class PotterCore {
             return
         }
         
-        PotterLogger.shared.info("text_processor", "📝 Processing \(text.count) characters")
+        // Check if the clipboard contains our own "no text" message and ignore it
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedText == "No text was in clipboard" {
+            PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
+            showNotification(title: "No Text", message: "Still no text in clipboard")
+            return
+        }
+        
+        PotterLogger.shared.info("text_processor", "📝 Processing \(trimmedText.count) characters")
         showNotification(title: "Processing...", message: "AI is processing your text")
         
         // Process with LLM
@@ -124,13 +132,15 @@ class PotterCore {
                 let promptText = selectedPrompt?.prompt ?? currentMode.prompt
                 
                 PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
-                PotterLogger.shared.debug("text_processor", "📝 Sending text to LLM: '\(text.prefix(100))...' (\(text.count) chars)")
-                PotterLogger.shared.debug("text_processor", "📝 Using prompt: '\(promptText.prefix(100))...' (\(promptText.count) chars)")
+                PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
+                PotterLogger.shared.info("text_processor", "||||| \(trimmedText) |||||")
                 PotterLogger.shared.info("text_processor", "🔄 Calling LLM API...")
                 
-                let processedText = try await llmManager.processText(text, prompt: promptText)
+                let processedText = try await llmManager.processText(trimmedText, prompt: promptText)
                 
                 PotterLogger.shared.info("text_processor", "✅ LLM processing complete")
+                PotterLogger.shared.info("text_processor", "📝 Text returned from LLM:")
+                PotterLogger.shared.info("text_processor", "||||| \(processedText) |||||")
                 PotterLogger.shared.info("text_processor", "📋 Result copied to clipboard (\(processedText.count) characters)")
                 
                 await MainActor.run {

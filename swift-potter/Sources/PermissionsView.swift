@@ -49,11 +49,6 @@ struct PermissionsView: View {
             HStack {
                 // Permission Icon and Name
                 HStack(spacing: 12) {
-                    Image(systemName: status.iconName)
-                        .foregroundColor(Color(status.color))
-                        .font(.title3)
-                        .frame(width: 20)
-                    
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
                             Text(permission.displayName)
@@ -207,11 +202,6 @@ struct PermissionsView: View {
         return HStack {
             // Permission Icon and Name
             HStack(spacing: 12) {
-                Image(systemName: status.iconName)
-                    .foregroundColor(Color(status.color))
-                    .font(.title3)
-                    .frame(width: 20)
-                
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text(PermissionType.accessibility.displayName)
@@ -264,11 +254,6 @@ struct PermissionsView: View {
             HStack {
                 // Notification Icon and Name
                 HStack(spacing: 12) {
-                    Image(systemName: "bell.fill")
-                        .foregroundColor(.blue)
-                        .font(.title3)
-                        .frame(width: 20)
-                    
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Show Notifications")
                             .fontWeight(.medium)
@@ -325,11 +310,6 @@ struct PermissionsView: View {
         return HStack {
             // Permission Icon and Name
             HStack(spacing: 12) {
-                Image(systemName: status.iconName)
-                    .foregroundColor(Color(status.color))
-                    .font(.title3)
-                    .frame(width: 20)
-                
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text(PermissionType.notifications.displayName)
@@ -382,11 +362,6 @@ struct PermissionsView: View {
             HStack {
                 // Notification Icon and Name
                 HStack(spacing: 12) {
-                    Image(systemName: "bell.fill")
-                        .foregroundColor(.blue)
-                        .font(.title3)
-                        .frame(width: 20)
-                    
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Show Notifications")
                             .fontWeight(.medium)

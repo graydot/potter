@@ -514,9 +514,21 @@ struct ModernSettingsView: View {
                         Text("Product link for Potter:")
                             .foregroundColor(.secondary)
                         
-                        Button("potter") {
+                        Button(action: {
                             if let url = URL(string: "https://graydot.ai/products/potter/") {
                                 NSWorkspace.shared.open(url)
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                if let appIcon = NSImage(named: "AppIcon") {
+                                    Image(nsImage: appIcon)
+                                        .resizable()
+                                        .frame(width: 16, height: 16)
+                                } else {
+                                    Image(systemName: "wand.and.stars")
+                                        .frame(width: 16, height: 16)
+                                }
+                                Text("potter")
                             }
                         }
                         .buttonStyle(.plain)
@@ -584,21 +596,33 @@ struct ModernSettingsView: View {
     }
     
     private var logsSectionContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    let filteredLogs = logger.filteredEntries(level: logFilter)
+                    ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, logEntry in
+                        selectableLogEntryRow(logEntry)
+                            .id(index) // Add ID for scrolling
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            .frame(height: 300)
+            .background(Color(NSColor.textBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(NSColor.separatorColor))
+            )
+            .onChange(of: logger.logEntries.count) { _ in
+                // Auto-scroll to bottom when new logs are added
                 let filteredLogs = logger.filteredEntries(level: logFilter)
-                ForEach(Array(filteredLogs.enumerated()), id: \.offset) { _, logEntry in
-                    selectableLogEntryRow(logEntry)
+                if !filteredLogs.isEmpty {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        proxy.scrollTo(filteredLogs.count - 1, anchor: .bottom)
+                    }
                 }
             }
-            .padding(.vertical, 8)
         }
-        .frame(height: 300)
-        .background(Color(NSColor.textBackgroundColor))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color(NSColor.separatorColor))
-        )
     }
     
     private func selectableLogEntryRow(_ logEntry: PotterLogger.LogEntry) -> some View {
