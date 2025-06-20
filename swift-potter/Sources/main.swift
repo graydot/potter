@@ -249,33 +249,85 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func createCauldronIcon(forDarkMode isDarkMode: Bool, state: IconState = .normal) -> NSImage {
+        switch state {
+        case .normal:
+            // Use image files for normal state
+            return loadMenuBarIcon(forDarkMode: isDarkMode)
+        case .processing:
+            // Draw yellow animated spinner
+            return createSpinnerIcon()
+        case .success:
+            // Draw green success dot
+            return createStatusIcon(color: .systemGreen)
+        case .error:
+            // Draw red error dot
+            return createStatusIcon(color: .systemRed)
+        }
+    }
+    
+    private func loadMenuBarIcon(forDarkMode isDarkMode: Bool) -> NSImage {
+        // Try to load from Resources bundle
+        let iconName = isDarkMode ? "menubar-icon-dark-18" : "menubar-icon-light-18"
+        
+        if let iconURL = Bundle.module.url(forResource: iconName, withExtension: "png", subdirectory: "Resources"),
+           let image = NSImage(contentsOf: iconURL) {
+            image.size = NSSize(width: 18, height: 18)
+            return image
+        }
+        
+        // Fallback: try @2x version and scale down
+        let iconName2x = isDarkMode ? "menubar-icon-dark-18@2x" : "menubar-icon-light-18@2x"
+        if let iconURL = Bundle.module.url(forResource: iconName2x, withExtension: "png", subdirectory: "Resources"),
+           let image = NSImage(contentsOf: iconURL) {
+            image.size = NSSize(width: 18, height: 18)
+            return image
+        }
+        
+        // Final fallback: use template icon and let system handle theming
+        if let iconURL = Bundle.module.url(forResource: "menubar-icon-template", withExtension: "png", subdirectory: "Resources"),
+           let image = NSImage(contentsOf: iconURL) {
+            image.size = NSSize(width: 18, height: 18)
+            image.isTemplate = true  // Let system handle light/dark theming
+            return image
+        }
+        
+        // Ultimate fallback: create programmatically (keep old code as backup)
+        return createFallbackIcon(forDarkMode: isDarkMode)
+    }
+    
+    private func createSpinnerIcon() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size)
         
         image.lockFocus()
-        
-        switch state {
-        case .normal:
-            // Use the Potter pot design for normal state
-            drawCauldronIcon(isDarkMode: isDarkMode, size: size)
-        case .processing:
-            // Draw yellow animated spinner
-            drawSpinner()
-        case .success:
-            // Draw green success dot - much bigger
-            NSColor.systemGreen.setFill()
-            let dotRect = NSRect(x: 2, y: 2, width: 14, height: 14)
-            let dot = NSBezierPath(ovalIn: dotRect)
-            dot.fill()
-        case .error:
-            // Draw red error dot - much bigger
-            NSColor.systemRed.setFill()
-            let dotRect = NSRect(x: 2, y: 2, width: 14, height: 14)
-            let dot = NSBezierPath(ovalIn: dotRect)
-            dot.fill()
-        }
-        
+        drawSpinner()
         image.unlockFocus()
+        
+        return image
+    }
+    
+    private func createStatusIcon(color: NSColor) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size)
+        
+        image.lockFocus()
+        color.setFill()
+        let dotRect = NSRect(x: 2, y: 2, width: 14, height: 14)
+        let dot = NSBezierPath(ovalIn: dotRect)
+        dot.fill()
+        image.unlockFocus()
+        
+        return image
+    }
+    
+    private func createFallbackIcon(forDarkMode isDarkMode: Bool) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size)
+        
+        image.lockFocus()
+        drawCauldronIcon(isDarkMode: isDarkMode, size: size)
+        image.unlockFocus()
+        
         return image
     }
     
