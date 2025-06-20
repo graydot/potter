@@ -62,6 +62,9 @@ class PromptEditDialogController: NSWindowController {
     // Callback
     var onSave: ((String, String) -> Void)?
     
+    // Event monitor for proper cleanup
+    private var eventMonitor: Any?
+    
     // MARK: - Initialization
     init(isEditing: Bool, existingPrompt: PromptItem?, existingPromptNames: [String]) {
         self.isEditing = isEditing
@@ -390,9 +393,19 @@ class PromptEditDialogController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         
-        // Simple focus - just set the initial key view
+        // Set up proper key event handling
         window.initialFirstResponder = nameTextField
         window.makeFirstResponder(nameTextField)
+        
+        // Add key monitoring for the window to catch ESC (with proper cleanup)
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // ESC key
+                print("🔑 Local monitor caught ESC key")
+                self?.cancelClicked(NSButton())
+                return nil // Consume the event
+            }
+            return event // Let other events pass through
+        }
         
         // Debug button state after showing
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -404,6 +417,12 @@ class PromptEditDialogController: NSWindowController {
     }
     
     override func close() {
+        // Clean up the event monitor to prevent interfering with other dialogs
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+            print("🔑 Removed event monitor")
+        }
         super.close()
     }
 }
