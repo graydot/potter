@@ -352,7 +352,7 @@ def generate_build_id():
         "build_id": f"potter_{timestamp_str}_{unique_id}",
         "timestamp": timestamp.isoformat(),
         "unix_timestamp": int(timestamp.timestamp()),
-        "version": "1.0.0"  # Could be made configurable
+        "version": "2.0.0"  # Could be made configurable
     }
     
     return build_id
@@ -815,9 +815,9 @@ def fix_info_plist(app_path):
     <key>CFBundleDisplayName</key>
     <string>Potter</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>2.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>2.0</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundlePackageType</key>

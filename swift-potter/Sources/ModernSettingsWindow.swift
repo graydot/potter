@@ -857,6 +857,25 @@ struct HotkeyConfigurationView: View {
             )
     }
     
+    private func getBaseCharacter(from character: Character) -> String {
+        // Map shifted characters to their base characters
+        let shiftedCharacterMap: [Character: String] = [
+            "!": "1", "@": "2", "#": "3", "$": "4", "%": "5",
+            "^": "6", "&": "7", "*": "8", "(": "9", ")": "0",
+            "_": "-", "+": "=", "{": "[", "}": "]", "|": "\\",
+            ":": ";", "\"": "'", "<": ",", ">": ".", "?": "/",
+            "~": "`"
+        ]
+        
+        // If it's a shifted character, return the base character
+        if let baseChar = shiftedCharacterMap[character] {
+            return baseChar
+        }
+        
+        // Otherwise return the character as uppercase
+        return String(character).uppercased()
+    }
+    
     private func startHotkeyCapture() {
         previousHotkey = currentHotkey // Store current combo before changing
         isCapturingHotkey = true
@@ -913,9 +932,9 @@ struct HotkeyConfigurationView: View {
         case KeyEquivalent.rightArrow:
             regularKey = "→"
         default:
-            // For character keys, convert to string
+            // For character keys, get the base character (handles shifted characters)
             let char = key.character
-            regularKey = String(char).uppercased()
+            regularKey = getBaseCharacter(from: char)
         }
         
         // Add regular key if it's not empty and not just a modifier

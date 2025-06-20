@@ -11,7 +11,7 @@ struct BuildInfo {
     static func current() -> BuildInfo {
         return BuildInfo(
             buildId: UUID().uuidString.prefix(8).uppercased() + "-DEV",
-            version: "1.0.0-dev",
+            version: "2.0.0-dev",
             buildDate: DateFormatter.buildDateFormatter.string(from: Date()),
             processId: getpid()
         )

@@ -218,6 +218,14 @@ struct PermissionsView: View {
                     Text(PermissionType.accessibility.description)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    // Help text when accessibility is not granted
+                    if status == .denied {
+                        Text("You can still use this app without accessibility permissions by clicking menu bar items to process text")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                            .padding(.top, 4)
+                    }
                 }
             }
             

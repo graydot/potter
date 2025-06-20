@@ -388,7 +388,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     private func updateMenu() {
         let menu = NSMenu()
         
-        let processItem = NSMenuItem(title: "Process Text (⌘⇧R)", action: #selector(processText), keyEquivalent: "")
+        let processItem = NSMenuItem(title: "Process Text (⌘⇧9)", action: #selector(processText), keyEquivalent: "")
         processItem.target = self
         menu.addItem(processItem)
         

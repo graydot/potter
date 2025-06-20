@@ -41,7 +41,7 @@ class PotterCore {
     private var settings: PotterSettings
     private var llmManager: LLMManager!
     private var hotkeyEventHandler: EventHotKeyRef?
-    private var currentHotkeyCombo: [String] = ["⌘", "⇧", "R"] // Default hotkey
+    private var currentHotkeyCombo: [String] = ["⌘", "⇧", "9"] // Default hotkey
     
     // Icon state delegate
     weak var iconDelegate: IconStateDelegate?
@@ -242,7 +242,7 @@ class PotterCore {
     
     private func parseHotkeyCombo(_ combo: [String]) -> (UInt32, UInt32) {
         var modifiers: UInt32 = 0
-        var keyCode: UInt32 = UInt32(kVK_ANSI_R) // Default to R
+        var keyCode: UInt32 = UInt32(kVK_ANSI_9) // Default to 9
         
         for key in combo {
             switch key {
@@ -300,6 +300,26 @@ class PotterCore {
                 keyCode = UInt32(kVK_ANSI_N)
             case "M":
                 keyCode = UInt32(kVK_ANSI_M)
+            case "9":
+                keyCode = UInt32(kVK_ANSI_9)
+            case "8":
+                keyCode = UInt32(kVK_ANSI_8)
+            case "7":
+                keyCode = UInt32(kVK_ANSI_7)
+            case "6":
+                keyCode = UInt32(kVK_ANSI_6)
+            case "5":
+                keyCode = UInt32(kVK_ANSI_5)
+            case "4":
+                keyCode = UInt32(kVK_ANSI_4)
+            case "3":
+                keyCode = UInt32(kVK_ANSI_3)
+            case "2":
+                keyCode = UInt32(kVK_ANSI_2)
+            case "1":
+                keyCode = UInt32(kVK_ANSI_1)
+            case "0":
+                keyCode = UInt32(kVK_ANSI_0)
             default:
                 break
             }

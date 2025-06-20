@@ -246,9 +246,9 @@ def create_info_plist(app_path):
     <key>CFBundleDisplayName</key>
     <string>{APP_NAME}</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>2.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>2.0</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundlePackageType</key>
@@ -450,7 +450,7 @@ def generate_build_id():
         "build_id": f"swift_potter_{timestamp_str}_{unique_id}",
         "timestamp": timestamp.isoformat(),
         "unix_timestamp": int(timestamp.timestamp()),
-        "version": "1.0.0",
+        "version": "2.0.0",
         "platform": "swift"
     }
     
@@ -483,7 +483,7 @@ def create_dmg_professional(app_path):
     print("💿 Creating professional DMG for distribution...")
     
     try:
-        dmg_name = f"{APP_NAME}-1.0.dmg"
+        dmg_name = f"{APP_NAME}-2.0.dmg"
         dmg_path = f"dist/{dmg_name}"
         source_folder = "dist/dmg_source"
         
