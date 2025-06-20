@@ -3,11 +3,14 @@ import Foundation
 @testable import Potter
 
 @MainActor
-class LLMManagerTests: XCTestCase {
+class LLMManagerTests: TestBase {
     var llmManager: LLMManager!
     
     override func setUp() async throws {
         try await super.setUp()
+        
+        // TestBase already handles forceUserDefaultsForTesting = true
+        
         llmManager = LLMManager()
         
         // Clear any existing settings
@@ -27,6 +30,8 @@ class LLMManagerTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "selected_model")
         
         try await super.tearDown()
+        
+        // TestBase already handles forceUserDefaultsForTesting = false
     }
     
     func testInitialState() {

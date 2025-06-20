@@ -24,11 +24,19 @@ class SecureAPIKeyStorage {
     
     private let storageMethodKey = "api_key_storage_method"
     
+    /// When true, forces UserDefaults storage for all operations (used in testing)
+    public var forceUserDefaultsForTesting = false
+    
     private init() {}
     
     // MARK: - Storage Method Management
     
     func getStorageMethod(for provider: LLMProvider) -> APIKeyStorageMethod {
+        // Force UserDefaults during testing to avoid keychain prompts
+        if forceUserDefaultsForTesting {
+            return .userDefaults
+        }
+        
         let key = "\(storageMethodKey)_\(provider.rawValue)"
         let methodString = UserDefaults.standard.string(forKey: key) ?? APIKeyStorageMethod.userDefaults.rawValue
         return APIKeyStorageMethod(rawValue: methodString) ?? .userDefaults
@@ -72,14 +80,20 @@ class SecureAPIKeyStorage {
     }
     
     func removeAPIKey(for provider: LLMProvider) -> Bool {
-        let keychainSuccess = KeychainManager.shared.removeAPIKey(for: provider)
-        let userDefaultsSuccess = removeFromUserDefaults(for: provider)
+        var keychainSuccess = true
+        var userDefaultsSuccess = true
+        
+        // Only access keychain if not in testing mode
+        if !forceUserDefaultsForTesting {
+            keychainSuccess = KeychainManager.shared.removeAPIKey(for: provider)
+        }
+        userDefaultsSuccess = removeFromUserDefaults(for: provider)
         
         // Remove storage method preference
         let key = "\(storageMethodKey)_\(provider.rawValue)"
         UserDefaults.standard.removeObject(forKey: key)
         
-        return keychainSuccess || userDefaultsSuccess
+        return keychainSuccess && userDefaultsSuccess
     }
     
     // MARK: - Migration (Single Access Point)

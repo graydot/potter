@@ -4,13 +4,15 @@ import AppKit
 @testable import Potter
 
 @MainActor
-class PotterCoreTests: XCTestCase {
+class PotterCoreTests: TestBase {
     var potterCore: PotterCore!
     var tempDirectoryURL: URL!
     var originalCurrentDirectory: String!
     
     override func setUp() async throws {
         try await super.setUp()
+        
+        // TestBase already handles forceUserDefaultsForTesting = true
         
         // Save original directory
         originalCurrentDirectory = FileManager.default.currentDirectoryPath
@@ -41,6 +43,8 @@ class PotterCoreTests: XCTestCase {
     override func tearDown() async throws {
         // Restore PromptManager to use real file path
         PromptManager.shared.setTestFileURL(nil)
+        
+        // TestBase already handles forceUserDefaultsForTesting = false
         
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)

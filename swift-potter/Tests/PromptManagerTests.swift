@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 @testable import Potter
 
-class PromptManagerTests: XCTestCase {
+class PromptManagerTests: TestBase {
     var tempDirectoryURL: URL!
     var originalCurrentDirectory: String!
     

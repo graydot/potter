@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 @testable import Potter
 
-class PotterSettingsTests: XCTestCase {
+class PotterSettingsTests: TestBase {
     var potterSettings: PotterSettings!
     
     override func setUp() {

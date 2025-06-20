@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 @testable import Potter
 
-class LLMClientTests: XCTestCase {
+class LLMClientTests: TestBase {
     
     func testLLMModelStructure() {
         let model = LLMModel(
