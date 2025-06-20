@@ -104,7 +104,10 @@ class PotterCore {
         let pasteboard = NSPasteboard.general
         guard let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             PotterLogger.shared.warning("text_processor", "⚠️ No text found in clipboard")
-            showNotification(title: "No Text", message: "No text found in clipboard. Copy some text first.")
+            // Put helpful message in clipboard instead of showing alert
+            pasteboard.clearContents()
+            pasteboard.setString("No text was in clipboard", forType: .string)
+            showNotification(title: "No Text", message: "No text was in clipboard - message copied to clipboard")
             return
         }
         
@@ -121,6 +124,8 @@ class PotterCore {
                 let promptText = selectedPrompt?.prompt ?? currentMode.prompt
                 
                 PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
+                PotterLogger.shared.debug("text_processor", "📝 Sending text to LLM: '\(text.prefix(100))...' (\(text.count) chars)")
+                PotterLogger.shared.debug("text_processor", "📝 Using prompt: '\(promptText.prefix(100))...' (\(promptText.count) chars)")
                 PotterLogger.shared.info("text_processor", "🔄 Calling LLM API...")
                 
                 let processedText = try await llmManager.processText(text, prompt: promptText)

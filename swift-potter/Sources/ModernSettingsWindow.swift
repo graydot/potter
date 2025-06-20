@@ -76,11 +76,22 @@ class PromptManager {
             return prompts
         } catch {
             PotterLogger.shared.error("prompts", "📖 Failed to load prompts file: \(error.localizedDescription)")
-            // If file is corrupted, recreate with defaults
-            let defaults = defaultPrompts()
-            savePrompts(defaults)
-            PotterLogger.shared.warning("prompts", "📄 Recreated corrupted prompts file with defaults")
-            return defaults
+            // If file is corrupted, try to preserve any readable content and only add defaults if totally empty
+            PotterLogger.shared.warning("prompts", "📄 Corrupted prompts file detected - preserving any existing data")
+            
+            // Try to read as raw text to see if there's any content
+            if let rawData = try? String(contentsOf: promptsFileURL),
+               !rawData.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                PotterLogger.shared.warning("prompts", "📄 Non-empty corrupted file detected - returning defaults without overwriting")
+                // Return defaults but don't overwrite the file
+                return defaultPrompts()
+            } else {
+                // File is actually empty or unreadable, safe to recreate
+                let defaults = defaultPrompts()
+                savePrompts(defaults)
+                PotterLogger.shared.warning("prompts", "📄 Empty/unreadable prompts file recreated with defaults")
+                return defaults
+            }
         }
     }
     
