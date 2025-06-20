@@ -50,15 +50,8 @@ class LLMManager: ObservableObject {
             selectedProvider = provider
         }
         
-        // Load API keys
-        for provider in LLMProvider.allCases {
-            let key = "api_key_\(provider.rawValue)"
-            if let apiKey = UserDefaults.standard.string(forKey: key), !apiKey.isEmpty {
-                apiKeys[provider] = apiKey
-                // Don't mark as valid automatically - require re-validation
-                validationStates[provider] = ValidationState.none
-            }
-        }
+        // Don't preload all API keys during startup to avoid keychain prompts
+        // Keys will be loaded on-demand when providers are selected
         
         // Load selected model
         if let modelId = UserDefaults.standard.string(forKey: "selected_model") {
@@ -74,10 +67,8 @@ class LLMManager: ObservableObject {
     func saveSettings() {
         UserDefaults.standard.set(selectedProvider.rawValue, forKey: "llm_provider")
         
-        for (provider, apiKey) in apiKeys {
-            let key = "api_key_\(provider.rawValue)"
-            UserDefaults.standard.set(apiKey, forKey: key)
-        }
+        // API keys are now managed by SecureAPIKeyStorage
+        // Individual saves happen through setAPIKey method
         
         if let selectedModel = selectedModel {
             UserDefaults.standard.set(selectedModel.id, forKey: "selected_model")
@@ -105,11 +96,29 @@ class LLMManager: ObservableObject {
         apiKeys[provider] = apiKey
         // Reset validation state when key changes
         validationStates[provider] = ValidationState.none
+        
+        // Save to storage using the current preferred method for this provider
+        let currentMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: provider)
+        if !apiKey.isEmpty {
+            _ = SecureAPIKeyStorage.shared.saveAPIKey(apiKey, for: provider, using: currentMethod)
+        }
+        
         saveSettings()
     }
     
     func getAPIKey(for provider: LLMProvider) -> String {
-        return apiKeys[provider] ?? ""
+        // First check memory cache
+        if let cachedKey = apiKeys[provider] {
+            return cachedKey
+        }
+        
+        // Load from storage if not in memory
+        if let storedKey = SecureAPIKeyStorage.shared.loadAPIKey(for: provider) {
+            apiKeys[provider] = storedKey
+            return storedKey
+        }
+        
+        return ""
     }
     
     // MARK: - API Key Validation

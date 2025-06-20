@@ -7,6 +7,10 @@ struct LLMProviderView: View {
     @State private var apiKeyText: String = ""
     @State private var showingSuccessCheckmark = false
     @State private var showAPIKey = false
+    @State private var storageMethod: APIKeyStorageMethod = .userDefaults
+    @State private var showStorageError = false
+    @State private var storageErrorMessage = ""
+    @State private var isMigrating = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -29,12 +33,14 @@ struct LLMProviderView: View {
             .padding(.leading, 8)
         }
         .onAppear {
-            // Load current API key for display
+            // Load current API key and storage method for display
             apiKeyText = llmManager.getAPIKey(for: llmManager.selectedProvider)
+            storageMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: llmManager.selectedProvider)
         }
         .onChange(of: llmManager.selectedProvider) { newProvider in
-            // Load API key for the newly selected provider
+            // Load API key and storage method for the newly selected provider
             apiKeyText = llmManager.getAPIKey(for: newProvider)
+            storageMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: newProvider)
             // Set default model for the new provider
             llmManager.selectedModel = newProvider.models.first
         }
@@ -116,6 +122,9 @@ struct LLMProviderView: View {
                     // Validation Status
                     validationStatusView
                     
+                    // Storage Method Toggle (Lock Icon)
+                    storageMethodToggle
+                    
                     // Test & Save Button
                     testAndSaveButton
                 }
@@ -131,7 +140,15 @@ struct LLMProviderView: View {
                     .padding(.leading, 88) // Align with API key field
             }
             
-            // API Key Link
+            // Storage Error Message
+            if showStorageError {
+                Text(storageErrorMessage)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.leading, 88)
+            }
+            
+            // API Key Link - moved up
             HStack {
                 Text("Get your API key:")
                     .font(.caption)
@@ -152,18 +169,54 @@ struct LLMProviderView: View {
             }
             .padding(.leading, 88) // Align with API key field
             
-            // Success Message
-            if showingSuccessCheckmark {
-                HStack {
+            // Storage Method Status with Success Message on same line
+            HStack(spacing: 6) {
+                Text("Storage:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize()
+                
+                if storageMethod == .keychain {
+                    Text("Keys encrypted and saved")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                } else {
+                    Text("Keys saved without encryption")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    
+                    Image(systemName: "lock.open.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                
+                // Success Message on the same line, to the right
+                if showingSuccessCheckmark {
+                    Spacer().frame(width: 20) // Add some space
+                    
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
+                        .font(.caption)
+                    
                     Text("API key saved successfully")
                         .font(.caption)
                         .foregroundColor(.green)
+                        .transition(.opacity)
                 }
-                .padding(.leading, 88)
-                .transition(.opacity)
+                
+                Spacer() // Push everything to the left
             }
+            .padding(.leading, 88) // Align with API key field
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .lineLimit(1)
         }
     }
     
@@ -190,7 +243,9 @@ struct LLMProviderView: View {
         }
         .frame(width: 300)
         .onChange(of: apiKeyText) { newValue in
-            llmManager.setAPIKey(newValue, for: llmManager.selectedProvider)
+            // Only update the in-memory cache, actual storage happens in Test & Save
+            llmManager.apiKeys[llmManager.selectedProvider] = newValue
+            llmManager.validationStates[llmManager.selectedProvider] = LLMManager.ValidationState.none
         }
     }
     
@@ -234,25 +289,153 @@ struct LLMProviderView: View {
     
     private var testAndSaveButton: some View {
         Button("Test & Save") {
-            Task {
-                await llmManager.validateAndSaveAPIKey(apiKeyText, for: llmManager.selectedProvider)
-                
-                // Show success checkmark briefly if validation succeeded
-                if llmManager.validationStates[llmManager.selectedProvider]?.isValid == true {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        showingSuccessCheckmark = true
-                    }
+            Task { @MainActor in
+                do {
+                    // Clear any previous errors
+                    showStorageError = false
                     
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showingSuccessCheckmark = false
+                    // First save to secure storage using the current method
+                    let success = SecureAPIKeyStorage.shared.saveAPIKey(
+                        apiKeyText, 
+                        for: llmManager.selectedProvider, 
+                        using: storageMethod
+                    )
+                    
+                    if success {
+                        // Then validate
+                        await llmManager.validateAndSaveAPIKey(apiKeyText, for: llmManager.selectedProvider)
+                        
+                        // Show success checkmark briefly if validation succeeded
+                        if llmManager.validationStates[llmManager.selectedProvider]?.isValid == true {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showingSuccessCheckmark = true
+                            }
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    showingSuccessCheckmark = false
+                                }
+                            }
                         }
+                    } else {
+                        showStorageError = true
+                        storageErrorMessage = "Failed to save API key using \(storageMethod.displayName)"
+                        
+                        // Hide error after 5 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                            showStorageError = false
+                        }
+                    }
+                } catch {
+                    // Handle any unexpected errors
+                    PotterLogger.shared.error("ui", "❌ Unexpected error in Test & Save: \(error)")
+                    showStorageError = true
+                    storageErrorMessage = "Unexpected error occurred"
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                        showStorageError = false
                     }
                 }
             }
         }
         .buttonStyle(.borderedProminent)
-        .disabled(apiKeyText.isEmpty || llmManager.isValidating)
+        .disabled(apiKeyText.isEmpty || llmManager.isValidating || isMigrating)
+    }
+    
+    private var storageMethodToggle: some View {
+        Button(action: {
+            toggleStorageMethod()
+        }) {
+            if isMigrating {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .frame(width: 24, height: 20)
+            } else {
+                Image(systemName: storageMethod == .keychain ? "lock.fill" : "lock.open.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(storageMethod == .keychain ? .green : .orange)
+                    .frame(width: 24, height: 20)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isMigrating)
+        .help(isMigrating ? "Migrating API keys..." :
+              (storageMethod == .keychain ? 
+               "Switch to plain text storage (UserDefaults)" : 
+               "Switch to encrypted storage (Keychain)"))
+    }
+    
+    private func toggleStorageMethod() {
+        let newMethod: APIKeyStorageMethod = storageMethod == .keychain ? .userDefaults : .keychain
+        
+        // Check keychain accessibility if switching to keychain
+        if newMethod == .keychain && !SecureAPIKeyStorage.shared.isKeychainAccessible() {
+            showStorageError = true
+            storageErrorMessage = "Keychain is not accessible. Please ensure your device is unlocked and try again."
+            
+            // Hide error after 5 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                showStorageError = false
+            }
+            return
+        }
+        
+        // Clear any previous error
+        showStorageError = false
+        
+        // Start migration
+        isMigrating = true
+        
+        Task { @MainActor in
+            do {
+                // Use the single access point for migration
+                let migrationResults: [LLMProvider: Bool]
+                
+                switch newMethod {
+                case .keychain:
+                    migrationResults = SecureAPIKeyStorage.shared.migrateAllToKeychain()
+                case .userDefaults:
+                    migrationResults = SecureAPIKeyStorage.shared.migrateAllToUserDefaults()
+                }
+                
+                isMigrating = false
+                
+                let failedMigrations = migrationResults.filter { !$0.value }
+                
+                if failedMigrations.isEmpty {
+                    // All migrations successful
+                    storageMethod = newMethod
+                    
+                    let migratedCount = migrationResults.count
+                    PotterLogger.shared.info("api_storage", "✅ Successfully migrated \(migratedCount) API keys to \(newMethod.rawValue)")
+                    
+                    // Show brief success message
+                    showingSuccessCheckmark = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        showingSuccessCheckmark = false
+                    }
+                } else {
+                    // Some migrations failed
+                    showStorageError = true
+                    storageErrorMessage = "Failed to migrate \(failedMigrations.count) API key(s) to \(newMethod.displayName). Please try again."
+                    
+                    // Hide error after 7 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
+                        showStorageError = false
+                    }
+                }
+            } catch {
+                // Handle any unexpected errors
+                PotterLogger.shared.error("ui", "❌ Unexpected error in storage method toggle: \(error)")
+                isMigrating = false
+                showStorageError = true
+                storageErrorMessage = "Unexpected error during migration"
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    showStorageError = false
+                }
+            }
+        }
     }
 }
 

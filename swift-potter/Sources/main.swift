@@ -458,45 +458,53 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func checkAndShowSettingsIfNeeded() {
-        // Check if any API key is configured by checking UserDefaults directly
-        let hasOpenAIKey = !(UserDefaults.standard.string(forKey: "api_key_openai") ?? "").isEmpty
-        let hasAnthropicKey = !(UserDefaults.standard.string(forKey: "api_key_anthropic") ?? "").isEmpty
-        let hasGoogleKey = !(UserDefaults.standard.string(forKey: "api_key_google") ?? "").isEmpty
+        // Get the currently selected LLM provider
+        let selectedProviderString = UserDefaults.standard.string(forKey: "llm_provider") ?? "openAI"
+        guard let selectedProvider = LLMProvider(rawValue: selectedProviderString) else {
+            PotterLogger.shared.warning("startup", "⚠️ Invalid provider '\(selectedProviderString)', defaulting to OpenAI")
+            return
+        }
         
-        let hasAnyAPIKey = hasOpenAIKey || hasAnthropicKey || hasGoogleKey
+        // Check if the currently selected provider has an API key using the new storage system
+        let hasSelectedProviderKey = SecureAPIKeyStorage.shared.loadAPIKey(for: selectedProvider) != nil
         
-        if !hasAnyAPIKey {
-            // No API key found, show settings and keep open until one is added
-            PotterLogger.shared.info("startup", "📋 No API key configured, showing settings dialog")
+        PotterLogger.shared.debug("startup", "🔍 Checking selected provider: \(selectedProvider.displayName), has key: \(hasSelectedProviderKey)")
+        
+        if !hasSelectedProviderKey {
+            // Currently selected provider has no API key, show settings
+            PotterLogger.shared.info("startup", "📋 Selected provider '\(selectedProvider.displayName)' has no API key, showing settings dialog")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.showSettingsUntilAPIKey()
+                self.showSettingsUntilSelectedProviderHasKey()
             }
         } else {
-            PotterLogger.shared.debug("startup", "✅ API key found, settings dialog will remain hidden")
+            PotterLogger.shared.debug("startup", "✅ Selected provider '\(selectedProvider.displayName)' has API key, settings dialog will remain hidden")
         }
     }
     
-    private func showSettingsUntilAPIKey() {
+    private func showSettingsUntilSelectedProviderHasKey() {
         showSettings()
         
-        // Start monitoring for API keys (check UserDefaults directly to avoid actor issues)
-        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { timer in
-            let hasOpenAIKey = !(UserDefaults.standard.string(forKey: "api_key_openai") ?? "").isEmpty
-            let hasAnthropicKey = !(UserDefaults.standard.string(forKey: "api_key_anthropic") ?? "").isEmpty
-            let hasGoogleKey = !(UserDefaults.standard.string(forKey: "api_key_google") ?? "").isEmpty
-            
-            let hasAnyAPIKey = hasOpenAIKey || hasAnthropicKey || hasGoogleKey
-            
-            PotterLogger.shared.debug("startup", "🔍 Checking API keys: OpenAI=\(hasOpenAIKey), Anthropic=\(hasAnthropicKey), Google=\(hasGoogleKey)")
-            
-            if hasAnyAPIKey {
-                // We have an API key, can close settings
-                timer.invalidate()
-                PotterLogger.shared.debug("startup", "✅ API key detected, allowing settings to close")
+        // Start monitoring for the selected provider's API key after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { timer in
+                // Get the currently selected provider
+                let selectedProviderString = UserDefaults.standard.string(forKey: "llm_provider") ?? "openAI"
+                guard let selectedProvider = LLMProvider(rawValue: selectedProviderString) else {
+                    timer.invalidate()
+                    return
+                }
                 
-                // Close settings window if it's still open
-                DispatchQueue.main.async {
-                    ModernSettingsWindowController.shared.close()
+                // Check if the currently selected provider has an API key using the new storage system
+                let hasSelectedProviderKey = SecureAPIKeyStorage.shared.loadAPIKey(for: selectedProvider) != nil
+                
+                PotterLogger.shared.debug("startup", "🔍 Monitoring selected provider: \(selectedProvider.displayName), has key: \(hasSelectedProviderKey)")
+                
+                if hasSelectedProviderKey {
+                    // Selected provider now has an API key, stop checking
+                    timer.invalidate()
+                    PotterLogger.shared.debug("startup", "✅ Selected provider '\(selectedProvider.displayName)' now has API key, stopping auto-check")
+                    
+                    // Don't auto-close settings - let user close manually
                 }
             }
         }

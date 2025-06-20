@@ -440,14 +440,58 @@ def notarize_app(app_path, config):
             os.remove(zip_path)
         return False
 
+def generate_cool_name():
+    """Generate a cool build name"""
+    import random
+    
+    adjectives = [
+        "Swift", "Blazing", "Cosmic", "Stellar", "Quantum", "Turbo", "Lightning", 
+        "Phoenix", "Dragon", "Mystic", "Arctic", "Crimson", "Golden", "Silver",
+        "Emerald", "Sapphire", "Thunder", "Storm", "Frost", "Fire", "Shadow",
+        "Crystal", "Diamond", "Iron", "Steel", "Neon", "Cyber", "Digital",
+        "Atomic", "Nuclear", "Plasma", "Laser", "Hyper", "Ultra", "Mega",
+        "Epic", "Legendary", "Royal", "Noble", "Wild", "Fierce", "Bold"
+    ]
+    
+    nouns = [
+        "Falcon", "Eagle", "Hawk", "Wolf", "Tiger", "Lion", "Dragon", "Phoenix",
+        "Thunder", "Storm", "Blaze", "Frost", "Knight", "Warrior", "Ninja",
+        "Samurai", "Wizard", "Mage", "Rocket", "Comet", "Star", "Galaxy",
+        "Nebula", "Vortex", "Cyclone", "Hurricane", "Tornado", "Avalanche",
+        "Tsunami", "Volcano", "Meteor", "Asteroid", "Planet", "Cosmos",
+        "Universe", "Dimension", "Portal", "Matrix", "Code", "Cipher", "Prism"
+    ]
+    
+    adjective = random.choice(adjectives)
+    noun = random.choice(nouns)
+    
+    return f"{adjective}-{noun}"
+
 def generate_build_id():
-    """Generate a unique build ID with timestamp"""
+    """Generate a unique build ID with short timestamp and cool name"""
     timestamp = datetime.now()
-    timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S")
-    unique_id = str(uuid.uuid4())[:8]
+    
+    # Short timestamp: YYMMDD + 5-minute block number
+    year_short = timestamp.strftime("%y")    # Last 2 digits of year
+    month = timestamp.strftime("%m")         # Month (01-12)
+    day = timestamp.strftime("%d")           # Day (01-31)
+    
+    # Calculate 5-minute block number (0-287 for a day)
+    total_minutes = timestamp.hour * 60 + timestamp.minute
+    five_min_block = total_minutes // 5
+    block_str = f"{five_min_block:03d}"      # 3 digits with leading zeros
+    
+    short_timestamp = f"{year_short}{month}{day}{block_str}"
+    cool_name = generate_cool_name()
     
     build_id = {
-        "build_id": f"swift_potter_{timestamp_str}_{unique_id}",
+        "build_id": f"Potter_{cool_name}_{short_timestamp}",
+        "cool_name": cool_name,
+        "short_timestamp": short_timestamp,
+        "year": year_short,
+        "month": month,
+        "day": day,
+        "five_min_block": five_min_block,
         "timestamp": timestamp.isoformat(),
         "unix_timestamp": int(timestamp.timestamp()),
         "version": "2.0.0",
@@ -470,7 +514,9 @@ def embed_build_id(app_path):
             json.dump(build_id, f, indent=2)
         
         print(f"✅ Build ID embedded: {build_id['build_id']}")
-        print(f"   Timestamp: {build_id['timestamp']}")
+        print(f"   Cool Name: {build_id['cool_name']}")
+        print(f"   Date Code: {build_id['short_timestamp']} ({build_id['year']}/{build_id['month']}/{build_id['day']} block {build_id['five_min_block']})")
+        print(f"   Full Timestamp: {build_id['timestamp']}")
         
         return True
         
