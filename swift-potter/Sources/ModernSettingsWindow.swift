@@ -1059,8 +1059,6 @@ struct HotkeyConfigurationView: View {
         previousHotkey = ["⌘", "⇧", "9"]
         warningMessage = ""
         capturedKeys.removeAll()
-        isCapturingHotkey = false
-        isKeyCaptureFocused = false
         
         PotterLogger.shared.info("settings", "🎹 Reset hotkey to default")
         
@@ -1068,6 +1066,9 @@ struct HotkeyConfigurationView: View {
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
             potterCore.potterCore.updateHotkey(currentHotkey)
         }
+        
+        // Start capture mode like clicking on pills does
+        startHotkeyCapture()
     }
 }
 
