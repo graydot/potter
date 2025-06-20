@@ -478,35 +478,36 @@ def embed_build_id(app_path):
         print(f"❌ Failed to embed build ID: {e}")
         return False
 
-def create_dmg(app_path):
-    """Create a DMG file for distribution with custom background and Applications shortcut"""
-    print("💿 Creating DMG for distribution...")
+def create_dmg_professional(app_path):
+    """Create a professional DMG with custom background using modern approach"""
+    print("💿 Creating professional DMG for distribution...")
     
     try:
         dmg_name = f"{APP_NAME}-1.0.dmg"
         dmg_path = f"dist/{dmg_name}"
-        temp_dmg = f"dist/temp_{dmg_name}"
+        source_folder = "dist/dmg_source"
         
-        # Remove existing DMGs
-        for path in [dmg_path, temp_dmg]:
+        # Clean up any existing files
+        for path in [dmg_path, source_folder]:
             if os.path.exists(path):
-                os.remove(path)
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
         
-        # Create temporary DMG folder
-        temp_folder = "dist/dmg_temp"
-        if os.path.exists(temp_folder):
-            shutil.rmtree(temp_folder)
-        os.makedirs(temp_folder)
+        # Create source folder structure
+        os.makedirs(source_folder, exist_ok=True)
         
-        # Copy app to temp folder
-        shutil.copytree(app_path, f"{temp_folder}/{APP_NAME}.app")
+        # Copy app to source folder
+        print("📁 Preparing DMG contents...")
+        shutil.copytree(app_path, f"{source_folder}/{APP_NAME}.app")
         
-        # Create Applications shortcut
+        # Create Applications symlink
         subprocess.run([
-            'ln', '-s', '/Applications', f"{temp_folder}/Applications"
+            'ln', '-s', '/Applications', f"{source_folder}/Applications"
         ], check=True)
         
-        # Check for custom background
+        # Find background image
         background_path = None
         background_candidates = [
             "assets/dmg_background.png",
@@ -517,39 +518,75 @@ def create_dmg(app_path):
         for bg_path in background_candidates:
             if os.path.exists(bg_path):
                 background_path = bg_path
+                print(f"✅ Found background: {bg_path}")
                 break
         
-        # Create initial DMG
+        if not background_path:
+            print("⚠️  No background image found")
+        
+        # Use hdiutil create with proper formatting
+        print("🔨 Creating DMG with hdiutil...")
+        
         cmd = [
             'hdiutil', 'create',
-            '-size', '100m',
-            '-fs', 'HFS+',
-            '-volname', APP_NAME,
-            '-srcfolder', temp_folder,
-            temp_dmg
+            '-volname', f"{APP_NAME} Installer",  # Use different name to avoid conflicts
+            '-srcfolder', source_folder,
+            '-ov',
+            '-format', 'UDRW',  # Read-write for customization
+            f"dist/temp_{dmg_name}"
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"❌ DMG creation failed: {result.stderr}")
+            print(f"❌ Initial DMG creation failed: {result.stderr}")
             return None
         
-        # Mount the DMG for customization (read-write)
+        print("✅ Initial DMG created successfully")
+        
+        # Mount for customization
+        mount_point = f"/Volumes/{APP_NAME} Installer"
+        print(f"📀 Mounting DMG at {mount_point}...")
+        
+        # Unmount any existing volume
+        subprocess.run(['hdiutil', 'detach', mount_point], 
+                      capture_output=True, text=True)
+        
         mount_result = subprocess.run([
-            'hdiutil', 'attach', temp_dmg, '-mountpoint', '/Volumes/Potter', '-readwrite'
+            'hdiutil', 'attach', f"dist/temp_{dmg_name}",
+            '-mountpoint', mount_point
         ], capture_output=True, text=True)
         
-        if mount_result.returncode == 0:
-            print("🎨 Customizing DMG layout...")
+        if mount_result.returncode != 0:
+            print(f"❌ Failed to mount DMG: {mount_result.stderr}")
+            return None
+        
+        print("✅ DMG mounted successfully")
+        
+        # Copy background and configure layout
+        if background_path:
+            print("🎨 Applying background image...")
+            # Create .background folder (alternative approach)
+            bg_folder = f'{mount_point}/.background'
+            os.makedirs(bg_folder, exist_ok=True)
+            bg_dest = f'{bg_folder}/background.png'
+            shutil.copy2(background_path, bg_dest)
             
-            # Copy background if available
-            if background_path:
-                shutil.copy2(background_path, '/Volumes/Potter/.background.png')
-                
-            # Create .DS_Store for custom layout (using basic positioning)
-            ds_store_script = f'''
+            # Also copy to root level as fallback
+            bg_dest_root = f'{mount_point}/.background.png'
+            shutil.copy2(background_path, bg_dest_root)
+            
+            # Verify the copy worked
+            if os.path.exists(bg_dest) and os.path.exists(bg_dest_root):
+                print(f"✅ Background copied to both locations")
+            else:
+                print(f"❌ Background copy failed")
+                background_path = None  # Don't try to set it in AppleScript
+            
+        # Configure DMG appearance with AppleScript
+        print("🎭 Configuring DMG layout...")
+        applescript = f'''
 tell application "Finder"
-    tell disk "{APP_NAME}"
+    tell disk "{APP_NAME} Installer"
         open
         set current view of container window to icon view
         set toolbar visible of container window to false
@@ -557,54 +594,57 @@ tell application "Finder"
         set the bounds of container window to {{400, 100, 900, 400}}
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
-        set icon size of viewOptions to 100
-        set position of item "{APP_NAME}.app" of container window to {{150, 200}}
-        set position of item "Applications" of container window to {{350, 200}}
-        '''
+        set icon size of viewOptions to 100'''
+        
+        if background_path:
+            applescript += '''
+        set background picture of viewOptions to file ".background:background.png"'''
             
-            if background_path:
-                ds_store_script += f'''
-        set background picture of viewOptions to file ".background.png"
-                '''
-            
-            ds_store_script += '''
+        applescript += f'''
+        set position of item "{APP_NAME}.app" to {{150, 190}}
+        set position of item "Applications" to {{350, 190}}
         close
         open
         update without registering applications
         delay 2
     end tell
-end tell
-'''
-            
-            # Apply layout using AppleScript
-            try:
-                subprocess.run([
-                    'osascript', '-e', ds_store_script
-                ], check=False)  # Don't fail if AppleScript fails
-            except:
-                pass
-            
-            # Unmount
-            subprocess.run(['hdiutil', 'detach', '/Volumes/Potter'], check=False)
+end tell'''
         
-        # Convert to final compressed DMG
+        # Run AppleScript with timeout and error handling
+        try:
+            subprocess.run([
+                'osascript', '-e', applescript
+            ], timeout=30, check=False)  # Don't fail build if AppleScript fails
+            print("✅ DMG layout configured")
+        except subprocess.TimeoutExpired:
+            print("⚠️  AppleScript timed out, continuing with basic layout")
+        except Exception as e:
+            print(f"⚠️  AppleScript failed: {e}, continuing with basic layout")
+        
+        # Unmount
+        print("📤 Finalizing DMG...")
+        subprocess.run(['hdiutil', 'detach', mount_point], 
+                      capture_output=True, text=True)
+        
+        # Convert to compressed final DMG
         subprocess.run([
-            'hdiutil', 'convert', temp_dmg,
+            'hdiutil', 'convert', f"dist/temp_{dmg_name}",
             '-format', 'UDZO',
             '-o', dmg_path
         ], check=True)
         
         # Clean up
-        os.remove(temp_dmg)
-        shutil.rmtree(temp_folder)
+        os.remove(f"dist/temp_{dmg_name}")
+        shutil.rmtree(source_folder)
         
-        print(f"✅ DMG created: {dmg_path}")
+        print(f"✅ Professional DMG created: {dmg_path}")
         return dmg_path
-            
+        
     except Exception as e:
         print(f"❌ DMG creation error: {e}")
         # Clean up on error
-        for path in [temp_dmg, "dist/dmg_temp"]:
+        cleanup_paths = [f"dist/temp_{dmg_name}", source_folder]
+        for path in cleanup_paths:
             if os.path.exists(path):
                 if os.path.isdir(path):
                     shutil.rmtree(path)
@@ -654,6 +694,16 @@ def build_app(target='local', skip_tests=False):
     # Embed build ID
     embed_build_id(app_path)
     
+    # Create DMG BEFORE signing to avoid permission issues with signed apps
+    dmg_path = None
+    if target == 'local':
+        print("📦 Creating professional DMG before code signing...")
+        dmg_path = create_dmg_professional(app_path)
+        if dmg_path:
+            print(f"✅ Professional DMG created: {dmg_path}")
+        else:
+            print("❌ DMG creation failed, continuing with app-only build")
+    
     # Code signing
     entitlements_file = create_entitlements_file(target)
     
@@ -673,11 +723,11 @@ def build_app(target='local', skip_tests=False):
                 else:
                     print("⚠️  Notarization failed - app may trigger security warnings")
             
-            # Create DMG for local distribution
-            if target == 'local':
-                dmg_path = create_dmg(app_path)
-                if dmg_path:
-                    print(f"✅ Distribution DMG created: {dmg_path}")
+            # DMG was already created before signing
+            if target == 'local' and dmg_path:
+                print(f"✅ Distribution DMG available: {dmg_path}")
+            elif target == 'local':
+                print("⚠️  No DMG was created")
                 
         else:
             print("❌ Signature verification failed")
