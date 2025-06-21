@@ -43,7 +43,9 @@ class AutoUpdateManager: NSObject {
         updater = controller.updater
         
         // Configure updater
-        updater?.feedURL = URL(string: feedURL)
+        if let feedURLObj = URL(string: feedURL) {
+            updater?.setFeedURL(feedURLObj)
+        }
         updater?.automaticallyChecksForUpdates = getAutoUpdateEnabled()
         updater?.updateCheckInterval = updateCheckInterval
         
@@ -139,9 +141,11 @@ extension AutoUpdateManager: SPUUpdaterDelegate {
         return true // Allow all update checks
     }
     
-    func updater(_ updater: SPUUpdater, didFind validUpdate: SPUAppcastItem) {
+    func updater(_ updater: SPUUpdater, didFind validUpdate: SUAppcastItem) {
         PotterLogger.shared.info("autoupdate", "✨ Update found: \(validUpdate.displayVersionString)")
-        PotterLogger.shared.info("autoupdate", "📝 Release notes: \(validUpdate.releaseNotesURL?.absoluteString ?? "None")")
+        if let releaseNotesURL = validUpdate.releaseNotesURL {
+            PotterLogger.shared.info("autoupdate", "📝 Release notes: \(releaseNotesURL.absoluteString)")
+        }
     }
     
     func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
@@ -152,11 +156,11 @@ extension AutoUpdateManager: SPUUpdaterDelegate {
         PotterLogger.shared.error("autoupdate", "❌ Update check failed: \(error.localizedDescription)")
     }
     
-    func updater(_ updater: SPUUpdater, willInstallUpdate item: SPUAppcastItem) {
+    func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
         PotterLogger.shared.info("autoupdate", "📦 Installing update: \(item.displayVersionString)")
     }
     
-    func updater(_ updater: SPUUpdater, didFinishLoading appcast: SPUAppcast) {
+    func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         PotterLogger.shared.info("autoupdate", "📡 Successfully loaded appcast")
     }
     

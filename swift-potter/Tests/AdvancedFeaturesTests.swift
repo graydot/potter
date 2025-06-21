@@ -291,17 +291,20 @@ class AdvancedFeaturesTests: TestBase {
     }
     
     func testBuildIdUniqueness() {
-        // Test that build IDs are unique across instances
+        // Test that build IDs have consistent structure across instances
         let buildInfo1 = BuildInfo.current()
         let buildInfo2 = BuildInfo.current()
         
-        // Should have same structure but same values (since it's current build)
-        XCTAssertEqual(buildInfo1.buildId, buildInfo2.buildId)
+        // Build IDs should be different due to UUID generation
+        XCTAssertNotEqual(buildInfo1.buildId, buildInfo2.buildId, "Build IDs should be unique due to UUID generation")
+        
+        // But both should follow the same format
+        XCTAssertTrue(buildInfo1.buildId.hasSuffix("-DEV"))
+        XCTAssertTrue(buildInfo2.buildId.hasSuffix("-DEV"))
+        
+        // Other properties should be the same for current build
         XCTAssertEqual(buildInfo1.version, buildInfo2.version)
         XCTAssertEqual(buildInfo1.processId, buildInfo2.processId)
-        
-        // But timestamps might be slightly different if called at different times
-        // (This is acceptable behavior)
     }
     
     func testVersionNumberConsistency() {

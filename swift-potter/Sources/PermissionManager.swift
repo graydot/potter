@@ -139,6 +139,14 @@ class PermissionManager: ObservableObject {
             return
         }
         
+        // Check if we're in a test environment (Xcode test runner)
+        if Bundle.main.bundleIdentifier?.contains("xctest") == true || 
+           ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            notificationsStatus = .notDetermined
+            PotterLogger.shared.info("permissions", "📱 Notifications: \(notificationsStatus.displayText) (test environment)")
+            return
+        }
+        
         // For production builds with proper bundle identifier
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
