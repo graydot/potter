@@ -96,6 +96,139 @@ class SecureAPIKeyStorage {
         return keychainSuccess && userDefaultsSuccess
     }
     
+    // MARK: - Atomic Operations (Race-Condition Safe)
+    
+    /// Atomically save API key with race condition protection
+    func atomicSaveAPIKey(_ apiKey: String, for provider: LLMProvider, using method: APIKeyStorageMethod) async -> Bool {
+        let currentMethod = getStorageMethod(for: provider)
+        let previousMethod = currentMethod != method ? currentMethod : nil
+        
+        let result = await AtomicStorageManager.shared.atomicSave(
+            apiKey: apiKey,
+            for: provider,
+            using: method,
+            previousMethod: previousMethod
+        )
+        
+        switch result {
+        case .success:
+            PotterLogger.shared.info("api_storage", "✅ Atomic save successful: \(provider.rawValue)")
+            return true
+        case .failure(let error):
+            PotterLogger.shared.error("api_storage", "❌ Atomic save failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Atomically migrate API key between storage methods
+    func atomicMigrateAPIKey(for provider: LLMProvider, to targetMethod: APIKeyStorageMethod) async -> Bool {
+        let currentMethod = getStorageMethod(for: provider)
+        
+        guard currentMethod != targetMethod else {
+            PotterLogger.shared.info("api_storage", "ℹ️ Already using target storage method: \(targetMethod.rawValue)")
+            return true
+        }
+        
+        let result = await AtomicStorageManager.shared.atomicMigration(
+            for: provider,
+            from: currentMethod,
+            to: targetMethod
+        )
+        
+        switch result {
+        case .success:
+            // Update our preference to match the atomic manager
+            setStorageMethod(targetMethod, for: provider)
+            PotterLogger.shared.info("api_storage", "✅ Atomic migration successful: \(provider.rawValue) -> \(targetMethod.rawValue)")
+            return true
+        case .failure(let error):
+            PotterLogger.shared.error("api_storage", "❌ Atomic migration failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Atomically remove API key with confirmation
+    func atomicRemoveAPIKey(for provider: LLMProvider) async -> Bool {
+        let currentMethod = getStorageMethod(for: provider)
+        
+        let result = await AtomicStorageManager.shared.atomicRemove(
+            for: provider,
+            from: currentMethod
+        )
+        
+        switch result {
+        case .success:
+            // Clear storage method preference
+            let key = "\(storageMethodKey)_\(provider.rawValue)"
+            UserDefaults.standard.removeObject(forKey: key)
+            PotterLogger.shared.info("api_storage", "✅ Atomic removal successful: \(provider.rawValue)")
+            return true
+        case .failure(let error):
+            PotterLogger.shared.error("api_storage", "❌ Atomic removal failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Check storage consistency and fix any issues
+    func validateAndFixStorage(for provider: LLMProvider) async -> StorageValidationResult {
+        let status = AtomicStorageManager.shared.getStorageStatus(for: provider)
+        
+        switch status {
+        case .noStorage:
+            return .noIssues("No API key stored")
+            
+        case .keychainOnly(_), .userDefaultsOnly(_):
+            return .noIssues("Single storage location, consistent")
+            
+        case .duplicateStorage(let keychainKey, let userDefaultsKey):
+            if keychainKey == userDefaultsKey {
+                // Same key in both places - prefer keychain and clean up UserDefaults
+                PotterLogger.shared.warning("api_storage", "🔧 Found duplicate keys, cleaning up...")
+                
+                let removeResult = await AtomicStorageManager.shared.atomicRemove(
+                    for: provider,
+                    from: .userDefaults
+                )
+                
+                if case .success = removeResult {
+                    setStorageMethod(.keychain, for: provider)
+                    return .fixedDuplicates("Removed duplicate from UserDefaults, kept keychain version")
+                } else {
+                    return .cannotFix("Failed to remove duplicate from UserDefaults")
+                }
+            } else {
+                // Different keys - this requires user intervention
+                return .needsUserChoice("Different API keys found in keychain and UserDefaults")
+            }
+        }
+    }
+    
+    /// Check if atomic operations are safe to perform
+    func isAtomicOperationSafe(for provider: LLMProvider) -> Bool {
+        return !AtomicStorageManager.shared.isOperationInProgress(for: provider)
+    }
+    
+    enum StorageValidationResult {
+        case noIssues(String)
+        case fixedDuplicates(String)
+        case needsUserChoice(String)
+        case cannotFix(String)
+        
+        var message: String {
+            switch self {
+            case .noIssues(let msg), .fixedDuplicates(let msg), .needsUserChoice(let msg), .cannotFix(let msg):
+                return msg
+            }
+        }
+        
+        var requiresUserAction: Bool {
+            if case .needsUserChoice = self {
+                return true
+            }
+            return false
+        }
+    }
+
     // MARK: - Migration (Single Access Point)
     
     /// Migrate all API keys to keychain storage
