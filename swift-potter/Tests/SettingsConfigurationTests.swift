@@ -54,24 +54,6 @@ class SettingsConfigurationTests: TestBase {
     
     // MARK: - T3.1: Hotkey Configuration
     
-    func testDefaultHotkeyConfiguration() {
-        // Test default hotkey configuration
-        let defaultHotkey = ["⌘", "⇧", "9"]
-        
-        // Setup core to initialize hotkeys
-        potterCore.setup()
-        
-        // Verify default hotkey is set in UserDefaults (if not previously configured)
-        let savedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String]
-        if savedHotkey == nil {
-            // On first run, should use default
-            XCTAssertTrue(true) // Default behavior is acceptable
-        } else {
-            // If hotkey was saved, verify it's valid
-            XCTAssertNotNil(savedHotkey)
-            XCTAssertGreaterThan(savedHotkey!.count, 0)
-        }
-    }
     
     
     

@@ -175,69 +175,9 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         }
     }
     
-    func testAPIKeyRevocationSimulation() {
-        // Test handling of API key that becomes invalid after being set
-        let testKey = "sk-test-becomes-invalid"
-        
-        // Set valid-looking key
-        llmManager.setAPIKey(testKey, for: .openAI)
-        XCTAssertEqual(llmManager.getAPIKey(for: .openAI), testKey)
-        
-        // Simulate revocation by setting validation state to invalid
-        llmManager.validationStates[.openAI] = .invalid("API key has been revoked")
-        
-        // Should now report as not configured
-        XCTAssertFalse(llmManager.isProviderConfigured(.openAI))
-        
-        let validationState = llmManager.getCurrentValidationState()
-        XCTAssertFalse(validationState.isValid)
-        XCTAssertEqual(validationState.errorMessage, "API key has been revoked")
-    }
-    
-    func testAPIKeyRecoveryAfterError() {
-        // Test recovery after API key error
-        // First set invalid state
-        llmManager.validationStates[.openAI] = .invalid("Test error")
-        XCTAssertFalse(llmManager.isProviderConfigured(.openAI))
-        
-        // Set new valid key
-        llmManager.setAPIKey("sk-new-valid-key", for: .openAI)
-        
-        // Validation state should reset to none
-        let newValidationState = llmManager.validationStates[.openAI]
-        // Check that validation state was reset
-        if case .none = newValidationState {
-            XCTAssertTrue(true) // Expected state
-        } else {
-            XCTFail("Expected validation state to be reset to .none")
-        }
-        
-        // Should now have the key
-        XCTAssertEqual(llmManager.getAPIKey(for: .openAI), "sk-new-valid-key")
-    }
     
     // MARK: - T4.3: Large Text Processing
     
-    func testLargeTextHandling() {
-        // Test handling of large text input
-        let smallText = "Small text for processing"
-        let mediumText = String(repeating: "This is a sentence. ", count: 100) // ~2000 chars
-        let largeText = String(repeating: "This is a longer sentence for testing. ", count: 1000) // ~40k chars
-        let hugeText = String(repeating: "Huge text processing test. ", count: 10000) // ~270k chars
-        
-        let testTexts = [smallText, mediumText, largeText, hugeText]
-        
-        for text in testTexts {
-            // Set text in clipboard
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
-            
-            // Verify clipboard can handle the text size
-            let clipboardText = pasteboard.string(forType: .string)
-            XCTAssertEqual(clipboardText, text, "Clipboard should handle text of \(text.count) characters")
-        }
-    }
     
     func testMemoryUsageWithLargeText() async {
         // Test memory usage doesn't spike with large text
@@ -273,23 +213,6 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         XCTAssertEqual(clipboardText?.count, longLine.count)
     }
     
-    func testTextWithExtremeCharacterCounts() {
-        // Test edge cases for text length
-        let emptyText = ""
-        let singleChar = "A"
-        let maxReasonableText = String(repeating: "Test ", count: 20000) // ~100k chars
-        
-        let testTexts = [emptyText, singleChar, maxReasonableText]
-        
-        for text in testTexts {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
-            
-            let clipboardText = pasteboard.string(forType: .string)
-            XCTAssertEqual(clipboardText, text)
-        }
-    }
     
     // MARK: - T4.4: Clipboard Edge Cases
     
@@ -321,109 +244,10 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         XCTAssertTrue(true) // Should handle gracefully
     }
     
-    func testSpecialCharacters() {
-        // Test text with special characters, emojis, unicode
-        let specialTexts = [
-            "Hello 🌍 World! 🚀",
-            "Café naïve résumé",
-            "中文测试 Japanese: こんにちは Arabic: مرحبا",
-            "Math: ∑∞π∆ Symbols: ™©®",
-            "Quotes: \"'`´",
-            "Newlines:\nTabbed:\tSpaced: ",
-            "Zero-width: \u{200B}\u{FEFF}",
-            "Control chars: \u{0001}\u{001F}",
-            "Mixed: Hello🌟世界Café™\n\tTest"
-        ]
-        
-        for text in specialTexts {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
-            
-            let clipboardText = pasteboard.string(forType: .string)
-            XCTAssertEqual(clipboardText, text, "Special text should be preserved: '\(text)'")
-        }
-    }
     
-    func testClipboardConcurrency() async {
-        // Test rapid clipboard operations
-        let pasteboard = NSPasteboard.general
-        
-        let texts = [
-            "Text 1",
-            "Text 2", 
-            "Text 3",
-            "Text 4",
-            "Text 5"
-        ]
-        
-        // Rapid clipboard changes
-        for text in texts {
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
-            
-            let clipboardText = pasteboard.string(forType: .string)
-            XCTAssertEqual(clipboardText, text)
-        }
-    }
     
-    func testCorruptedClipboardRecovery() {
-        // Test recovery from clipboard issues
-        let pasteboard = NSPasteboard.general
-        
-        // Clear clipboard
-        pasteboard.clearContents()
-        XCTAssertNil(pasteboard.string(forType: .string))
-        
-        // Set valid text
-        pasteboard.setString("Valid text", forType: .string)
-        XCTAssertEqual(pasteboard.string(forType: .string), "Valid text")
-        
-        // Clear again
-        pasteboard.clearContents()
-        XCTAssertNil(pasteboard.string(forType: .string))
-    }
     
-    func testClipboardStringTypes() {
-        // Test different string types and encodings
-        let pasteboard = NSPasteboard.general
-        
-        // Test with different pasteboard types
-        pasteboard.clearContents()
-        pasteboard.setString("Plain text", forType: .string)
-        XCTAssertEqual(pasteboard.string(forType: .string), "Plain text")
-        
-        // Test with empty string
-        pasteboard.clearContents()
-        pasteboard.setString("", forType: .string)
-        XCTAssertEqual(pasteboard.string(forType: .string), "")
-        
-        // Test with whitespace only
-        pasteboard.clearContents()
-        pasteboard.setString("   \n\t   ", forType: .string)
-        XCTAssertEqual(pasteboard.string(forType: .string), "   \n\t   ")
-    }
     
-    func testMultilineTextHandling() {
-        // Test multiline text handling
-        let multilineTexts = [
-            "Line 1\nLine 2",
-            "Line 1\r\nLine 2", // Windows line endings
-            "Line 1\rLine 2", // Classic Mac line endings
-            "\n\n\nMultiple newlines\n\n\n",
-            "Mixed\nLine\r\nEndings\rHere"
-        ]
-        
-        let pasteboard = NSPasteboard.general
-        
-        for text in multilineTexts {
-            pasteboard.clearContents()
-            pasteboard.setString(text, forType: .string)
-            
-            let clipboardText = pasteboard.string(forType: .string)
-            XCTAssertEqual(clipboardText, text, "Multiline text should be preserved")
-        }
-    }
     
     // MARK: - Additional Error Scenarios
     

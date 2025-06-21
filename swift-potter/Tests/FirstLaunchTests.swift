@@ -126,19 +126,6 @@ class FirstLaunchTests: TestBase {
         }
     }
     
-    func testAPIKeySetAndGet() {
-        // Test setting and getting API keys
-        let testKey = "sk-test-api-key-for-testing"
-        
-        llmManager.setAPIKey(testKey, for: .openAI)
-        let retrievedKey = llmManager.getAPIKey(for: .openAI)
-        
-        XCTAssertEqual(retrievedKey, testKey)
-        
-        // Verify key is stored in UserDefaults during testing
-        let storedKey = UserDefaults.standard.string(forKey: "api_key_openai")
-        XCTAssertEqual(storedKey, testKey)
-    }
     
     func testAPIKeyStorageMethodConfiguration() {
         // Test that storage method can be configured

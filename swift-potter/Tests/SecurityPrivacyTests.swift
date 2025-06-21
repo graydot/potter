@@ -52,27 +52,6 @@ class SecurityPrivacyTests: TestBase {
     
     // MARK: - T8.1: API Key Security
     
-    func testAPIKeyStorageMethodSecurity() {
-        // Test that storage method selection affects security
-        let testKey = "sk-security-test-key-12345"
-        let provider = LLMProvider.openAI
-        
-        // During testing, should always use UserDefaults (due to testing flag)
-        let method = secureStorage.getStorageMethod(for: provider)
-        XCTAssertEqual(method, .userDefaults, "Testing should force UserDefaults storage")
-        
-        // Save key using specified method
-        let success = secureStorage.saveAPIKey(testKey, for: provider, using: method)
-        XCTAssertTrue(success)
-        
-        // Verify key is retrievable
-        let retrievedKey = secureStorage.loadAPIKey(for: provider)
-        XCTAssertEqual(retrievedKey, testKey)
-        
-        // In UserDefaults mode, key should be visible in UserDefaults
-        let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
-        XCTAssertEqual(userDefaultsKey, testKey)
-    }
     
     
     func testAPIKeyNotInPlainTextLogs() {

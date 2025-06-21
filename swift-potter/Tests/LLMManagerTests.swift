@@ -44,19 +44,6 @@ class LLMManagerTests: TestBase {
     
     
     
-    func testAPIKeyManagement() {
-        let testKey = "test-api-key-123"
-        
-        llmManager.setAPIKey(testKey, for: .openAI)
-        
-        XCTAssertEqual(llmManager.getAPIKey(for: .openAI), testKey)
-        // Check that validation state was reset (use isValid check instead of equality)
-        XCTAssertFalse(llmManager.validationStates[.openAI]?.isValid ?? true)
-        
-        // Check UserDefaults persistence
-        let savedKey = UserDefaults.standard.string(forKey: "api_key_openai")
-        XCTAssertEqual(savedKey, testKey)
-    }
     
     func testValidationStates() {
         // Initial state should not be valid

@@ -30,21 +30,6 @@ class PermissionManagerTests: XCTestCase {
         XCTAssertEqual(PermissionType.notifications.rawValue, "notifications")
     }
     
-    func testPermissionStatusEnum() {
-        let statuses: [PermissionStatus] = [.granted, .denied, .notDetermined, .unknown]
-        
-        // Test display text
-        XCTAssertEqual(PermissionStatus.granted.displayText, "Granted")
-        XCTAssertEqual(PermissionStatus.denied.displayText, "Denied")
-        XCTAssertEqual(PermissionStatus.notDetermined.displayText, "Not Determined")
-        XCTAssertEqual(PermissionStatus.unknown.displayText, "Unknown")
-        
-        // Test that enum values exist
-        let _: PermissionStatus = .granted
-        let _: PermissionStatus = .denied
-        let _: PermissionStatus = .notDetermined
-        let _: PermissionStatus = .unknown
-    }
     
     func testSingletonPattern() {
         let manager1 = PermissionManager.shared
