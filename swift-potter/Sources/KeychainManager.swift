@@ -12,6 +12,7 @@ class KeychainManager {
     // In-memory cache of all API keys
     private var cache: [String: String] = [:]
     private var cacheLoaded = false
+    private var isKeychainDenied = false
     
     private init() {}
     
@@ -29,6 +30,13 @@ class KeychainManager {
     func saveAPIKey(_ apiKey: String, for provider: LLMProvider) -> Bool {
         return operationQueue.sync {
             loadAllKeysIfNeeded()
+            
+            // If keychain access was denied during load, don't attempt to save
+            if isKeychainDenied {
+                PotterLogger.shared.error("keychain_manager", "❌ Cannot save API key: keychain access was previously denied")
+                return false
+            }
+            
             cache[provider.rawValue] = apiKey
             return saveAllKeysToKeychain()
         }
@@ -118,17 +126,21 @@ class KeychainManager {
     /// Check if keychain is accessible
     func isKeychainAccessible() -> Bool {
         return operationQueue.sync {
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: serviceName,
-                kSecMatchLimit as String: kSecMatchLimitOne,
-                kSecReturnAttributes as String: true
-            ]
+            // First check if we already know keychain was denied
+            if isKeychainDenied {
+                return false
+            }
             
-            var result: AnyObject?
-            let status = SecItemCopyMatching(query as CFDictionary, &result)
+            // Load keys if not loaded yet (this may set isKeychainDenied)
+            loadAllKeysIfNeeded()
             
-            return status == errSecSuccess || status == errSecItemNotFound
+            // Return false if keychain was denied during load
+            if isKeychainDenied {
+                return false
+            }
+            
+            // Otherwise, keychain is accessible
+            return true
         }
     }
     
@@ -165,11 +177,19 @@ class KeychainManager {
            let apiKeys = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String] {
             
             cache = apiKeys
+            PotterLogger.shared.info("keychain_manager", "✅ Loaded \(cache.count) API keys from keychain")
         } else if status == errSecItemNotFound {
             // No unified storage found, try to migrate from old individual keychain items
             cache = migrateFromOldKeychainFormat()
+            PotterLogger.shared.info("keychain_manager", "🔄 No unified storage found, migrated \(cache.count) keys from old format")
         } else {
+            // Handle keychain access errors (user denial, etc.)
+            let errorMessage = keychainErrorMessage(for: status)
+            PotterLogger.shared.error("keychain_manager", "❌ Failed to load keychain data: \(errorMessage) (code: \(status))")
+            
+            // Set cache to empty but mark as inaccessible
             cache = [:]
+            isKeychainDenied = true
         }
         
         cacheLoaded = true

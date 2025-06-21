@@ -31,6 +31,18 @@ class SecureAPIKeyStorage {
     
     // MARK: - Storage Method Management
     
+    /// Check if an API key exists without loading it (lightweight UserDefaults check)
+    func hasAPIKey(for provider: LLMProvider) -> Bool {
+        let key = "has_api_key_\(provider.rawValue)"
+        return UserDefaults.standard.bool(forKey: key)
+    }
+    
+    /// Mark that an API key exists for the provider (used internally)
+    private func setHasAPIKey(_ hasKey: Bool, for provider: LLMProvider) {
+        let key = "has_api_key_\(provider.rawValue)"
+        UserDefaults.standard.set(hasKey, forKey: key)
+    }
+    
     func getStorageMethod(for provider: LLMProvider) -> APIKeyStorageMethod {
         // Force UserDefaults during testing to avoid keychain prompts
         if forceUserDefaultsForTesting {
@@ -82,6 +94,7 @@ class SecureAPIKeyStorage {
         switch result {
         case .success:
             setStorageMethod(method, for: provider)
+            setHasAPIKey(true, for: provider)
             return .success(())
         case .failure(let error):
             return .failure(error)
@@ -124,9 +137,10 @@ class SecureAPIKeyStorage {
             errors.append("UserDefaults removal failed")
         }
         
-        // Remove storage method preference
+        // Remove storage method preference and API key existence flag
         let key = "\(storageMethodKey)_\(provider.rawValue)"
         UserDefaults.standard.removeObject(forKey: key)
+        setHasAPIKey(false, for: provider)
         
         if keychainSuccess && userDefaultsSuccess {
             return .success(())

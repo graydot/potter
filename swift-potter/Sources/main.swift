@@ -542,8 +542,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
             return
         }
         
-        // Check if the currently selected provider has an API key using the new storage system
-        let hasSelectedProviderKey = SecureAPIKeyStorage.shared.loadAPIKey(for: selectedProvider).isSuccess
+        // Check if the currently selected provider has an API key using lightweight check
+        let hasSelectedProviderKey = SecureAPIKeyStorage.shared.hasAPIKey(for: selectedProvider)
         
         PotterLogger.shared.debug("startup", "🔍 Checking selected provider: \(selectedProvider.displayName), has key: \(hasSelectedProviderKey)")
         
@@ -571,8 +571,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
                     return
                 }
                 
-                // Check if the currently selected provider has an API key using the new storage system
-                let hasSelectedProviderKey = SecureAPIKeyStorage.shared.loadAPIKey(for: selectedProvider).isSuccess
+                // Check if the currently selected provider has an API key using lightweight check
+                let hasSelectedProviderKey = SecureAPIKeyStorage.shared.hasAPIKey(for: selectedProvider)
                 
                 PotterLogger.shared.debug("startup", "🔍 Monitoring selected provider: \(selectedProvider.displayName), has key: \(hasSelectedProviderKey)")
                 
