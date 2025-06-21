@@ -13,13 +13,13 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")
+        // .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")  // Temporarily disabled
     ],
     targets: [
         .executableTarget(
             name: "Potter",
             dependencies: [
-                .product(name: "Sparkle", package: "Sparkle")
+                // .product(name: "Sparkle", package: "Sparkle")  // Temporarily disabled
             ],
             path: "Sources",
             resources: [

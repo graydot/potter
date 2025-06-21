@@ -305,12 +305,74 @@ def copy_app_icon(app_path):
     
     return True
 
+def bundle_frameworks(app_path):
+    """Bundle required frameworks into the app"""
+    print("📦 Bundling frameworks...")
+    
+    # Create Frameworks directory
+    frameworks_dir = f"{app_path}/Contents/Frameworks"
+    os.makedirs(frameworks_dir, exist_ok=True)
+    
+    # Find and copy Sparkle framework
+    sparkle_xcframework_path = "swift-potter/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+    
+    if os.path.exists(sparkle_xcframework_path):
+        sparkle_dest = f"{frameworks_dir}/Sparkle.framework"
+        if os.path.exists(sparkle_dest):
+            shutil.rmtree(sparkle_dest)
+        shutil.copytree(sparkle_xcframework_path, sparkle_dest)
+        print("✅ Sparkle framework bundled")
+        return True
+    else:
+        print(f"❌ Sparkle framework not found at {sparkle_xcframework_path}")
+        # Try alternative paths
+        alt_paths = [
+            "swift-potter/.build/artifacts/extract/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework",
+            "swift-potter/.build/checkouts/sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+        ]
+        
+        for alt_path in alt_paths:
+            if os.path.exists(alt_path):
+                sparkle_dest = f"{frameworks_dir}/Sparkle.framework"
+                if os.path.exists(sparkle_dest):
+                    shutil.rmtree(sparkle_dest)
+                shutil.copytree(alt_path, sparkle_dest)
+                print(f"✅ Sparkle framework bundled from {alt_path}")
+                return True
+        
+        print("❌ Could not find Sparkle framework in any expected location")
+        return False
+
 def sign_app(app_path, signing_identity, entitlements_file, target='local'):
     """Sign the application bundle"""
     print(f"🔐 Signing app with {signing_identity}...")
     
     try:
-        # Sign the main executable first
+        # Sign frameworks first (if any)
+        frameworks_dir = f"{app_path}/Contents/Frameworks"
+        if os.path.exists(frameworks_dir):
+            for framework in os.listdir(frameworks_dir):
+                if framework.endswith('.framework'):
+                    framework_path = f"{frameworks_dir}/{framework}"
+                    print(f"🔐 Signing framework: {framework}")
+                    
+                    # Use deep signing with explicit framework identifier
+                    cmd = [
+                        'codesign', '--force', '--deep', '--verify', '--verbose',
+                        '--sign', signing_identity,
+                        '--timestamp',
+                        '--options', 'runtime',
+                        '--identifier', f'org.sparkle-project.{framework.replace(".framework", "")}',
+                        framework_path
+                    ]
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        print(f"❌ Framework signing failed: {result.stderr}")
+                        return False
+                    print(f"✅ Framework {framework} signed")
+        
+        # Sign the main executable
         executable_path = f"{app_path}/Contents/MacOS/{APP_NAME}"
         
         cmd = [
@@ -318,7 +380,7 @@ def sign_app(app_path, signing_identity, entitlements_file, target='local'):
             '--sign', signing_identity,
             '--entitlements', entitlements_file,
             '--timestamp',
-            '--options', 'runtime',  # Required for notarization
+            '--options', 'runtime',
             executable_path
         ]
         
@@ -736,6 +798,10 @@ def build_app(target='local', skip_tests=False):
     
     # Copy app icon
     copy_app_icon(app_path)
+    
+    # Bundle frameworks (temporarily disabled for testing)
+    # if not bundle_frameworks(app_path):
+    #     return False
     
     # Embed build ID
     embed_build_id(app_path)
