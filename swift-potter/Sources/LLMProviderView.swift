@@ -294,48 +294,35 @@ struct LLMProviderView: View {
                     // Clear any previous errors
                     showStorageError = false
                     
-                    // First save to secure storage using the current method
-                    let success = SecureAPIKeyStorage.shared.saveAPIKey(
-                        apiKeyText, 
-                        for: llmManager.selectedProvider, 
-                        using: storageMethod
-                    )
+                    // Update the storage method preference first
+                    SecureAPIKeyStorage.shared.setStorageMethod(storageMethod, for: llmManager.selectedProvider)
+                    
+                    // Then validate and save (this will use the updated storage method)
+                    await llmManager.validateAndSaveAPIKey(apiKeyText, for: llmManager.selectedProvider)
+                    
+                    let success = llmManager.validationStates[llmManager.selectedProvider]?.isValid == true
                     
                     if success {
-                        // Then validate
-                        await llmManager.validateAndSaveAPIKey(apiKeyText, for: llmManager.selectedProvider)
-                        
                         // Show success checkmark briefly if validation succeeded
-                        if llmManager.validationStates[llmManager.selectedProvider]?.isValid == true {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showingSuccessCheckmark = true
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                showingSuccessCheckmark = true
-                            }
-                            
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    showingSuccessCheckmark = false
-                                }
+                                showingSuccessCheckmark = false
                             }
                         }
                     } else {
                         showStorageError = true
-                        storageErrorMessage = "Failed to save API key using \(storageMethod.displayName)"
+                        let errorMessage = llmManager.validationStates[llmManager.selectedProvider]?.errorMessage ?? "Unknown validation error"
+                        storageErrorMessage = "Failed to validate API key: \(errorMessage)"
                         
                         // Hide error after 5 seconds
                         DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                             showStorageError = false
                         }
                     }
-                } catch {
-                    // Handle any unexpected errors
-                    PotterLogger.shared.error("ui", "❌ Unexpected error in Test & Save: \(error)")
-                    showStorageError = true
-                    storageErrorMessage = "Unexpected error occurred"
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                        showStorageError = false
-                    }
-                }
             }
         }
         .buttonStyle(.borderedProminent)
@@ -368,8 +355,8 @@ struct LLMProviderView: View {
     private func toggleStorageMethod() {
         let newMethod: APIKeyStorageMethod = storageMethod == .keychain ? .userDefaults : .keychain
         
-        // Check keychain accessibility if switching to keychain
-        if newMethod == .keychain && !SecureAPIKeyStorage.shared.isKeychainAccessible() {
+        // Check keychain accessibility if switching to keychain (only access keychain when actually needed)
+        if newMethod == .keychain && storageMethod != .keychain && !SecureAPIKeyStorage.shared.isKeychainAccessible() {
             showStorageError = true
             storageErrorMessage = "Keychain is not accessible. Please ensure your device is unlocked and try again."
             
@@ -424,17 +411,6 @@ struct LLMProviderView: View {
                         showStorageError = false
                     }
                 }
-            } catch {
-                // Handle any unexpected errors
-                PotterLogger.shared.error("ui", "❌ Unexpected error in storage method toggle: \(error)")
-                isMigrating = false
-                showStorageError = true
-                storageErrorMessage = "Unexpected error during migration"
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    showStorageError = false
-                }
-            }
         }
     }
 }
