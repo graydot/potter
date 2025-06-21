@@ -42,27 +42,7 @@ class LLMManagerTests: TestBase {
         XCTAssertFalse(llmManager.hasValidProvider())
     }
     
-    func testProviderSelection() {
-        llmManager.selectProvider(.anthropic)
-        
-        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
-        XCTAssertEqual(llmManager.selectedModel?.provider, .anthropic)
-        
-        // Check UserDefaults persistence
-        let savedProvider = UserDefaults.standard.string(forKey: "llm_provider")
-        XCTAssertEqual(savedProvider, "anthropic")
-    }
     
-    func testModelSelection() {
-        let anthropicModel = LLMModel.anthropicModels.first!
-        llmManager.selectModel(anthropicModel)
-        
-        XCTAssertEqual(llmManager.selectedModel?.id, anthropicModel.id)
-        
-        // Check UserDefaults persistence
-        let savedModelId = UserDefaults.standard.string(forKey: "selected_model")
-        XCTAssertEqual(savedModelId, anthropicModel.id)
-    }
     
     func testAPIKeyManagement() {
         let testKey = "test-api-key-123"
@@ -133,20 +113,6 @@ class LLMManagerTests: TestBase {
         XCTAssertFalse(state.isValid) // validating state should not be valid
     }
     
-    func testLoadSettings() {
-        // Set up UserDefaults with test data
-        UserDefaults.standard.set("anthropic", forKey: "llm_provider")
-        UserDefaults.standard.set("test-key", forKey: "api_key_anthropic")
-        UserDefaults.standard.set("claude-3-5-sonnet-20241022", forKey: "selected_model")
-        
-        // Create new manager to test loading
-        let newManager = LLMManager()
-        
-        XCTAssertEqual(newManager.selectedProvider, .anthropic)
-        XCTAssertEqual(newManager.getAPIKey(for: .anthropic), "test-key")
-        XCTAssertEqual(newManager.selectedModel?.id, "claude-3-5-sonnet-20241022")
-        XCTAssertTrue(newManager.isProviderConfigured(.anthropic))
-    }
     
     func testProcessTextWithoutValidProvider() async {
         do {

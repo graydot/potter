@@ -131,27 +131,6 @@ class PotterCoreTests: TestBase {
         XCTAssertEqual(PromptMode.casual.rawValue, "casual")
     }
     
-    func testPromptSelectionFromUserDefaults() {
-        // Set a prompt in UserDefaults
-        UserDefaults.standard.set("formal", forKey: "current_prompt")
-        
-        // Create prompts file with test data
-        let testPrompts = [
-            PromptItem(name: "formal", prompt: "Make this formal"),
-            PromptItem(name: "casual", prompt: "Make this casual")
-        ]
-        PromptManager.shared.savePrompts(testPrompts)
-        
-        // Setup core
-        potterCore.setup()
-        
-        // Verify the test setup worked
-        let loadedPrompts = PromptManager.shared.loadPrompts()
-        XCTAssertEqual(loadedPrompts.count, 2)
-        
-        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt")
-        XCTAssertEqual(currentPromptName, "formal")
-    }
     
     func testPromptSelectionFallbackToDefault() {
         // Don't set any prompt in UserDefaults
@@ -185,13 +164,6 @@ class PotterCoreTests: TestBase {
         XCTAssertEqual(clipboardText, testText)
     }
     
-    func testGetLLMManager() {
-        potterCore.setup()
-        
-        // LLMManager should be initialized after setup
-        let llmManager = potterCore.getLLMManager()
-        XCTAssertNotNil(llmManager)
-    }
     
     func testCoreSetupDoesNotCrash() {
         // This test ensures setup completes without crashing

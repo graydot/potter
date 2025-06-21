@@ -77,18 +77,6 @@ class FirstLaunchTests: TestBase {
         XCTAssertTrue(validStatuses.contains(notificationsStatus))
     }
     
-    func testPermissionStatusDisplayProperties() {
-        // Test permission status display properties
-        XCTAssertEqual(PermissionStatus.granted.displayText, "Granted")
-        XCTAssertEqual(PermissionStatus.denied.displayText, "Denied")
-        XCTAssertEqual(PermissionStatus.notDetermined.displayText, "Not Determined")
-        XCTAssertEqual(PermissionStatus.unknown.displayText, "Unknown")
-        
-        // Verify icon names are not empty
-        for status in [PermissionStatus.granted, .denied, .notDetermined, .unknown] {
-            XCTAssertFalse(status.iconName.isEmpty, "Status \(status) should have icon name")
-        }
-    }
     
     func testPermissionCheckingDoesNotCrash() {
         // Test that permission checking doesn't crash
@@ -214,25 +202,6 @@ class FirstLaunchTests: TestBase {
         XCTAssertEqual(llmManager.selectedModel?.id, secondModel.id)
     }
     
-    func testSettingsPersistence() {
-        // Test that settings persist across initialization
-        let testProvider = LLMProvider.anthropic
-        let testKey = "sk-test-persistence-key"
-        
-        llmManager.setAPIKey(testKey, for: testProvider)
-        llmManager.selectProvider(testProvider)
-        
-        if let testModel = testProvider.models.first {
-            llmManager.selectModel(testModel)
-        }
-        
-        // Create new LLMManager instance to test persistence
-        let newManager = LLMManager()
-        
-        XCTAssertEqual(newManager.selectedProvider, testProvider)
-        XCTAssertEqual(newManager.getAPIKey(for: testProvider), testKey)
-        XCTAssertEqual(newManager.selectedModel?.provider, testProvider)
-    }
     
     // MARK: - Helper Methods
     

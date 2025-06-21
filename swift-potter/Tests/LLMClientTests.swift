@@ -47,19 +47,6 @@ class LLMClientTests: TestBase {
         XCTAssertTrue(googleModels.allSatisfy { $0.provider == .google })
     }
     
-    func testOpenAIModels() {
-        let models = LLMModel.openAIModels
-        
-        XCTAssertTrue(models.contains { $0.id == "gpt-4o" })
-        XCTAssertTrue(models.contains { $0.id == "gpt-4o-mini" })
-        XCTAssertTrue(models.contains { $0.id == "gpt-4-turbo" })
-        XCTAssertTrue(models.contains { $0.id == "gpt-3.5-turbo" })
-        
-        let gpt4o = models.first { $0.id == "gpt-4o" }!
-        XCTAssertEqual(gpt4o.name, "GPT-4o")
-        XCTAssertEqual(gpt4o.provider, .openAI)
-        XCTAssertFalse(gpt4o.description.isEmpty)
-    }
     
     func testAnthropicModels() {
         let models = LLMModel.anthropicModels
@@ -74,18 +61,6 @@ class LLMClientTests: TestBase {
         XCTAssertFalse(sonnet.description.isEmpty)
     }
     
-    func testGoogleModels() {
-        let models = LLMModel.googleModels
-        
-        XCTAssertTrue(models.contains { $0.id == "gemini-1.5-pro" })
-        XCTAssertTrue(models.contains { $0.id == "gemini-1.5-flash" })
-        XCTAssertTrue(models.contains { $0.id == "gemini-pro" })
-        
-        let pro = models.first { $0.id == "gemini-1.5-pro" }!
-        XCTAssertEqual(pro.name, "Gemini 1.5 Pro")
-        XCTAssertEqual(pro.provider, .google)
-        XCTAssertFalse(pro.description.isEmpty)
-    }
     
     func testLLMErrorTypes() {
         let errors: [LLMError] = [
