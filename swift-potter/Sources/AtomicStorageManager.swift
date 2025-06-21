@@ -272,15 +272,13 @@ class AtomicStorageManager {
         let keychainKey = KeychainManager.shared.loadAPIKey(for: provider)
         let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
         
-        let hasKeychain = keychainKey != nil && !keychainKey!.isEmpty
-        let hasUserDefaults = userDefaultsKey != nil && !userDefaultsKey!.isEmpty
-        
-        if hasKeychain && hasUserDefaults {
-            return .duplicateStorage(keychain: keychainKey!, userDefaults: userDefaultsKey!)
-        } else if hasKeychain {
-            return .keychainOnly(keychainKey!)
-        } else if hasUserDefaults {
-            return .userDefaultsOnly(userDefaultsKey!)
+        if let keychainKey = keychainKey, !keychainKey.isEmpty,
+           let userDefaultsKey = userDefaultsKey, !userDefaultsKey.isEmpty {
+            return .duplicateStorage(keychain: keychainKey, userDefaults: userDefaultsKey)
+        } else if let keychainKey = keychainKey, !keychainKey.isEmpty {
+            return .keychainOnly(keychainKey)
+        } else if let userDefaultsKey = userDefaultsKey, !userDefaultsKey.isEmpty {
+            return .userDefaultsOnly(userDefaultsKey)
         } else {
             return .noStorage
         }

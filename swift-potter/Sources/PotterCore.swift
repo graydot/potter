@@ -39,7 +39,7 @@ enum PromptMode: String, CaseIterable {
 class PotterCore {
     private var currentMode: PromptMode = .formal
     private var settings: PotterSettings
-    private var llmManager: LLMManager!
+    private var llmManager: LLMManager?
     private var hotkeyEventHandler: EventHotKeyRef?
     private var currentHotkeyCombo: [String] = ["⌘", "⇧", "9"] // Default hotkey
     
@@ -194,7 +194,7 @@ class PotterCore {
         showNotification(title: "Mode Changed", message: "Now using: \(mode.displayName)")
     }
     
-    func getLLMManager() -> LLMManager {
+    func getLLMManager() -> LLMManager? {
         return llmManager
     }
     

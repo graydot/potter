@@ -901,7 +901,7 @@ struct HotkeyConfigurationView: View {
         
         // Disable global hotkey during capture to prevent interference
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
-            potterCore.potterCore.disableGlobalHotkey()
+            potterCore.potterCore?.disableGlobalHotkey()
         }
         
         PotterLogger.shared.debug("settings", "🎹 Started hotkey capture mode")
@@ -1061,7 +1061,7 @@ struct HotkeyConfigurationView: View {
         
         // Update the global hotkey system (this will re-enable it with new combo)
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
-            potterCore.potterCore.updateHotkey(currentHotkey)
+            potterCore.potterCore?.updateHotkey(currentHotkey)
         }
     }
     
@@ -1074,7 +1074,7 @@ struct HotkeyConfigurationView: View {
         
         // Re-enable global hotkey with previous combo
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
-            potterCore.potterCore.enableGlobalHotkey()
+            potterCore.potterCore?.enableGlobalHotkey()
         }
         
         PotterLogger.shared.debug("settings", "🎹 Cancelled hotkey capture - restored previous combo")
@@ -1090,7 +1090,7 @@ struct HotkeyConfigurationView: View {
         
         // Update the global hotkey system
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
-            potterCore.potterCore.updateHotkey(currentHotkey)
+            potterCore.potterCore?.updateHotkey(currentHotkey)
         }
         
         // Start capture mode like clicking on pills does

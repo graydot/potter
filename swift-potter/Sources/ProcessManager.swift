@@ -93,7 +93,12 @@ class ProcessManager {
     
     private var lockFileURL: URL {
         // Always use Application Support to ensure consistency between command line and app bundle
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            // Fallback to temp directory if Application Support is not available
+            PotterLogger.shared.warning("process_manager", "⚠️ Application Support directory not available, using temp directory")
+            return FileManager.default.temporaryDirectory.appendingPathComponent(lockFileName)
+        }
+        
         let potterDir = appSupport.appendingPathComponent("Potter")
         try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
         return potterDir.appendingPathComponent(lockFileName)

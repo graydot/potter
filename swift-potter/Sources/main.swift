@@ -21,7 +21,7 @@ app.run()
 
 class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     var statusItem: NSStatusItem?
-    var potterCore: PotterCore!
+    var potterCore: PotterCore?
     var menuUpdateTimer: Timer?
     var currentPromptName: String = "summarize" // Default prompt
     var currentMenu: NSMenu?
@@ -513,8 +513,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     
     private func setupCore() {
         potterCore = PotterCore()
-        potterCore.iconDelegate = self
-        potterCore.setup()
+        potterCore?.iconDelegate = self
+        potterCore?.setup()
     }
     
     private func checkAndShowSettingsIfNeeded() {
