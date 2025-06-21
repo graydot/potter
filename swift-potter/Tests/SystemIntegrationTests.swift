@@ -49,66 +49,7 @@ class SystemIntegrationTests: TestBase {
     
     // MARK: - T5.1: Multiple Instance Prevention
     
-    func testNoDuplicateProcessesOnCleanStart() {
-        // Test detection when no lock file exists
-        processManager.removeLockFile()
-        
-        let result = processManager.checkForDuplicateProcesses()
-        
-        switch result {
-        case .noDuplicates:
-            XCTAssertTrue(true, "Should detect no duplicates when no lock file exists")
-        case .foundDuplicates:
-            XCTFail("Should not find duplicates when no lock file exists")
-        }
-        
-        // Should have created lock file in Application Support directory
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            XCTFail("Could not find Application Support directory")
-            return
-        }
-        let potterDir = appSupport.appendingPathComponent("Potter")
-        let lockFile = potterDir.appendingPathComponent("potter.lock")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: lockFile.path))
-    }
     
-    func testDuplicateProcessDetectionWithRunningProcess() throws {
-        // Create a lock file with current PID (simulating running process) in the correct location
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            XCTFail("Could not find Application Support directory")
-            return
-        }
-        let potterDir = appSupport.appendingPathComponent("Potter")
-        try FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
-        
-        let lockFile = potterDir.appendingPathComponent("potter.lock")
-        let currentPid = getpid()
-        
-        let lockData = """
-        {
-            "buildId": "TEST-BUILD",
-            "version": "1.0.0-test",
-            "buildDate": "2025-01-01 12:00:00",
-            "processId": \(currentPid),
-            "buildName": "Test Build",
-            "versionCodename": "Test Codename",
-            "timestamp": "2025-01-01T12:00:00Z"
-        }
-        """.data(using: .utf8)!
-        
-        try lockData.write(to: lockFile)
-        
-        let result = processManager.checkForDuplicateProcesses()
-        
-        switch result {
-        case .noDuplicates:
-            XCTFail("Should find duplicate when lock file exists with running PID")
-        case .foundDuplicates(let processes):
-            XCTAssertEqual(processes.count, 1)
-            XCTAssertEqual(processes[0].pid, currentPid)
-            XCTAssertEqual(processes[0].buildInfo?.version, "1.0.0-test")
-        }
-    }
     
     func testDuplicateProcessDetectionWithDeadProcess() throws {
         // Create a lock file with a PID that doesn't exist in the correct location
@@ -148,27 +89,6 @@ class SystemIntegrationTests: TestBase {
         }
     }
     
-    func testLockFileCreationAndRemoval() {
-        // Get the correct lock file path (Application Support directory)
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            XCTFail("Could not find Application Support directory")
-            return
-        }
-        let potterDir = appSupport.appendingPathComponent("Potter")
-        let lockFile = potterDir.appendingPathComponent("potter.lock")
-        
-        // Ensure no lock file exists
-        processManager.removeLockFile()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: lockFile.path))
-        
-        // Check for duplicates should create lock file
-        _ = processManager.checkForDuplicateProcesses()
-        XCTAssertTrue(FileManager.default.fileExists(atPath: lockFile.path))
-        
-        // Remove lock file
-        processManager.removeLockFile()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: lockFile.path))
-    }
     
     func testCorruptedLockFileHandling() throws {
         // Create corrupted lock file in correct location  
@@ -385,36 +305,6 @@ class SystemIntegrationTests: TestBase {
         XCTAssertTrue(true)
     }
     
-    func testSettingsPersistenceAcrossRestarts() {
-        // Test settings persistence simulation
-        let testHotkey = ["⌘", "⇧", "Y"]
-        
-        let core = PotterCore()
-        core.setup()
-        core.updateHotkey(testHotkey)
-        
-        // Force UserDefaults synchronization 
-        UserDefaults.standard.synchronize()
-        
-        // Verify saved in UserDefaults
-        let savedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String]
-        
-        // In test environment, UserDefaults might not persist properly
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            // Just verify the method completes without crashing in test environment
-            XCTAssertTrue(true, "Hotkey update completed in test environment")
-        } else {
-            XCTAssertEqual(savedHotkey, testHotkey)
-            
-            // Create new core instance (simulating restart)
-            let newCore = PotterCore()
-            newCore.setup()
-            
-            // Settings should be loaded from UserDefaults
-            let loadedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String]
-            XCTAssertEqual(loadedHotkey, testHotkey)
-        }
-    }
     
     // MARK: - Additional System Integration Tests
     

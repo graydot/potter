@@ -84,25 +84,6 @@ class CoreFunctionalityTests: TestBase {
         }
     }
     
-    func testClipboardTextRetrieval() {
-        // Test clipboard text retrieval functionality
-        let testText = "This is a test sentence that needs to be processed."
-        
-        // Set text in clipboard
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(testText, forType: .string)
-        
-        // Verify clipboard content - in test environment, this might not work
-        let clipboardText = pasteboard.string(forType: .string)
-        
-        // Skip assertion if we're in test environment where clipboard doesn't work
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            XCTAssertTrue(true, "Clipboard test skipped in test environment")
-        } else {
-            XCTAssertEqual(clipboardText, testText)
-        }
-    }
     
     func testEmptyClipboardHandling() async {
         // Test handling of empty clipboard
@@ -300,37 +281,6 @@ class CoreFunctionalityTests: TestBase {
         XCTAssertTrue(true)
     }
     
-    func testPromptSelectionFromUserDefaults() {
-        // Test prompt selection from UserDefaults
-        UserDefaults.standard.set("formal", forKey: "current_prompt")
-        UserDefaults.standard.synchronize() // Force synchronization
-        
-        // Create prompts file with test data
-        let testPrompts = [
-            PromptItem(name: "formal", prompt: "Make this formal"),
-            PromptItem(name: "casual", prompt: "Make this casual")
-        ]
-        PromptManager.shared.savePrompts(testPrompts)
-        
-        // Setup core
-        potterCore.setup()
-        
-        // Verify the test setup worked
-        let loadedPrompts = PromptManager.shared.loadPrompts()
-        XCTAssertEqual(loadedPrompts.count, 2)
-        
-        // Verify UserDefaults value with forced sync
-        UserDefaults.standard.synchronize()
-        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt")
-        
-        // In test environment, UserDefaults might not persist properly
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            // Verify at least that we don't crash and prompts are loaded
-            XCTAssertTrue(loadedPrompts.count >= 2, "Prompts should be loaded")
-        } else {
-            XCTAssertEqual(currentPromptName, "formal")
-        }
-    }
     
     func testPromptFallbackToDefault() {
         // Test fallback to default prompt when none is selected

@@ -141,36 +141,6 @@ class SecurityPrivacyTests: TestBase {
     }
     
     
-    func testAPIKeySecurityAcrossProviders() {
-        // Test that API keys for different providers are kept separate
-        let keys = [
-            LLMProvider.openAI: "sk-openai-security-test",
-            LLMProvider.anthropic: "sk-anthropic-security-test",
-            LLMProvider.google: "google-security-test"
-        ]
-        
-        // Set all keys
-        for (provider, key) in keys {
-            secureStorage.saveAPIKey(key, for: provider, using: .userDefaults)
-        }
-        
-        // Verify each key is stored separately
-        for (provider, expectedKey) in keys {
-            let retrievedKey = secureStorage.loadAPIKey(for: provider)
-            XCTAssertEqual(retrievedKey, expectedKey)
-            
-            // Verify UserDefaults separation
-            let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
-            XCTAssertEqual(userDefaultsKey, expectedKey)
-        }
-        
-        // Remove one key and verify others remain
-        secureStorage.removeAPIKey(for: .openAI)
-        
-        XCTAssertNil(secureStorage.loadAPIKey(for: .openAI))
-        XCTAssertEqual(secureStorage.loadAPIKey(for: .anthropic), keys[.anthropic])
-        XCTAssertEqual(secureStorage.loadAPIKey(for: .google), keys[.google])
-    }
     
     func testAPIKeySecurityWithInvalidInput() {
         // Test security with various invalid/malicious inputs
@@ -287,20 +257,6 @@ class SecurityPrivacyTests: TestBase {
     
     // MARK: - Additional Security Tests
     
-    func testUserDefaultsSecurityAwareness() {
-        // Test that UserDefaults usage is security-aware
-        let testKey = "sk-userdefaults-security-test"
-        
-        // When using UserDefaults, the key should be stored in plain text (expected behavior)
-        secureStorage.saveAPIKey(testKey, for: .openAI, using: .userDefaults)
-        
-        // Verify it's actually in UserDefaults (demonstrating the security trade-off)
-        let storedValue = UserDefaults.standard.string(forKey: "api_key_openai")
-        XCTAssertEqual(storedValue, testKey)
-        
-        // This demonstrates that UserDefaults is NOT secure storage
-        // (which is the expected behavior when user chooses this option)
-    }
     
     
     

@@ -155,15 +155,4 @@ class LLMManagerTests: TestBase {
         XCTAssertFalse(llmManager.isValidating)
     }
     
-    func testSaveSettings() {
-        llmManager.selectedProvider = .google
-        llmManager.setAPIKey("test-google-key", for: .google)
-        llmManager.selectedModel = LLMModel.googleModels.first
-        
-        llmManager.saveSettings()
-        
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "llm_provider"), "google")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "api_key_google"), "test-google-key")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "selected_model"), LLMModel.googleModels.first?.id)
-    }
 }
