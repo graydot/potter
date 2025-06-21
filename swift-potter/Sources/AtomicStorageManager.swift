@@ -9,11 +9,6 @@ class AtomicStorageManager {
     private var activeOperations: Set<String> = []
     private let operationLock = NSLock()
     
-    /// When true, forces UserDefaults storage for all operations (used in testing)
-    /// This should mirror the setting from SecureAPIKeyStorage
-    var forceUserDefaultsForTesting: Bool {
-        return SecureAPIKeyStorage.shared.forceUserDefaultsForTesting
-    }
     
     private init() {}
     
@@ -220,10 +215,7 @@ class AtomicStorageManager {
     // MARK: - Storage Implementation Methods
     
     private func saveAPIKey(_ key: String, for provider: LLMProvider, to method: APIKeyStorageMethod) -> StorageResult {
-        // Force UserDefaults during testing to avoid keychain prompts
-        let actualMethod = forceUserDefaultsForTesting ? .userDefaults : method
-        
-        switch actualMethod {
+        switch method {
         case .keychain:
             let success = KeychainManager.shared.saveAPIKey(key, for: provider)
             return success ? .success : .failure(.keychainFailure("Failed to save to keychain"))
@@ -237,10 +229,7 @@ class AtomicStorageManager {
     }
     
     private func loadAPIKey(for provider: LLMProvider, from method: APIKeyStorageMethod) -> String? {
-        // Force UserDefaults during testing to avoid keychain prompts
-        let actualMethod = forceUserDefaultsForTesting ? .userDefaults : method
-        
-        switch actualMethod {
+        switch method {
         case .keychain:
             return KeychainManager.shared.loadAPIKey(for: provider)
             
@@ -250,10 +239,7 @@ class AtomicStorageManager {
     }
     
     private func removeAPIKey(for provider: LLMProvider, from method: APIKeyStorageMethod) -> StorageResult {
-        // Force UserDefaults during testing to avoid keychain prompts
-        let actualMethod = forceUserDefaultsForTesting ? .userDefaults : method
-        
-        switch actualMethod {
+        switch method {
         case .keychain:
             let success = KeychainManager.shared.removeAPIKey(for: provider)
             return success ? .success : .failure(.keychainFailure("Failed to remove from keychain"))
@@ -283,8 +269,7 @@ class AtomicStorageManager {
     
     /// Get current storage status for a provider
     func getStorageStatus(for provider: LLMProvider) -> StorageStatus {
-        // Force UserDefaults during testing to avoid keychain prompts
-        let keychainKey = forceUserDefaultsForTesting ? nil : KeychainManager.shared.loadAPIKey(for: provider)
+        let keychainKey = KeychainManager.shared.loadAPIKey(for: provider)
         let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
         
         let hasKeychain = keychainKey != nil && !keychainKey!.isEmpty
