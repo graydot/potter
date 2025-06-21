@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Potter Updates (Test)</title>
+    <description>Test updates for Potter</description>
+    <language>en</language>
+    <link>https://github.com/graydot/rephrasely</link>
+    <item>
+      <title>Potter 2.0.0</title>
+      <description><![CDATA[Initial release with auto-updates]]></description>
+      <pubDate>Thu, 20 Jun 2025 12:00:00 +0000</pubDate>
+      <enclosure 
+        url="https://github.com/graydot/rephrasely/releases/download/v2.0.0/Potter-2.0.0.dmg" 
+        length="10485760" 
+        type="application/octet-stream" 
+        sparkle:version="2.0.0" 
+        sparkle:shortVersionString="2.0.0" 
+        sparkle:dsaSignature="test_signature_0" />
+    </item>
+    <item>
+      <title>Potter 2.0.1</title>
+      <description><![CDATA[Bug fixes and improvements]]></description>
+      <pubDate>Thu, 21 Jun 2025 12:00:00 +0000</pubDate>
+      <enclosure 
+        url="https://github.com/graydot/rephrasely/releases/download/v2.0.1/Potter-2.0.1.dmg" 
+        length="10485760" 
+        type="application/octet-stream" 
+        sparkle:version="2.0.1" 
+        sparkle:shortVersionString="2.0.1" 
+        sparkle:dsaSignature="test_signature_1" />
+    </item>
+    <item>
+      <title>Potter 2.1.0</title>
+      <description><![CDATA[New features and enhanced UI]]></description>
+      <pubDate>Thu, 22 Jun 2025 12:00:00 +0000</pubDate>
+      <enclosure 
+        url="https://github.com/graydot/rephrasely/releases/download/v2.1.0/Potter-2.1.0.dmg" 
+        length="10485760" 
+        type="application/octet-stream" 
+        sparkle:version="2.1.0" 
+        sparkle:shortVersionString="2.1.0" 
+        sparkle:dsaSignature="test_signature_2" />
+    </item>
+  </channel>
+</rss>

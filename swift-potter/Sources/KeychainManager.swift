@@ -282,16 +282,115 @@ class KeychainManager {
                     PotterLogger.shared.info("keychain_manager", "✅ Saved \(cache.count) API keys to keychain")
                     return true
                 } else {
-                    PotterLogger.shared.error("keychain_manager", "❌ Failed to save API keys to keychain: \(addStatus)")
+                    let errorMessage = keychainErrorMessage(for: addStatus)
+                    PotterLogger.shared.error("keychain_manager", "❌ Failed to save API keys to keychain: \(errorMessage) (code: \(addStatus))")
                     return false
                 }
             } else {
-                PotterLogger.shared.error("keychain_manager", "❌ Failed to update API keys in keychain: \(updateStatus)")
+                let errorMessage = keychainErrorMessage(for: updateStatus)
+                PotterLogger.shared.error("keychain_manager", "❌ Failed to update API keys in keychain: \(errorMessage) (code: \(updateStatus))")
                 return false
             }
         } catch {
             PotterLogger.shared.error("keychain_manager", "❌ JSON serialization error: \(error)")
             return false
+        }
+    }
+    
+    // MARK: - Error Handling Helpers
+    
+    private func keychainErrorMessage(for status: OSStatus) -> String {
+        switch status {
+        case errSecUserCanceled:
+            return "User denied keychain access"
+        case errSecAuthFailed:
+            return "Authentication failed"
+        case errSecInteractionNotAllowed:
+            return "Keychain interaction not allowed"
+        case errSecDuplicateItem:
+            return "Item already exists"
+        case errSecItemNotFound:
+            return "Item not found"
+        case errSecParam:
+            return "Invalid parameters"
+        case errSecAllocate:
+            return "Memory allocation failed"
+        case errSecNotAvailable:
+            return "Keychain not available"
+        case errSecUnimplemented:
+            return "Function not implemented"
+        case errSecDiskFull:
+            return "Disk full"
+        case errSecIO:
+            return "I/O error"
+        case errSecOpWr:
+            return "File already open for writing"
+        case errSecReadOnly:
+            return "Read-only"
+        case errSecNoSuchKeychain:
+            return "Keychain does not exist"
+        case errSecInvalidKeychain:
+            return "Invalid keychain"
+        case errSecDuplicateKeychain:
+            return "Keychain already exists"
+        case errSecDuplicateCallback:
+            return "Duplicate callback"
+        case errSecInvalidCallback:
+            return "Invalid callback"
+        case errSecBufferTooSmall:
+            return "Buffer too small"
+        case errSecDataTooLarge:
+            return "Data too large"
+        case errSecNoSuchAttr:
+            return "Attribute does not exist"
+        case errSecInvalidItemRef:
+            return "Invalid item reference"
+        case errSecInvalidSearchRef:
+            return "Invalid search reference"
+        case errSecNoSuchClass:
+            return "Class does not exist"
+        case errSecNoDefaultKeychain:
+            return "No default keychain"
+        case errSecInteractionRequired:
+            return "User interaction required"
+        case errSecReadOnlyAttr:
+            return "Attribute is read-only"
+        case errSecWrongSecVersion:
+            return "Wrong security version"
+        case errSecKeySizeNotAllowed:
+            return "Key size not allowed"
+        case errSecNoStorageModule:
+            return "No storage module available"
+        case errSecNoCertificateModule:
+            return "No certificate module available"
+        case errSecNoPolicyModule:
+            return "No policy module available"
+        case errSecNoAccessForItem:
+            return "No access for item"
+        case errSecInvalidOwnerEdit:
+            return "Invalid owner edit"
+        case errSecTrustNotAvailable:
+            return "Trust not available"
+        case errSecUnsupportedFormat:
+            return "Unsupported format"
+        case errSecUnknownFormat:
+            return "Unknown format"
+        case errSecKeyIsSensitive:
+            return "Key is sensitive and cannot be extracted"
+        case errSecMultiplePrivKeys:
+            return "Multiple private keys"
+        case errSecPassphraseRequired:
+            return "Passphrase required"
+        case errSecInvalidPasswordRef:
+            return "Invalid password reference"
+        case errSecNoTrustSettings:
+            return "No trust settings"
+        case errSecPkcs12VerifyFailure:
+            return "PKCS12 verification failure"
+        case errSecDecode:
+            return "Unable to decode"
+        default:
+            return "Unknown keychain error"
         }
     }
 }

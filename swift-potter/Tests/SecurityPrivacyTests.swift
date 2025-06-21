@@ -84,16 +84,24 @@ class SecurityPrivacyTests: TestBase {
         let provider = LLMProvider.openAI
         
         // Set key
-        secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
-        XCTAssertEqual(secureStorage.loadAPIKey(for: provider), testKey)
+        let saveResult = secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
+        XCTAssertTrue(saveResult.isSuccess)
+        
+        let loadResult = secureStorage.loadAPIKey(for: provider)
+        switch loadResult {
+        case .success(let loadedKey):
+            XCTAssertEqual(loadedKey, testKey)
+        case .failure(let error):
+            XCTFail("Failed to load API key: \(error.localizedDescription)")
+        }
         
         // Remove key
-        let removeSuccess = secureStorage.removeAPIKey(for: provider)
-        XCTAssertTrue(removeSuccess)
+        let removeResult = secureStorage.removeAPIKey(for: provider)
+        XCTAssertTrue(removeResult.isSuccess)
         
         // Verify removal
-        let removedKey = secureStorage.loadAPIKey(for: provider)
-        XCTAssertNil(removedKey)
+        let removedResult = secureStorage.loadAPIKey(for: provider)
+        XCTAssertTrue(removedResult.isFailure)
         
         // Verify UserDefaults is cleared
         let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
@@ -136,14 +144,29 @@ class SecurityPrivacyTests: TestBase {
         
         for maliciousInput in maliciousInputs {
             // Should handle malicious input safely
-            secureStorage.saveAPIKey(maliciousInput, for: .openAI, using: .userDefaults)
-            let retrievedKey = secureStorage.loadAPIKey(for: .openAI)
+            let saveResult = secureStorage.saveAPIKey(maliciousInput, for: .openAI, using: .userDefaults)
             
-            // Should store and retrieve exactly what was input (no injection)
-            XCTAssertEqual(retrievedKey, maliciousInput)
+            if maliciousInput.isEmpty {
+                // Empty strings should be rejected by validation
+                XCTAssertTrue(saveResult.isFailure)
+                continue
+            } else {
+                XCTAssertTrue(saveResult.isSuccess)
+            }
             
-            // Clean up
-            secureStorage.removeAPIKey(for: .openAI)
+            let loadResult = secureStorage.loadAPIKey(for: .openAI)
+            switch loadResult {
+            case .success(let retrievedKey):
+                // Should store and retrieve exactly what was input (no injection)
+                XCTAssertEqual(retrievedKey, maliciousInput)
+            case .failure(let error):
+                XCTFail("Failed to load malicious input: \(error.localizedDescription)")
+            }
+            
+            // Clean up - ensure complete removal
+            _ = secureStorage.removeAPIKey(for: .openAI)
+            // Also clean up UserDefaults directly to ensure clean state
+            UserDefaults.standard.removeObject(forKey: "api_key_openai")
         }
     }
     

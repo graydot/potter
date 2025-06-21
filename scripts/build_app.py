@@ -246,9 +246,9 @@ def create_info_plist(app_path):
     <key>CFBundleDisplayName</key>
     <string>{APP_NAME}</string>
     <key>CFBundleVersion</key>
-    <string>2.0</string>
+    <string>2.0.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0</string>
+    <string>2.0.2</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundlePackageType</key>

@@ -174,14 +174,23 @@ class PotterCore {
                     )
                 }
             } catch {
-                PotterLogger.shared.error("text_processor", "❌ LLM processing failed: \(error.localizedDescription)")
+                let potterError: PotterError
+                if let existingPotterError = error as? PotterError {
+                    potterError = existingPotterError
+                } else {
+                    // Convert unknown errors to system errors
+                    potterError = PotterError.system(.systemCallFailed(call: "text_processing", errno: 0))
+                }
+                
                 await MainActor.run {
-                    // Set error state with the actual error message
-                    self.iconDelegate?.setErrorState(message: "LLM Error: \(error.localizedDescription)")
+                    GlobalErrorHandler.handle(potterError, context: "text_processing", showUser: false)
+                    
+                    // Set error state with user-friendly message
+                    self.iconDelegate?.setErrorState(message: potterError.localizedDescription)
                     
                     self.showNotification(
                         title: "Processing Failed",
-                        message: "Failed to process text: \(error.localizedDescription)"
+                        message: potterError.localizedDescription
                     )
                 }
             }

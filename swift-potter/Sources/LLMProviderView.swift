@@ -364,7 +364,8 @@ struct LLMProviderView: View {
                 to: newMethod
             )
             
-            if success {
+            switch success {
+            case .success:
                 // Update UI state
                 storageMethod = newMethod
                 
@@ -375,10 +376,10 @@ struct LLMProviderView: View {
                 }
                 
                 PotterLogger.shared.info("api_storage", "✅ Migrated \(llmManager.selectedProvider.rawValue) to \(newMethod.rawValue)")
-            } else {
+            case .failure(let error):
                 // Migration failed
                 showStorageError = true
-                storageErrorMessage = "Failed to migrate to \(newMethod.displayName). Please try again."
+                storageErrorMessage = "Failed to migrate to \(newMethod.displayName): \(error.localizedDescription)"
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                     showStorageError = false

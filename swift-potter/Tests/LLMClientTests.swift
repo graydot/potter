@@ -62,21 +62,21 @@ class LLMClientTests: TestBase {
     }
     
     
-    func testLLMErrorTypes() {
-        let errors: [LLMError] = [
-            .invalidAPIKey,
-            .noResponse,
-            .invalidResponse,
-            .apiError(400, "Bad Request")
+    func testPotterErrorTypes() {
+        let errors: [PotterError] = [
+            .configuration(.invalidAPIKey(provider: "Test")),
+            .network(.invalidResponse(reason: "No response")),
+            .network(.invalidResponse(reason: "Invalid response")),
+            .network(.serverError(statusCode: 400, message: "Bad Request"))
         ]
         
         for error in errors {
-            XCTAssertTrue(error is LLMError)
+            XCTAssertTrue(error is PotterError)
         }
         
         // Test API error details
-        if case .apiError(let code, let message) = LLMError.apiError(404, "Not Found") {
-            XCTAssertEqual(code, 404)
+        if case .network(.serverError(let statusCode, let message)) = PotterError.network(.serverError(statusCode: 404, message: "Not Found")) {
+            XCTAssertEqual(statusCode, 404)
             XCTAssertEqual(message, "Not Found")
         } else {
             XCTFail("API error case should match")

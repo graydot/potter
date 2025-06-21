@@ -49,57 +49,102 @@ class SecureAPIKeyStorage {
     
     // MARK: - API Key Storage (Single Access Point)
     
-    func saveAPIKey(_ apiKey: String, for provider: LLMProvider, using method: APIKeyStorageMethod) -> Bool {
-        // Remove from both locations first to avoid duplicates
-        _ = removeAPIKey(for: provider)
+    func saveAPIKey(_ apiKey: String, for provider: LLMProvider, using method: APIKeyStorageMethod) -> Result<Void, PotterError> {
+        // Validate input
+        guard !apiKey.isEmpty else {
+            return .failure(.validation(.emptyInput(field: "API Key")))
+        }
         
-        let success: Bool
+        // Remove from both locations first to avoid duplicates
+        let removeResult = removeAPIKey(for: provider)
+        switch removeResult {
+        case .failure(let error):
+            PotterLogger.shared.warning("api_storage", "Failed to clean up existing keys: \(error.technicalDescription)")
+        case .success:
+            break
+        }
+        
+        let result: Result<Void, PotterError>
         switch method {
         case .keychain:
-            success = KeychainManager.shared.saveAPIKey(apiKey, for: provider)
+            // Check if keychain is accessible first
+            if !KeychainManager.shared.isKeychainAccessible() {
+                result = .failure(.storage(.keychainUnavailable))
+            } else {
+                let success = KeychainManager.shared.saveAPIKey(apiKey, for: provider)
+                result = success ? .success(()) : .failure(.storage(.saveFailed(key: "api_key_\(provider.rawValue)", reason: "Keychain access was denied by user or system")))
+            }
         case .userDefaults:
-            success = saveToUserDefaults(apiKey, for: provider)
+            let success = saveToUserDefaults(apiKey, for: provider)
+            result = success ? .success(()) : .failure(.storage(.saveFailed(key: "api_key_\(provider.rawValue)", reason: "UserDefaults save operation failed")))
         }
         
-        if success {
+        switch result {
+        case .success:
             setStorageMethod(method, for: provider)
+            return .success(())
+        case .failure(let error):
+            return .failure(error)
         }
-        
-        return success
     }
     
-    func loadAPIKey(for provider: LLMProvider) -> String? {
+    func loadAPIKey(for provider: LLMProvider) -> Result<String, PotterError> {
         let preferredMethod = getStorageMethod(for: provider)
         
+        let apiKey: String?
         switch preferredMethod {
         case .keychain:
-            return KeychainManager.shared.loadAPIKey(for: provider)
+            apiKey = KeychainManager.shared.loadAPIKey(for: provider)
         case .userDefaults:
-            return loadFromUserDefaults(for: provider)
+            apiKey = loadFromUserDefaults(for: provider)
         }
+        
+        guard let apiKey = apiKey, !apiKey.isEmpty else {
+            return .failure(.storage(.keyNotFound(key: "api_key_\(provider.rawValue)")))
+        }
+        
+        return .success(apiKey)
     }
     
-    func removeAPIKey(for provider: LLMProvider) -> Bool {
+    func removeAPIKey(for provider: LLMProvider) -> Result<Void, PotterError> {
         var keychainSuccess = true
         var userDefaultsSuccess = true
+        var errors: [String] = []
         
         // Only access keychain if not in testing mode
         if !forceUserDefaultsForTesting {
             keychainSuccess = KeychainManager.shared.removeAPIKey(for: provider)
+            if !keychainSuccess {
+                errors.append("keychain removal failed")
+            }
         }
+        
         userDefaultsSuccess = removeFromUserDefaults(for: provider)
+        if !userDefaultsSuccess {
+            errors.append("UserDefaults removal failed")
+        }
         
         // Remove storage method preference
         let key = "\(storageMethodKey)_\(provider.rawValue)"
         UserDefaults.standard.removeObject(forKey: key)
         
-        return keychainSuccess && userDefaultsSuccess
+        if keychainSuccess && userDefaultsSuccess {
+            return .success(())
+        } else {
+            let reason = errors.joined(separator: ", ")
+            return .failure(.storage(.deleteFailed(key: "api_key_\(provider.rawValue)", reason: reason)))
+        }
     }
     
     // MARK: - Atomic Operations (Race-Condition Safe)
     
     /// Atomically save API key with race condition protection
-    func atomicSaveAPIKey(_ apiKey: String, for provider: LLMProvider, using method: APIKeyStorageMethod) async -> Bool {
+    func atomicSaveAPIKey(_ apiKey: String, for provider: LLMProvider, using method: APIKeyStorageMethod) async -> Result<Void, PotterError> {
+        // Validate input
+        guard !apiKey.isEmpty else {
+            return .failure(.validation(.emptyInput(field: "API Key")))
+        }
+        
         let currentMethod = getStorageMethod(for: provider)
         let previousMethod = currentMethod != method ? currentMethod : nil
         
@@ -113,20 +158,21 @@ class SecureAPIKeyStorage {
         switch result {
         case .success:
             PotterLogger.shared.info("api_storage", "✅ Atomic save successful: \(provider.rawValue)")
-            return true
+            return .success(())
         case .failure(let error):
-            PotterLogger.shared.error("api_storage", "❌ Atomic save failed: \(error.localizedDescription)")
-            return false
+            let potterError: PotterError = .storage(.saveFailed(key: "api_key_\(provider.rawValue)", reason: error.localizedDescription))
+            PotterLogger.shared.error("api_storage", "❌ Atomic save failed: \(potterError.technicalDescription)")
+            return .failure(potterError)
         }
     }
     
     /// Atomically migrate API key between storage methods
-    func atomicMigrateAPIKey(for provider: LLMProvider, to targetMethod: APIKeyStorageMethod) async -> Bool {
+    func atomicMigrateAPIKey(for provider: LLMProvider, to targetMethod: APIKeyStorageMethod) async -> Result<Void, PotterError> {
         let currentMethod = getStorageMethod(for: provider)
         
         guard currentMethod != targetMethod else {
             PotterLogger.shared.info("api_storage", "ℹ️ Already using target storage method: \(targetMethod.rawValue)")
-            return true
+            return .success(())
         }
         
         let result = await AtomicStorageManager.shared.atomicMigration(
@@ -140,15 +186,16 @@ class SecureAPIKeyStorage {
             // Update our preference to match the atomic manager
             setStorageMethod(targetMethod, for: provider)
             PotterLogger.shared.info("api_storage", "✅ Atomic migration successful: \(provider.rawValue) -> \(targetMethod.rawValue)")
-            return true
+            return .success(())
         case .failure(let error):
-            PotterLogger.shared.error("api_storage", "❌ Atomic migration failed: \(error.localizedDescription)")
-            return false
+            let potterError: PotterError = .storage(.migrationFailed(from: currentMethod.rawValue, to: targetMethod.rawValue, reason: error.localizedDescription))
+            PotterLogger.shared.error("api_storage", "❌ Atomic migration failed: \(potterError.technicalDescription)")
+            return .failure(potterError)
         }
     }
     
     /// Atomically remove API key with confirmation
-    func atomicRemoveAPIKey(for provider: LLMProvider) async -> Bool {
+    func atomicRemoveAPIKey(for provider: LLMProvider) async -> Result<Void, PotterError> {
         let currentMethod = getStorageMethod(for: provider)
         
         let result = await AtomicStorageManager.shared.atomicRemove(
@@ -162,10 +209,11 @@ class SecureAPIKeyStorage {
             let key = "\(storageMethodKey)_\(provider.rawValue)"
             UserDefaults.standard.removeObject(forKey: key)
             PotterLogger.shared.info("api_storage", "✅ Atomic removal successful: \(provider.rawValue)")
-            return true
+            return .success(())
         case .failure(let error):
-            PotterLogger.shared.error("api_storage", "❌ Atomic removal failed: \(error.localizedDescription)")
-            return false
+            let potterError: PotterError = .storage(.deleteFailed(key: "api_key_\(provider.rawValue)", reason: error.localizedDescription))
+            PotterLogger.shared.error("api_storage", "❌ Atomic removal failed: \(potterError.technicalDescription)")
+            return .failure(potterError)
         }
     }
     
@@ -232,8 +280,13 @@ class SecureAPIKeyStorage {
     // MARK: - Migration (Single Access Point)
     
     /// Migrate all API keys to keychain storage
-    func migrateAllToKeychain() -> [LLMProvider: Bool] {
+    func migrateAllToKeychain() -> Result<[LLMProvider: Bool], PotterError> {
         PotterLogger.shared.info("api_storage", "🔄 Starting migration to keychain for all providers")
+        
+        // Check if keychain is accessible
+        guard isKeychainAccessible() else {
+            return .failure(.storage(.keychainUnavailable))
+        }
         
         let results = KeychainManager.shared.migrateFromUserDefaults()
         
@@ -247,11 +300,11 @@ class SecureAPIKeyStorage {
         let successCount = results.values.filter { $0 }.count
         PotterLogger.shared.info("api_storage", "✅ Migration completed: \(successCount)/\(results.count) providers migrated to keychain")
         
-        return results
+        return .success(results)
     }
     
     /// Migrate all API keys to UserDefaults storage
-    func migrateAllToUserDefaults() -> [LLMProvider: Bool] {
+    func migrateAllToUserDefaults() -> Result<[LLMProvider: Bool], PotterError> {
         PotterLogger.shared.info("api_storage", "🔄 Starting migration to UserDefaults for all providers")
         
         let results = KeychainManager.shared.exportToUserDefaults()
@@ -266,7 +319,7 @@ class SecureAPIKeyStorage {
         let successCount = results.values.filter { $0 }.count
         PotterLogger.shared.info("api_storage", "✅ Migration completed: \(successCount)/\(results.count) providers migrated to UserDefaults")
         
-        return results
+        return .success(results)
     }
     
     // MARK: - UserDefaults Operations
@@ -292,7 +345,8 @@ class SecureAPIKeyStorage {
     
     func getStorageStatus(for provider: LLMProvider) -> (hasKey: Bool, method: APIKeyStorageMethod) {
         let currentMethod = getStorageMethod(for: provider)
-        let hasKey = loadAPIKey(for: provider) != nil
+        let loadResult = loadAPIKey(for: provider)
+        let hasKey = loadResult.isSuccess
         return (hasKey, currentMethod)
     }
     

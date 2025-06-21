@@ -104,7 +104,7 @@ class OpenAIClient: LLMClient {
         if statusCode != 200 {
             let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
             PotterLogger.shared.error("validation", "❌ OpenAI validation failed - Response: \(errorBody)")
-            throw LLMError.apiError(statusCode, errorBody)
+            throw createLLMError(for: statusCode, message: errorBody, provider: "OpenAI")
         }
         
         return true
@@ -131,18 +131,18 @@ class OpenAIClient: LLMClient {
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw LLMError.invalidResponse
+            throw createResponseError(reason: "OpenAI API returned invalid HTTP response")
         }
         
         guard httpResponse.statusCode == 200 else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw LLMError.apiError(httpResponse.statusCode, errorMessage)
+            throw createLLMError(for: httpResponse.statusCode, message: errorMessage, provider: "OpenAI")
         }
         
         let openAIResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
         
         guard let firstChoice = openAIResponse.choices.first else {
-            throw LLMError.noResponse
+            throw createResponseError(reason: "OpenAI API returned no response choices")
         }
         
         return firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,7 +185,7 @@ class AnthropicClient: LLMClient {
         if statusCode != 200 {
             let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
             PotterLogger.shared.error("validation", "❌ Anthropic validation failed - Response: \(errorBody)")
-            throw LLMError.apiError(statusCode, errorBody)
+            throw createLLMError(for: statusCode, message: errorBody, provider: "Anthropic")
         }
         
         return true
@@ -211,18 +211,18 @@ class AnthropicClient: LLMClient {
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw LLMError.invalidResponse
+            throw createResponseError(reason: "Anthropic API returned invalid HTTP response")
         }
         
         guard httpResponse.statusCode == 200 else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw LLMError.apiError(httpResponse.statusCode, errorMessage)
+            throw createLLMError(for: httpResponse.statusCode, message: errorMessage, provider: "Anthropic")
         }
         
         let anthropicResponse = try JSONDecoder().decode(AnthropicResponse.self, from: data)
         
         guard let firstContent = anthropicResponse.content.first else {
-            throw LLMError.noResponse
+            throw createResponseError(reason: "Anthropic API returned no response content")
         }
         
         return firstContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -262,7 +262,7 @@ class GoogleClient: LLMClient {
         if statusCode != 200 {
             let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
             PotterLogger.shared.error("validation", "❌ Google validation failed - Response: \(errorBody)")
-            throw LLMError.apiError(statusCode, errorBody)
+            throw createLLMError(for: statusCode, message: errorBody, provider: "Google")
         }
         
         return true
@@ -286,12 +286,12 @@ class GoogleClient: LLMClient {
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw LLMError.invalidResponse
+            throw createResponseError(reason: "Google API returned invalid HTTP response")
         }
         
         guard httpResponse.statusCode == 200 else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw LLMError.apiError(httpResponse.statusCode, errorMessage)
+            throw createLLMError(for: httpResponse.statusCode, message: errorMessage, provider: "Google")
         }
         
         let googleResponse = try JSONDecoder().decode(GoogleResponse.self, from: data)
@@ -299,7 +299,7 @@ class GoogleClient: LLMClient {
         guard let firstCandidate = googleResponse.candidates.first,
               let content = firstCandidate.content,
               let firstPart = content.parts.first else {
-            throw LLMError.noResponse
+            throw createResponseError(reason: "Google API returned no response candidates")
         }
         
         return firstPart.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -368,23 +368,31 @@ struct GoogleCandidate: Codable {
     let content: GoogleContent?
 }
 
-// MARK: - Errors
-enum LLMError: Error, LocalizedError {
-    case invalidResponse
-    case apiError(Int, String)
-    case noResponse
-    case invalidAPIKey
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidResponse:
-            return "Invalid response from API"
-        case .apiError(let code, let message):
-            return "API Error (\(code)): \(message)"
-        case .noResponse:
-            return "No response content received"
-        case .invalidAPIKey:
-            return "Invalid API key"
-        }
+// MARK: - Error Conversion Helpers
+
+/// Helper function to convert common LLM API errors to PotterError
+private func createLLMError(for statusCode: Int, message: String, provider: String) -> PotterError {
+    switch statusCode {
+    case 400:
+        return .network(.invalidResponse(reason: "\(provider) API: \(message)"))
+    case 401, 403:
+        return .network(.unauthorized(provider: provider))
+    case 429:
+        // Extract retry-after if available in message
+        return .network(.rateLimited(retryAfter: nil))
+    case 500...599:
+        return .network(.serverError(statusCode: statusCode, message: message))
+    default:
+        return .network(.requestFailed(underlying: "\(provider) API Error (\(statusCode)): \(message)"))
     }
+}
+
+/// Helper function for invalid API key errors
+private func createInvalidAPIKeyError(provider: String) -> PotterError {
+    return .configuration(.invalidAPIKey(provider: provider))
+}
+
+/// Helper function for network response errors
+private func createResponseError(reason: String) -> PotterError {
+    return .network(.invalidResponse(reason: reason))
 }

@@ -106,7 +106,7 @@ class LLMManagerTests: TestBase {
             _ = try await llmManager.processText("test", prompt: "test prompt")
             XCTFail("Should throw error when no valid provider")
         } catch {
-            XCTAssertTrue(error is LLMError)
+            XCTAssertTrue(error is PotterError)
         }
     }
     
@@ -117,7 +117,7 @@ class LLMManagerTests: TestBase {
             _ = try await llmManager.processText("test", prompt: "test prompt")
             XCTFail("Should throw error when no API key")
         } catch {
-            XCTAssertTrue(error is LLMError)
+            XCTAssertTrue(error is PotterError)
         }
     }
     
@@ -129,7 +129,7 @@ class LLMManagerTests: TestBase {
             _ = try await llmManager.processText("test", prompt: "test prompt")
             XCTFail("Should throw error when no model selected")
         } catch {
-            XCTAssertTrue(error is LLMError)
+            XCTAssertTrue(error is PotterError)
         }
     }
     

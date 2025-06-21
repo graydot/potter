@@ -66,14 +66,14 @@ class ErrorHandlingEdgeCasesTests: TestBase {
             _ = try await llmManager.processText("test", prompt: "test prompt")
             XCTFail("Should throw error when no API key")
         } catch {
-            XCTAssertTrue(error is LLMError)
-            if let llmError = error as? LLMError {
+            XCTAssertTrue(error is PotterError)
+            if let potterError = error as? PotterError {
                 // Check if it's the right error type
-                switch llmError {
-                case .invalidAPIKey:
+                switch potterError {
+                case .configuration(.missingAPIKey):
                     XCTAssertTrue(true) // Expected error type
                 default:
-                    XCTFail("Expected invalidAPIKey error, got \(llmError)")
+                    XCTFail("Expected missingAPIKey error, got \(potterError)")
                 }
             }
         }
@@ -88,42 +88,42 @@ class ErrorHandlingEdgeCasesTests: TestBase {
             _ = try await llmManager.processText("test", prompt: "test prompt")
             XCTFail("Should throw error when no model selected")
         } catch {
-            XCTAssertTrue(error is LLMError)
-            if let llmError = error as? LLMError {
+            XCTAssertTrue(error is PotterError)
+            if let potterError = error as? PotterError {
                 // Check if it's the right error type
-                switch llmError {
-                case .noResponse:
+                switch potterError {
+                case .configuration(.missingConfiguration):
                     XCTAssertTrue(true) // Expected error type
                 default:
-                    XCTFail("Expected noResponse error, got \(llmError)")
+                    XCTFail("Expected missingConfiguration error, got \(potterError)")
                 }
             }
         }
     }
     
-    func testLLMErrorTypes() {
-        // Test LLM error types and their properties
-        let errors: [LLMError] = [
-            .invalidAPIKey,
-            .noResponse,
-            .invalidResponse,
-            .apiError(400, "Bad Request"),
-            .apiError(401, "Unauthorized"),
-            .apiError(429, "Rate Limited"),
-            .apiError(500, "Server Error")
+    func testPotterErrorTypes() {
+        // Test Potter error types and their properties
+        let errors: [PotterError] = [
+            .configuration(.invalidAPIKey(provider: "Test")),
+            .network(.invalidResponse(reason: "No response")),
+            .network(.invalidResponse(reason: "Invalid response")),
+            .network(.serverError(statusCode: 400, message: "Bad Request")),
+            .network(.unauthorized(provider: "Test")),
+            .network(.rateLimited(retryAfter: nil)),
+            .network(.serverError(statusCode: 500, message: "Server Error"))
         ]
         
         for error in errors {
-            // Should be LLMError instances
-            XCTAssertTrue(error is LLMError)
+            // Should be PotterError instances
+            XCTAssertTrue(error is PotterError)
             
             // Should have meaningful descriptions
             XCTAssertFalse(error.localizedDescription.isEmpty)
         }
         
         // Test specific API error details
-        if case .apiError(let code, let message) = LLMError.apiError(404, "Not Found") {
-            XCTAssertEqual(code, 404)
+        if case .network(.serverError(let statusCode, let message)) = PotterError.network(.serverError(statusCode: 404, message: "Not Found")) {
+            XCTAssertEqual(statusCode, 404)
             XCTAssertEqual(message, "Not Found")
         } else {
             XCTFail("API error case should match")
@@ -142,7 +142,7 @@ class ErrorHandlingEdgeCasesTests: TestBase {
             XCTFail("Should fail with invalid API key")
         } catch {
             // Should handle error gracefully
-            XCTAssertTrue(error is LLMError)
+            XCTAssertTrue(error is PotterError)
         }
     }
     

@@ -100,7 +100,13 @@ class LLMManager: ObservableObject {
         // Save to storage using the current preferred method for this provider
         let currentMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: provider)
         if !apiKey.isEmpty {
-            _ = SecureAPIKeyStorage.shared.saveAPIKey(apiKey, for: provider, using: currentMethod)
+            let result = SecureAPIKeyStorage.shared.saveAPIKey(apiKey, for: provider, using: currentMethod)
+            switch result {
+            case .success:
+                break
+            case .failure(let error):
+                PotterLogger.shared.error("llm_manager", "Failed to save API key for \(provider.displayName): \(error.localizedDescription)")
+            }
         }
         
         saveSettings()
@@ -113,9 +119,13 @@ class LLMManager: ObservableObject {
         }
         
         // Load from storage if not in memory
-        if let storedKey = SecureAPIKeyStorage.shared.loadAPIKey(for: provider) {
+        let loadResult = SecureAPIKeyStorage.shared.loadAPIKey(for: provider)
+        switch loadResult {
+        case .success(let storedKey):
             apiKeys[provider] = storedKey
             return storedKey
+        case .failure:
+            break
         }
         
         return ""
@@ -167,13 +177,13 @@ class LLMManager: ObservableObject {
     // MARK: - Text Processing
     func processText(_ text: String, prompt: String) async throws -> String {
         guard let model = selectedModel else {
-            throw LLMError.noResponse
+            throw PotterError.configuration(.missingConfiguration(key: "selected model"))
         }
         
         // Get API key from storage (will load into memory cache if needed)
         let apiKey = getAPIKey(for: selectedProvider)
         guard !apiKey.isEmpty else {
-            throw LLMError.invalidAPIKey
+            throw PotterError.configuration(.missingAPIKey(provider: selectedProvider.displayName))
         }
         
         // Get or create client

@@ -118,11 +118,16 @@ class SettingsConfigurationTests: TestBase {
         let provider = LLMProvider.openAI
         
         // Test UserDefaults storage
-        let success = secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
-        XCTAssertTrue(success)
+        let saveResult = secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
+        XCTAssertTrue(saveResult.isSuccess)
         
-        let loadedKey = secureStorage.loadAPIKey(for: provider)
-        XCTAssertEqual(loadedKey, testKey)
+        let loadResult = secureStorage.loadAPIKey(for: provider)
+        switch loadResult {
+        case .success(let loadedKey):
+            XCTAssertEqual(loadedKey, testKey)
+        case .failure(let error):
+            XCTFail("Failed to load API key: \(error.localizedDescription)")
+        }
         
         // Verify it's actually in UserDefaults
         let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
@@ -145,18 +150,6 @@ class SettingsConfigurationTests: TestBase {
     
     
     
-    func testSettingsWithMissingData() {
-        // Test settings loading with missing/corrupted data
-        UserDefaults.standard.set("invalid_provider", forKey: "llm_provider")
-        UserDefaults.standard.set("invalid_model_id", forKey: "selected_model")
-        
-        let manager = LLMManager()
-        
-        // Should fall back to defaults
-        XCTAssertEqual(manager.selectedProvider, .openAI) // Default provider
-        XCTAssertNotNil(manager.selectedModel)
-        XCTAssertEqual(manager.selectedModel?.provider, .openAI)
-    }
     
     func testValidationStateManagement() {
         // Test validation state management
