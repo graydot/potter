@@ -239,12 +239,13 @@ class GoogleClient: LLMClient {
     }
     
     func validateAPIKey(_ apiKey: String) async throws -> Bool {
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=\(apiKey)")!
-        var request = URLRequest(url: url)
+        let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent")!
+        var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         
-        PotterLogger.shared.info("validation", "🔍 Google validation URL: \(url.absoluteString)")
+        PotterLogger.shared.info("validation", "🔍 Google validation URL: \(baseURL.absoluteString)")
         
         let testBody = GoogleRequest(
             contents: [GoogleContent(parts: [GooglePart(text: "test")])]
@@ -269,10 +270,11 @@ class GoogleClient: LLMClient {
     
     func processText(_ text: String, prompt: String, model: String) async throws -> String {
         let modelName = model
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(modelName):generateContent?key=\(apiKey)")!
-        var request = URLRequest(url: url)
+        let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(modelName):generateContent")!
+        var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         
         let requestBody = GoogleRequest(
             contents: [GoogleContent(parts: [GooglePart(text: "\(prompt)\n\n\(text)")])]
