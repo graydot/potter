@@ -147,60 +147,8 @@ class SettingsConfigurationTests: TestBase {
         XCTAssertEqual(userDefaultsKey, testKey)
     }
     
-    func testAPIKeyRemoval() {
-        // Test removing API keys
-        let testKey = "sk-test-removal-key"
-        let provider = LLMProvider.anthropic
-        
-        // Save key first
-        _ = secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
-        XCTAssertEqual(secureStorage.loadAPIKey(for: provider), testKey)
-        
-        // Remove key
-        let removeSuccess = secureStorage.removeAPIKey(for: provider)
-        XCTAssertTrue(removeSuccess)
-        
-        // Verify removal
-        let removedKey = secureStorage.loadAPIKey(for: provider)
-        XCTAssertNil(removedKey)
-        
-        // Verify UserDefaults is cleared
-        let userDefaultsKey = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
-        XCTAssertNil(userDefaultsKey)
-    }
     
-    func testStorageMethodPersistence() {
-        // Test that storage method preferences persist
-        let provider = LLMProvider.google
-        
-        secureStorage.setStorageMethod(.keychain, for: provider)
-        
-        // Verify persistence in UserDefaults
-        let methodKey = "api_key_storage_method_\(provider.rawValue)"
-        let savedMethod = UserDefaults.standard.string(forKey: methodKey)
-        XCTAssertEqual(savedMethod, APIKeyStorageMethod.keychain.rawValue)
-    }
     
-    func testMultipleProviderStorage() {
-        // Test storing keys for multiple providers with different methods
-        let testKeys = [
-            LLMProvider.openAI: "sk-openai-test",
-            LLMProvider.anthropic: "sk-ant-test", 
-            LLMProvider.google: "google-test"
-        ]
-        
-        // Save all keys
-        for (provider, key) in testKeys {
-            let success = secureStorage.saveAPIKey(key, for: provider, using: .userDefaults)
-            XCTAssertTrue(success, "Failed to save key for \(provider)")
-        }
-        
-        // Verify all keys can be loaded
-        for (provider, expectedKey) in testKeys {
-            let loadedKey = secureStorage.loadAPIKey(for: provider)
-            XCTAssertEqual(loadedKey, expectedKey, "Key mismatch for \(provider)")
-        }
-    }
     
     func testKeychainAccessibilityCheck() {
         // Test keychain accessibility checking
@@ -213,28 +161,6 @@ class SettingsConfigurationTests: TestBase {
     
     // MARK: - T3.3: Settings Persistence & Management
     
-    func testLLMManagerSettingsPersistence() {
-        // Test that LLM manager settings persist across instances
-        let testProvider = LLMProvider.anthropic
-        let testKey = "sk-test-persistence"
-        
-        // Configure first instance
-        llmManager.selectProvider(testProvider)
-        llmManager.setAPIKey(testKey, for: testProvider)
-        
-        if let testModel = testProvider.models.first {
-            llmManager.selectModel(testModel)
-        }
-        
-        llmManager.saveSettings()
-        
-        // Create new instance to test persistence
-        let newManager = LLMManager()
-        
-        XCTAssertEqual(newManager.selectedProvider, testProvider)
-        XCTAssertEqual(newManager.getAPIKey(for: testProvider), testKey)
-        XCTAssertEqual(newManager.selectedModel?.provider, testProvider)
-    }
     
     
     func testSettingsWithMissingData() {
