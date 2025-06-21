@@ -365,6 +365,10 @@ class SecureAPIKeyStorage {
     }
     
     func isKeychainAccessible() -> Bool {
+        // In testing mode, always return false to avoid keychain access
+        if forceUserDefaultsForTesting {
+            return false
+        }
         return KeychainManager.shared.isKeychainAccessible()
     }
     

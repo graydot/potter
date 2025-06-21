@@ -28,9 +28,10 @@ class AutoUpdateManager: NSObject {
     private func setupSparkleUpdater() {
         PotterLogger.shared.info("autoupdate", "🔄 Setting up Sparkle auto-updater...")
         
-        // Create updater controller
+        // Create updater controller with minimal configuration
+        // Let Sparkle use Info.plist settings to avoid configuration issues
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: false,  // Start manually to control initialization
             updaterDelegate: self,
             userDriverDelegate: nil
         )
@@ -42,20 +43,13 @@ class AutoUpdateManager: NSObject {
         
         updater = controller.updater
         
-        // Configure updater
-        if let feedURLObj = URL(string: feedURL) {
-            updater?.setFeedURL(feedURLObj)
-        }
-        updater?.automaticallyChecksForUpdates = getAutoUpdateEnabled()
-        updater?.updateCheckInterval = updateCheckInterval
+        // Use minimal configuration - let Info.plist handle most settings
+        updater?.sendsSystemProfile = false
         
-        // Load user preferences
-        loadUpdatePreferences()
+        // Start the updater after configuration
+        controller.startUpdater()
         
-        PotterLogger.shared.info("autoupdate", "✅ Sparkle auto-updater configured")
-        PotterLogger.shared.info("autoupdate", "📡 Feed URL: \(feedURL)")
-        PotterLogger.shared.info("autoupdate", "⏰ Check interval: \(updateCheckInterval/3600) hours")
-        PotterLogger.shared.info("autoupdate", "🔧 Auto-check enabled: \(getAutoUpdateEnabled())")
+        PotterLogger.shared.info("autoupdate", "✅ Sparkle auto-updater configured using Info.plist settings")
     }
     
     // MARK: - Public API
@@ -74,6 +68,19 @@ class AutoUpdateManager: NSObject {
     func checkForUpdatesInBackground() {
         PotterLogger.shared.info("autoupdate", "🔍 Background update check")
         updater?.checkForUpdatesInBackground()
+    }
+    
+    /**
+     * Start automatic background update checks (no user alerts for errors)
+     */
+    func startBackgroundUpdateChecks() {
+        guard let updater = updater else { return }
+        
+        // Use background checks to avoid user-facing error alerts
+        if updater.automaticallyChecksForUpdates {
+            PotterLogger.shared.info("autoupdate", "🔄 Starting background update checks")
+            checkForUpdatesInBackground()
+        }
     }
     
     /**
@@ -116,7 +123,7 @@ class AutoUpdateManager: NSObject {
     // MARK: - Private Methods
     
     private func loadUpdatePreferences() {
-        // Load preferences from UserDefaults
+        // Load preferences from UserDefaults and configure for gentle operation
         let autoUpdateEnabled = getAutoUpdateEnabled()
         updater?.automaticallyChecksForUpdates = autoUpdateEnabled
         
@@ -138,7 +145,9 @@ extension AutoUpdateManager: SPUUpdaterDelegate {
     
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) -> Bool {
         PotterLogger.shared.info("autoupdate", "🔍 Sparkle requesting permission for update check")
-        return true // Allow all update checks
+        
+        // Allow all update checks but log them for monitoring
+        return true
     }
     
     func updater(_ updater: SPUUpdater, didFind validUpdate: SUAppcastItem) {
@@ -153,7 +162,11 @@ extension AutoUpdateManager: SPUUpdaterDelegate {
     }
     
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        PotterLogger.shared.error("autoupdate", "❌ Update check failed: \(error.localizedDescription)")
+        // Log the error silently - Sparkle framework may still show alerts
+        PotterLogger.shared.warning("autoupdate", "⚠️ Update check failed: \(error.localizedDescription)")
+        
+        // For network errors, we don't want to bother the user
+        // The error alert is handled by Sparkle's UI layer, not our delegate
     }
     
     func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {

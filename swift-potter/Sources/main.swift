@@ -523,15 +523,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func setupAutoUpdater() {
-        PotterLogger.shared.info("startup", "🔄 Setting up auto-updater...")
+        PotterLogger.shared.info("startup", "🔄 Setting up auto-updater with proper Info.plist configuration...")
         
-        // Initialize auto-updater
+        // Initialize auto-updater with Info.plist configuration
         _ = AutoUpdateManager.shared
         
-        // Check for updates in background after app launch
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-            AutoUpdateManager.shared.checkForUpdatesInBackground()
-        }
+        PotterLogger.shared.info("startup", "✅ Auto-updater initialized")
     }
     
     private func checkAndShowSettingsIfNeeded() {

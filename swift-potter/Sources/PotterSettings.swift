@@ -3,11 +3,11 @@ import Foundation
 class PotterSettings: ObservableObject {
     private let userDefaults = UserDefaults.standard
     
-    // Keys
+    // Keys - Updated to match StorageAdapter format
     private enum Keys {
-        static let openaiAPIKey = "openai_api_key"
-        static let anthropicAPIKey = "anthropic_api_key"
-        static let googleAPIKey = "google_api_key"
+        static let openaiAPIKey = "api_key_openai"
+        static let anthropicAPIKey = "api_key_anthropic"
+        static let googleAPIKey = "api_key_google"
         static let currentProvider = "current_provider"
         static let currentPrompt = "current_prompt"
         static let notifications = "notifications_enabled"
