@@ -226,6 +226,26 @@ def create_app_bundle():
     # Make executable
     os.chmod(f"{app_path}/Contents/MacOS/{APP_NAME}", 0o755)
     
+    # Fix framework references to use correct paths
+    print("🔧 Fixing framework references...")
+    executable_path = f"{app_path}/Contents/MacOS/{APP_NAME}"
+    
+    # Update Sparkle framework reference
+    try:
+        result = subprocess.run([
+            'install_name_tool', '-change',
+            '@rpath/Sparkle.framework/Versions/B/Sparkle',
+            '@executable_path/../Frameworks/Sparkle.framework/Versions/B/Sparkle',
+            executable_path
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("✅ Framework references updated")
+        else:
+            print(f"⚠️  Framework reference update failed: {result.stderr}")
+    except Exception as e:
+        print(f"⚠️  Could not update framework references: {e}")
+    
     print("✅ App bundle structure created")
     return app_path
 
@@ -269,6 +289,16 @@ def create_info_plist(app_path):
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    
+    <!-- Sparkle Auto-Update Configuration -->
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/graydot/rephrasely/main/releases/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>sparkle:edDSAPublicKey</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
 </dict>
 </plist>"""
     
@@ -320,8 +350,16 @@ def bundle_frameworks(app_path):
         sparkle_dest = f"{frameworks_dir}/Sparkle.framework"
         if os.path.exists(sparkle_dest):
             shutil.rmtree(sparkle_dest)
-        shutil.copytree(sparkle_xcframework_path, sparkle_dest)
-        print("✅ Sparkle framework bundled")
+        
+        # Use cp -a to preserve symlinks (critical for Sparkle framework)
+        import subprocess
+        result = subprocess.run(['cp', '-a', sparkle_xcframework_path, sparkle_dest], 
+                              capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"❌ Failed to copy Sparkle framework: {result.stderr}")
+            return False
+            
+        print("✅ Sparkle framework bundled (symlinks preserved)")
         return True
     else:
         print(f"❌ Sparkle framework not found at {sparkle_xcframework_path}")
@@ -336,8 +374,15 @@ def bundle_frameworks(app_path):
                 sparkle_dest = f"{frameworks_dir}/Sparkle.framework"
                 if os.path.exists(sparkle_dest):
                     shutil.rmtree(sparkle_dest)
-                shutil.copytree(alt_path, sparkle_dest)
-                print(f"✅ Sparkle framework bundled from {alt_path}")
+                
+                # Use cp -a to preserve symlinks
+                result = subprocess.run(['cp', '-a', alt_path, sparkle_dest], 
+                                      capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"❌ Failed to copy Sparkle framework from {alt_path}: {result.stderr}")
+                    continue
+                    
+                print(f"✅ Sparkle framework bundled from {alt_path} (symlinks preserved)")
                 return True
         
         print("❌ Could not find Sparkle framework in any expected location")
@@ -356,13 +401,66 @@ def sign_app(app_path, signing_identity, entitlements_file, target='local'):
                     framework_path = f"{frameworks_dir}/{framework}"
                     print(f"🔐 Signing framework: {framework}")
                     
-                    # Use deep signing with explicit framework identifier
+                    # Sign XPC services and other executables first with minimal flags
+                    xpc_services_dir = f"{framework_path}/Versions/B/XPCServices"
+                    if os.path.exists(xpc_services_dir):
+                        for xpc_service in os.listdir(xpc_services_dir):
+                            if xpc_service.endswith('.xpc'):
+                                xpc_path = f"{xpc_services_dir}/{xpc_service}"
+                                print(f"🔐 Signing XPC service: {xpc_service}")
+                                
+                                xpc_cmd = [
+                                    'codesign', '--force', '--verbose',
+                                    '--sign', signing_identity,
+                                    '--timestamp',
+                                    xpc_path
+                                ]
+                                
+                                xpc_result = subprocess.run(xpc_cmd, capture_output=True, text=True)
+                                if xpc_result.returncode != 0:
+                                    print(f"❌ XPC service signing failed: {xpc_result.stderr}")
+                                    return False
+                                print(f"✅ XPC service {xpc_service} signed")
+                    
+                    # Sign Autoupdate executable
+                    autoupdate_path = f"{framework_path}/Versions/B/Autoupdate"
+                    if os.path.exists(autoupdate_path):
+                        print("🔐 Signing Autoupdate executable")
+                        autoupdate_cmd = [
+                            'codesign', '--force', '--verbose',
+                            '--sign', signing_identity,
+                            '--timestamp',
+                            autoupdate_path
+                        ]
+                        
+                        autoupdate_result = subprocess.run(autoupdate_cmd, capture_output=True, text=True)
+                        if autoupdate_result.returncode != 0:
+                            print(f"❌ Autoupdate signing failed: {autoupdate_result.stderr}")
+                            return False
+                        print("✅ Autoupdate executable signed")
+                    
+                    # Sign Updater.app if it exists
+                    updater_app_path = f"{framework_path}/Versions/B/Updater.app"
+                    if os.path.exists(updater_app_path):
+                        print("🔐 Signing Updater.app")
+                        updater_cmd = [
+                            'codesign', '--force', '--verbose',
+                            '--sign', signing_identity,
+                            '--timestamp',
+                            updater_app_path
+                        ]
+                        
+                        updater_result = subprocess.run(updater_cmd, capture_output=True, text=True)
+                        if updater_result.returncode != 0:
+                            print(f"❌ Updater.app signing failed: {updater_result.stderr}")
+                            return False
+                        print("✅ Updater.app signed")
+                    
+                    # Sign the framework itself (all components already signed individually)
                     cmd = [
-                        'codesign', '--force', '--deep', '--verify', '--verbose',
+                        'codesign', '--force', '--verbose',
                         '--sign', signing_identity,
                         '--timestamp',
-                        '--options', 'runtime',
-                        '--identifier', f'org.sparkle-project.{framework.replace(".framework", "")}',
                         framework_path
                     ]
                     
@@ -799,9 +897,9 @@ def build_app(target='local', skip_tests=False):
     # Copy app icon
     copy_app_icon(app_path)
     
-    # Bundle frameworks (temporarily disabled for testing)
-    # if not bundle_frameworks(app_path):
-    #     return False
+    # Bundle frameworks
+    if not bundle_frameworks(app_path):
+        return False
     
     # Embed build ID
     embed_build_id(app_path)
