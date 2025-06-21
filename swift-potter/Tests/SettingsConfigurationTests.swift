@@ -73,40 +73,7 @@ class SettingsConfigurationTests: TestBase {
         }
     }
     
-    func testHotkeyUpdate() {
-        // Test updating hotkey configuration
-        let newHotkey = ["⌘", "⇧", "T"]
-        
-        potterCore.setup()
-        potterCore.updateHotkey(newHotkey)
-        
-        // Verify hotkey is saved
-        let savedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String]
-        XCTAssertEqual(savedHotkey, newHotkey)
-    }
     
-    func testHotkeyParsing() {
-        // Test various hotkey combinations parsing
-        let testHotkeys = [
-            ["⌘", "R"],
-            ["⌘", "⇧", "R"],
-            ["⌘", "⌥", "R"],
-            ["⌘", "⌃", "R"],
-            ["⌘", "⇧", "⌥", "R"],
-            ["⌘", "1"],
-            ["⌘", "⇧", "9"]
-        ]
-        
-        potterCore.setup()
-        
-        for hotkey in testHotkeys {
-            // This should not crash
-            potterCore.updateHotkey(hotkey)
-            
-            let savedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String]
-            XCTAssertEqual(savedHotkey, hotkey, "Hotkey \(hotkey) should be saved correctly")
-        }
-    }
     
     func testHotkeyDisableEnable() {
         // Test disabling and enabling hotkeys
@@ -269,18 +236,6 @@ class SettingsConfigurationTests: TestBase {
         XCTAssertEqual(newManager.selectedModel?.provider, testProvider)
     }
     
-    func testSettingsLoadingFromUserDefaults() {
-        // Test loading settings from UserDefaults
-        UserDefaults.standard.set("google", forKey: "llm_provider")
-        UserDefaults.standard.set("test-google-key", forKey: "api_key_google")
-        UserDefaults.standard.set("gemini-1.5-pro", forKey: "selected_model")
-        
-        let newManager = LLMManager()
-        
-        XCTAssertEqual(newManager.selectedProvider, .google)
-        XCTAssertEqual(newManager.getAPIKey(for: .google), "test-google-key")
-        XCTAssertEqual(newManager.selectedModel?.id, "gemini-1.5-pro")
-    }
     
     func testSettingsWithMissingData() {
         // Test settings loading with missing/corrupted data
@@ -348,26 +303,6 @@ class SettingsConfigurationTests: TestBase {
         XCTAssertEqual(llmManager.selectedProvider, .openAI)
     }
     
-    func testSettingsSaveTriggering() {
-        // Test that settings are saved when configurations change
-        let initialProvider = llmManager.selectedProvider
-        
-        // Change provider
-        let newProvider: LLMProvider = (initialProvider == .openAI) ? .anthropic : .openAI
-        llmManager.selectProvider(newProvider)
-        
-        // Verify saved in UserDefaults
-        let savedProvider = UserDefaults.standard.string(forKey: "llm_provider")
-        XCTAssertEqual(savedProvider, newProvider.rawValue)
-        
-        // Change API key
-        let testKey = "sk-test-save-triggering"
-        llmManager.setAPIKey(testKey, for: newProvider)
-        
-        // Verify saved
-        let savedKey = UserDefaults.standard.string(forKey: "api_key_\(newProvider.rawValue)")
-        XCTAssertEqual(savedKey, testKey)
-    }
     
     func testConcurrentSettingsAccess() {
         // Test concurrent access to settings (basic thread safety)

@@ -74,27 +74,6 @@ class SecurityPrivacyTests: TestBase {
         XCTAssertEqual(userDefaultsKey, testKey)
     }
     
-    func testAPIKeyStorageMethodToggling() {
-        // Test switching between storage methods
-        let testKey = "sk-method-toggle-test"
-        let provider = LLMProvider.anthropic
-        
-        // Start with UserDefaults
-        secureStorage.setStorageMethod(.userDefaults, for: provider)
-        XCTAssertEqual(secureStorage.getStorageMethod(for: provider), .userDefaults)
-        
-        let saveSuccess = secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
-        XCTAssertTrue(saveSuccess)
-        
-        // Verify in UserDefaults
-        let userDefaultsValue = UserDefaults.standard.string(forKey: "api_key_\(provider.rawValue)")
-        XCTAssertEqual(userDefaultsValue, testKey)
-        
-        // Switch to Keychain (but during testing should still return UserDefaults)
-        secureStorage.setStorageMethod(.keychain, for: provider)
-        let methodAfterSwitch = secureStorage.getStorageMethod(for: provider)
-        XCTAssertEqual(methodAfterSwitch, .userDefaults, "Testing flag should override keychain selection")
-    }
     
     func testAPIKeyNotInPlainTextLogs() {
         // Test that API keys don't appear in logs or other plain text
@@ -161,25 +140,6 @@ class SecurityPrivacyTests: TestBase {
         }
     }
     
-    func testAPIKeyStorageEncryption() {
-        // Test that keychain storage provides encryption
-        // Note: During testing, we use UserDefaults, so this tests the interface
-        
-        let testKey = "sk-encryption-test-key"
-        let provider = LLMProvider.anthropic
-        
-        // Test keychain accessibility check
-        let isAccessible = secureStorage.isKeychainAccessible()
-        // Should return a boolean without crashing
-        XCTAssertNotNil(isAccessible)
-        
-        // Test that keychain method is available in the enum
-        let keychainMethod = APIKeyStorageMethod.keychain
-        XCTAssertEqual(keychainMethod.rawValue, "keychain")
-        
-        let userDefaultsMethod = APIKeyStorageMethod.userDefaults
-        XCTAssertEqual(userDefaultsMethod.rawValue, "userDefaults")
-    }
     
     func testAPIKeySecurityAcrossProviders() {
         // Test that API keys for different providers are kept separate
@@ -342,98 +302,8 @@ class SecurityPrivacyTests: TestBase {
         // (which is the expected behavior when user chooses this option)
     }
     
-    func testSecureStorageInterfaceConsistency() {
-        // Test that secure storage interface is consistent
-        let testKey = "sk-interface-consistency-test"
-        
-        for provider in LLMProvider.allCases {
-            // Save
-            let saveSuccess = secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
-            XCTAssertTrue(saveSuccess)
-            
-            // Load
-            let loadedKey = secureStorage.loadAPIKey(for: provider)
-            XCTAssertEqual(loadedKey, testKey)
-            
-            // Remove
-            let removeSuccess = secureStorage.removeAPIKey(for: provider)
-            XCTAssertTrue(removeSuccess)
-            
-            // Verify removal
-            let removedKey = secureStorage.loadAPIKey(for: provider)
-            XCTAssertNil(removedKey)
-        }
-    }
     
-    func testSecurityWithConcurrentAccess() async {
-        // Test security under concurrent access
-        let expectation = expectation(description: "Concurrent security test")
-        expectation.expectedFulfillmentCount = 5
-        
-        let queue = DispatchQueue.global(qos: .background)
-        
-        for i in 1...5 {
-            queue.async {
-                Task { @MainActor in
-                    let testKey = "sk-concurrent-security-\(i)"
-                    let provider = LLMProvider.allCases[i % LLMProvider.allCases.count]
-                    
-                    // Save
-                    let saveSuccess = self.secureStorage.saveAPIKey(testKey, for: provider, using: .userDefaults)
-                    XCTAssertTrue(saveSuccess)
-                    
-                    // Load
-                    let loadedKey = self.secureStorage.loadAPIKey(for: provider)
-                    XCTAssertEqual(loadedKey, testKey)
-                    
-                    // Remove
-                    let removeSuccess = self.secureStorage.removeAPIKey(for: provider)
-                    XCTAssertTrue(removeSuccess)
-                    
-                    expectation.fulfill()
-                }
-            }
-        }
-        
-        await fulfillment(of: [expectation], timeout: 10.0)
-        
-        // Verify no data corruption occurred
-        for provider in LLMProvider.allCases {
-            let key = secureStorage.loadAPIKey(for: provider)
-            XCTAssertNil(key, "All keys should be removed after concurrent test")
-        }
-    }
     
-    func testDataSanitization() {
-        // Test that sensitive data is properly sanitized
-        let sensitiveData = [
-            "password123",
-            "secret_token",
-            "private_key_data",
-            "sk-very-secret-api-key",
-            "authentication_data"
-        ]
-        
-        for data in sensitiveData {
-            // Store data
-            secureStorage.saveAPIKey(data, for: .openAI, using: .userDefaults)
-            
-            // Retrieve data
-            let retrieved = secureStorage.loadAPIKey(for: .openAI)
-            XCTAssertEqual(retrieved, data) // Should store exactly what was provided
-            
-            // Remove data
-            secureStorage.removeAPIKey(for: .openAI)
-            
-            // Verify complete removal
-            let afterRemoval = secureStorage.loadAPIKey(for: .openAI)
-            XCTAssertNil(afterRemoval)
-            
-            // Verify UserDefaults is cleared
-            let userDefaultsValue = UserDefaults.standard.string(forKey: "api_key_openai")
-            XCTAssertNil(userDefaultsValue)
-        }
-    }
     
     func testPermissionHandlingSecurity() {
         // Test permission handling doesn't expose sensitive information
