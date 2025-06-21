@@ -1,13 +1,24 @@
 <?xml version='1.0' encoding='utf-8'?>
+<<<<<<< HEAD
 <rss xmlns:ns0="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+=======
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+>>>>>>> bdf3d7e (Add comprehensive auto-update system with Sparkle framework)
   <channel>
     <title>Potter Updates</title>
     <description>Updates for Potter</description>
     <language>en</language>
+<<<<<<< HEAD
     <link>https://github.com/graydot/potter</link>
     <item>
       <title>Potter 2.0.1</title>
       <description>Latest release with auto-update support
+=======
+    <link>https://github.com/graydot/rephrasely</link>
+    <item>
+      <title>Potter 2.0.0</title>
+      <description><![CDATA[Initial release with auto-update support
+>>>>>>> bdf3d7e (Add comprehensive auto-update system with Sparkle framework)
 
 Features:
 - AI-powered text processing with OpenAI, Anthropic, and Google Gemini
@@ -16,6 +27,7 @@ Features:
 - Secure API key storage in Keychain
 - Dynamic prompt system
 - Auto-update functionality with Sparkle framework
+<<<<<<< HEAD
 - Improved storage adapter system
 - Enhanced error handling
 
@@ -76,6 +88,12 @@ This release includes the StorageAdapter system for improved API key management.
       <description>&lt;![CDATA[Test release with refactored DMG name handling]]&gt;</description>
       <pubDate>Mon, 23 Jun 2025 16:15:06 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.14/Potter-2.1.14-Memory-Melody.dmg" length="4589701" type="application/octet-stream" ns0:version="2.1.14" ns0:shortVersionString="2.1.14" ns0:edSignature="Rd9mB9YMFSL+GAUEU654omuH4XRGWxIhWdjr2OWxhR46mXWiPI/0S4J4L7l8CIcQDVLLppdzSO7GO13JsTiWDA==" />
+=======
+
+This is the first release with built-in auto-update support!]]></description>
+      <pubDate>Thu, 20 Jun 2025 12:00:00 +0000</pubDate>
+      <enclosure url="https://github.com/graydot/rephrasely/releases/download/v2.0.0/Potter-2.0.0.dmg" length="0" type="application/octet-stream" sparkle:version="2.0.0" sparkle:shortVersionString="2.0.0" sparkle:dsaSignature="placeholder_signature" />
+>>>>>>> bdf3d7e (Add comprehensive auto-update system with Sparkle framework)
     </item>
   </channel>
 </rss>

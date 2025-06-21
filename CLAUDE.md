@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run tests**: `make test`
 - **Build signed app**: `make build`
 - **Build unsigned**: `make build-unsigned`
+- **Create release**: `make release` (with auto-update support and version bump)
 
 ## Architecture
 
@@ -33,6 +34,7 @@ Potter is a macOS tray application that provides AI-powered text processing with
 - **Core Engine**: `swift-potter/Sources/PotterCore.swift` - Global hotkeys and text processing
 - **LLM Integration**: `swift-potter/Sources/LLMManager.swift` + `LLMClient.swift` - Multi-provider support
 - **Settings UI**: `swift-potter/Sources/ModernSettingsWindow.swift` - Native SwiftUI interface
+- **Auto-Updates**: `swift-potter/Sources/AutoUpdateManager.swift` - Sparkle framework integration
 - **Process Management**: `swift-potter/Sources/ProcessManager.swift` - Duplicate instance detection
 - **Permission System**: `swift-potter/Sources/PermissionManager.swift` - macOS permissions
 - **Secure Storage**: `swift-potter/Sources/SecureAPIKeyStorage.swift` - Keychain integration
@@ -44,6 +46,8 @@ Potter is a macOS tray application that provides AI-powered text processing with
 - **Code signing**: Integrated with Xcode build process
 - **Testing**: `swift test` and `swift test --parallel` for comprehensive test suite
 - **Dual distribution**: Supports both GitHub releases and Mac App Store
+- **Auto-update system**: Sparkle framework with appcast.xml for seamless updates
+- **Release management**: Automated version bumping and GitHub release creation via `make release`
 - **Intelligent versioning**: Handles multiple build conflicts with user dialogs
 
 ### Dependencies & Permissions

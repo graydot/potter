@@ -48,6 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         loadSavedPromptSelection()
         setupMenuBar()
         setupCore()
+        setupAutoUpdater()
         requestAccessibilityPermissions()
         checkAndShowSettingsIfNeeded()
         startMenuUpdateTimer()
@@ -474,6 +475,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
         
+        let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+        
         menu.addItem(NSMenuItem.separator())
         let quitItem = NSMenuItem(title: "Quit Potter", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
@@ -515,6 +520,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         potterCore = PotterCore()
         potterCore?.iconDelegate = self
         potterCore?.setup()
+    }
+    
+    private func setupAutoUpdater() {
+        PotterLogger.shared.info("startup", "🔄 Setting up auto-updater...")
+        
+        // Initialize auto-updater
+        _ = AutoUpdateManager.shared
+        
+        // Check for updates in background after app launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            AutoUpdateManager.shared.checkForUpdatesInBackground()
+        }
     }
     
     private func checkAndShowSettingsIfNeeded() {
@@ -620,6 +637,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     @objc func showSettings() {
         print("📋 Settings menu clicked!")
         ModernSettingsWindowController.shared.showWindow(nil)
+    }
+    
+    @objc func checkForUpdates() {
+        PotterLogger.shared.info("menu", "🔍 Manual update check requested from menu")
+        AutoUpdateManager.shared.checkForUpdatesManually()
     }
     
     @objc func openPermissionSettings(_ sender: NSMenuItem) {

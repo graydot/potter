@@ -180,5 +180,18 @@ docs: ## Open relevant documentation
 # Quick commands for common workflows
 dev: run ## Alias for run (development mode)
 all: clean build test ## Clean, build, and test everything
-release: clean build publish ## Complete release workflow
+release: ## Create a new release with auto-update support (with version bump)
+	@echo "$(GREEN)🚀 Creating new Potter release...$(NC)"
+	python3 scripts/release_manager.py
+
+old-release: clean build publish ## Complete release workflow (legacy)
 quick: build-unsigned ## Quick build without signing (for testing)
+
+# Auto-update testing
+test-autoupdate: ## Set up auto-update testing environment
+	@echo "$(GREEN)🧪 Setting up auto-update testing...$(NC)"
+	python3 scripts/test_autoupdate.py
+
+test-release: ## Test release process without GitHub upload
+	@echo "$(GREEN)🧪 Testing release process...$(NC)"
+	python3 scripts/release_manager.py --skip-github --version 2.0.1 --notes "Test release"

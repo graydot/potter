@@ -184,6 +184,7 @@ struct ModernSettingsView: View {
     let sections = [
         ("General", "gear"),
         ("Prompts", "bubble.left.and.bubble.right"),
+        ("Updates", "arrow.down.circle"),
         ("About", "info.circle"),
         ("Logs", "list.bullet.rectangle")
     ]
@@ -287,8 +288,10 @@ struct ModernSettingsView: View {
             case 1:
                 promptsSection
             case 2:
-                advancedSection
+                updatesSection
             case 3:
+                advancedSection
+            case 4:
                 logsSection
             default:
                 generalSection
@@ -669,6 +672,88 @@ struct ModernSettingsView: View {
         return Text("Showing \(filteredCount) of \(totalLogs) log entries")
             .foregroundColor(.secondary)
             .font(.caption)
+    }
+    
+    private var updatesSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Updates")
+                .font(.title)
+                .fontWeight(.semibold)
+            
+            // Current version info
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Current Version")
+                    .font(.headline)
+                
+                HStack {
+                    Text("Version:")
+                        .frame(width: 100, alignment: .leading)
+                    Text(AutoUpdateManager.shared.getCurrentVersion())
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                
+                HStack {
+                    Text("Build:")
+                        .frame(width: 100, alignment: .leading)
+                    Text(AutoUpdateManager.shared.getBuildNumber())
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                
+                if let lastCheck = AutoUpdateManager.shared.getLastUpdateCheckDate() {
+                    HStack {
+                        Text("Last Check:")
+                            .frame(width: 100, alignment: .leading)
+                        Text(DateFormatter.localizedString(from: lastCheck, dateStyle: .short, timeStyle: .short))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                }
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(8)
+            
+            // Auto-update settings
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Update Settings")
+                    .font(.headline)
+                
+                Toggle("Automatically check for updates", isOn: Binding(
+                    get: { AutoUpdateManager.shared.getAutoUpdateEnabled() },
+                    set: { enabled in
+                        AutoUpdateManager.shared.setAutoUpdateEnabled(enabled)
+                    }
+                ))
+                
+                Text("Potter will check for updates daily and notify you when new versions are available.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(8)
+            
+            // Manual check button
+            HStack {
+                Button("Check for Updates Now") {
+                    AutoUpdateManager.shared.checkForUpdatesManually()
+                }
+                .buttonStyle(.borderedProminent)
+                
+                Spacer()
+                
+                Button("Open Releases Page") {
+                    if let url = URL(string: "https://github.com/jebasingh/potter/releases") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+            
+            Spacer()
+        }
     }
     
     private func infoRow(_ label: String, _ value: String) -> some View {
