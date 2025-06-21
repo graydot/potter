@@ -294,10 +294,7 @@ struct LLMProviderView: View {
                     // Clear any previous errors
                     showStorageError = false
                     
-                    // Update the storage method preference first
-                    SecureAPIKeyStorage.shared.setStorageMethod(storageMethod, for: llmManager.selectedProvider)
-                    
-                    // Then validate and save (this will use the updated storage method)
+                    // Validate and save using current storage preference
                     await llmManager.validateAndSaveAPIKey(apiKeyText, for: llmManager.selectedProvider)
                     
                     let success = llmManager.validationStates[llmManager.selectedProvider]?.isValid == true
@@ -323,6 +320,7 @@ struct LLMProviderView: View {
                             showStorageError = false
                         }
                     }
+                }
             }
         }
         .buttonStyle(.borderedProminent)
@@ -355,62 +353,40 @@ struct LLMProviderView: View {
     private func toggleStorageMethod() {
         let newMethod: APIKeyStorageMethod = storageMethod == .keychain ? .userDefaults : .keychain
         
-        // Check keychain accessibility if switching to keychain (only access keychain when actually needed)
-        if newMethod == .keychain && storageMethod != .keychain && !SecureAPIKeyStorage.shared.isKeychainAccessible() {
-            showStorageError = true
-            storageErrorMessage = "Keychain is not accessible. Please ensure your device is unlocked and try again."
-            
-            // Hide error after 5 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                showStorageError = false
-            }
-            return
-        }
-        
-        // Clear any previous error
+        // Disable button during migration
+        isMigrating = true
         showStorageError = false
         
-        // Start migration
-        isMigrating = true
-        
         Task { @MainActor in
-            do {
-                // Use the single access point for migration
-                let migrationResults: [LLMProvider: Bool]
+            // Migrate current provider's key atomically
+            let success = await SecureAPIKeyStorage.shared.atomicMigrateAPIKey(
+                for: llmManager.selectedProvider, 
+                to: newMethod
+            )
+            
+            if success {
+                // Update UI state
+                storageMethod = newMethod
                 
-                switch newMethod {
-                case .keychain:
-                    migrationResults = SecureAPIKeyStorage.shared.migrateAllToKeychain()
-                case .userDefaults:
-                    migrationResults = SecureAPIKeyStorage.shared.migrateAllToUserDefaults()
+                // Show brief success message
+                showingSuccessCheckmark = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showingSuccessCheckmark = false
                 }
                 
-                isMigrating = false
+                PotterLogger.shared.info("api_storage", "✅ Migrated \(llmManager.selectedProvider.rawValue) to \(newMethod.rawValue)")
+            } else {
+                // Migration failed
+                showStorageError = true
+                storageErrorMessage = "Failed to migrate to \(newMethod.displayName). Please try again."
                 
-                let failedMigrations = migrationResults.filter { !$0.value }
-                
-                if failedMigrations.isEmpty {
-                    // All migrations successful
-                    storageMethod = newMethod
-                    
-                    let migratedCount = migrationResults.count
-                    PotterLogger.shared.info("api_storage", "✅ Successfully migrated \(migratedCount) API keys to \(newMethod.rawValue)")
-                    
-                    // Show brief success message
-                    showingSuccessCheckmark = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showingSuccessCheckmark = false
-                    }
-                } else {
-                    // Some migrations failed
-                    showStorageError = true
-                    storageErrorMessage = "Failed to migrate \(failedMigrations.count) API key(s) to \(newMethod.displayName). Please try again."
-                    
-                    // Hide error after 7 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
-                        showStorageError = false
-                    }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    showStorageError = false
                 }
+            }
+            
+            // Re-enable button
+            isMigrating = false
         }
     }
 }
