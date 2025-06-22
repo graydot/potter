@@ -135,8 +135,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func startMenuUpdateTimer() {
-        // Update menu every 30 seconds to reflect permission changes
-        menuUpdateTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+        // Update menu less frequently to reflect permission changes (2 minutes is sufficient)
+        menuUpdateTimer = Timer.scheduledTimer(withTimeInterval: 120.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateMenu()
             }

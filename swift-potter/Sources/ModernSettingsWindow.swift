@@ -31,6 +31,10 @@ struct PromptItem: Identifiable, Equatable, Codable {
 class PromptManager {
     static let shared = PromptManager()
     
+    // Cache to avoid repeated file I/O
+    private var promptsCache: [PromptItem]?
+    private var lastFileModification: Date?
+    
     // For testing - allows override of file path
     private var testFileURL: URL?
     
@@ -57,9 +61,34 @@ class PromptManager {
             // Create parent directory if needed
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         }
+        // Clear cache when test file changes
+        clearCache()
+    }
+    
+    // Clear cache - useful for testing and when external changes are made
+    func clearCache() {
+        promptsCache = nil
+        lastFileModification = nil
+        PotterLogger.shared.debug("prompts", "🗑️ Prompt cache cleared")
+    }
+    
+    // Get a specific prompt by name (commonly used operation)
+    func getPrompt(named name: String) -> PromptItem? {
+        return loadPrompts().first { $0.name == name }
     }
     
     func loadPrompts() -> [PromptItem] {
+        // Check if we have valid cached data
+        if let cached = promptsCache,
+           let lastMod = lastFileModification,
+           let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path),
+           let currentMod = fileAttributes[.modificationDate] as? Date,
+           currentMod <= lastMod {
+            // Cache is still valid, return cached data
+            PotterLogger.shared.debug("prompts", "📋 Using cached prompts (\(cached.count) items)")
+            return cached
+        }
+        
         // Check if file exists, if not create it with defaults
         if !FileManager.default.fileExists(atPath: promptsFileURL.path) {
             let defaults = defaultPrompts()
@@ -72,6 +101,13 @@ class PromptManager {
         do {
             let data = try Data(contentsOf: promptsFileURL)
             let prompts = try JSONDecoder().decode([PromptItem].self, from: data)
+            
+            // Update cache
+            promptsCache = prompts
+            if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path) {
+                lastFileModification = fileAttributes[.modificationDate] as? Date
+            }
+            
             PotterLogger.shared.debug("prompts", "📖 Loaded \(prompts.count) prompts from \(promptsFileURL.path)")
             return prompts
         } catch {
@@ -99,6 +135,13 @@ class PromptManager {
         do {
             let data = try JSONEncoder().encode(prompts)
             try data.write(to: promptsFileURL)
+            
+            // Update cache after successful save
+            promptsCache = prompts
+            if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path) {
+                lastFileModification = fileAttributes[.modificationDate] as? Date
+            }
+            
             PotterLogger.shared.debug("prompts", "💾 Saved \(prompts.count) prompts to \(promptsFileURL.path)")
         } catch {
             PotterLogger.shared.error("prompts", "💾 Failed to save prompts: \(error.localizedDescription)")
