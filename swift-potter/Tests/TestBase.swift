@@ -1,7 +1,7 @@
 import XCTest
 @testable import Potter
 
-/// Base test class that automatically configures secure storage for testing
+/// Base test class that automatically configures StorageAdapter for testing
 /// All test classes should inherit from this to avoid keychain access during tests
 class TestBase: XCTestCase {
     
@@ -9,14 +9,14 @@ class TestBase: XCTestCase {
         super.setUp()
         
         // Set the testing flag as early as possible
-        SecureAPIKeyStorage.shared.forceUserDefaultsForTesting = true
+        StorageAdapter.shared.forceUserDefaultsForTesting = true
     }
     
     override func setUp() {
         super.setUp()
         
         // Ensure the testing flag is set
-        SecureAPIKeyStorage.shared.forceUserDefaultsForTesting = true
+        StorageAdapter.shared.forceUserDefaultsForTesting = true
         
         // Clear any existing test data from UserDefaults
         clearTestUserDefaults()
@@ -24,7 +24,7 @@ class TestBase: XCTestCase {
     
     override func tearDown() {
         // Reset testing mode
-        SecureAPIKeyStorage.shared.forceUserDefaultsForTesting = false
+        StorageAdapter.shared.forceUserDefaultsForTesting = false
         
         // Clean up test data
         clearTestUserDefaults()

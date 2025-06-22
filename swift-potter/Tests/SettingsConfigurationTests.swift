@@ -149,7 +149,7 @@ class SettingsConfigurationTests: TestBase {
         // avoiding keychain access entirely
         
         // Verify that testing infrastructure is set up correctly
-        XCTAssertTrue(SecureAPIKeyStorage.shared.forceUserDefaultsForTesting, 
+        XCTAssertTrue(StorageAdapter.shared.forceUserDefaultsForTesting, 
                      "Testing flag should be set")
         
         // Verify StorageAdapter uses UserDefaults in testing mode

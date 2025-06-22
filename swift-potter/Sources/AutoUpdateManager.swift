@@ -26,6 +26,18 @@ class AutoUpdateManager: NSObject {
     }
     
     private func setupSparkleUpdater() {
+        // Check if we're running in development mode (swift run)
+        if isRunningInDevelopmentMode() {
+            PotterLogger.shared.info("autoupdate", "🚧 Development mode detected - skipping Sparkle auto-updater setup")
+            return
+        }
+        
+        // Check if we have Sparkle configuration in Info.plist
+        guard let _ = Bundle.main.infoDictionary?["SUFeedURL"] as? String else {
+            PotterLogger.shared.info("autoupdate", "⚠️  No Sparkle configuration found in Info.plist - skipping auto-updater setup")
+            return
+        }
+        
         PotterLogger.shared.info("autoupdate", "🔄 Setting up Sparkle auto-updater...")
         
         // Create updater controller with minimal configuration
@@ -52,12 +64,25 @@ class AutoUpdateManager: NSObject {
         PotterLogger.shared.info("autoupdate", "✅ Sparkle auto-updater configured using Info.plist settings")
     }
     
+    private func isRunningInDevelopmentMode() -> Bool {
+        // Check if we're running from swift run (executable path contains .build)
+        let executablePath = Bundle.main.executablePath ?? ""
+        return executablePath.contains(".build") || 
+               executablePath.contains("swift-potter") ||
+               Bundle.main.bundlePath.hasSuffix(".build/debug") ||
+               Bundle.main.bundlePath.hasSuffix(".build/release")
+    }
+    
     // MARK: - Public API
     
     /**
      * Check for updates manually (triggered by user)
      */
     func checkForUpdatesManually() {
+        if updater == nil {
+            PotterLogger.shared.info("autoupdate", "⚠️  Auto-updater not available (development mode or missing configuration)")
+            return
+        }
         PotterLogger.shared.info("autoupdate", "🔍 Manual update check requested")
         updater?.checkForUpdates()
     }
@@ -66,6 +91,10 @@ class AutoUpdateManager: NSObject {
      * Check for updates silently (background check)
      */
     func checkForUpdatesInBackground() {
+        if updater == nil {
+            PotterLogger.shared.debug("autoupdate", "⚠️  Auto-updater not available (development mode or missing configuration)")
+            return
+        }
         PotterLogger.shared.info("autoupdate", "🔍 Background update check")
         updater?.checkForUpdatesInBackground()
     }

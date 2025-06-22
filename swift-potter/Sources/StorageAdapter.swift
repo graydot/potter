@@ -267,12 +267,15 @@ class StorageAdapter {
     private let keychainStorage = KeychainStorage()
     private let userDefaultsStorage = UserDefaultsStorage()
     
+    /// When true, forces UserDefaults storage for all operations (used in testing)
+    public var forceUserDefaultsForTesting = false
+    
     private init() {}
     
     var currentStorageMethod: StorageMethod {
         get {
             // In testing mode, always use UserDefaults to avoid keychain access
-            if SecureAPIKeyStorage.shared.forceUserDefaultsForTesting {
+            if forceUserDefaultsForTesting {
                 return .userDefaults
             }
             let raw = UserDefaults.standard.string(forKey: "storage_method") ?? StorageMethod.userDefaults.rawValue
@@ -280,7 +283,7 @@ class StorageAdapter {
         }
         set {
             // Don't save storage method changes during testing
-            if !SecureAPIKeyStorage.shared.forceUserDefaultsForTesting {
+            if !forceUserDefaultsForTesting {
                 UserDefaults.standard.set(newValue.rawValue, forKey: "storage_method")
             }
         }
@@ -288,7 +291,7 @@ class StorageAdapter {
     
     private var currentBackend: StorageBackend {
         // In testing mode, always use UserDefaults to avoid keychain access
-        if SecureAPIKeyStorage.shared.forceUserDefaultsForTesting {
+        if forceUserDefaultsForTesting {
             return userDefaultsStorage
         }
         

@@ -35,12 +35,12 @@ struct LLMProviderView: View {
         .onAppear {
             // Load current API key and storage method for display
             apiKeyText = llmManager.getAPIKey(for: llmManager.selectedProvider)
-            storageMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: llmManager.selectedProvider)
+            storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
         }
         .onChange(of: llmManager.selectedProvider) { newProvider in
             // Load API key and storage method for the newly selected provider
             apiKeyText = llmManager.getAPIKey(for: newProvider)
-            storageMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: newProvider)
+            storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
             // Set default model for the new provider
             llmManager.selectedModel = newProvider.models.first
         }
@@ -358,11 +358,9 @@ struct LLMProviderView: View {
         showStorageError = false
         
         Task { @MainActor in
-            // Migrate current provider's key atomically
-            let success = await SecureAPIKeyStorage.shared.atomicMigrateAPIKey(
-                for: llmManager.selectedProvider, 
-                to: newMethod
-            )
+            // Migrate all API keys to new storage method
+            let newStorageMethod = StorageMethod(rawValue: newMethod.rawValue) ?? .userDefaults
+            let success = StorageAdapter.shared.migrate(to: newStorageMethod)
             
             switch success {
             case .success:
@@ -375,7 +373,7 @@ struct LLMProviderView: View {
                     showingSuccessCheckmark = false
                 }
                 
-                PotterLogger.shared.info("api_storage", "✅ Migrated \(llmManager.selectedProvider.rawValue) to \(newMethod.rawValue)")
+                PotterLogger.shared.info("api_storage", "✅ Migrated all API keys to \(newMethod.rawValue)")
             case .failure(let error):
                 // Migration failed
                 showStorageError = true

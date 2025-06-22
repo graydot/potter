@@ -67,7 +67,7 @@ class LLMManager: ObservableObject {
     func saveSettings() {
         UserDefaults.standard.set(selectedProvider.rawValue, forKey: "llm_provider")
         
-        // API keys are now managed by SecureAPIKeyStorage
+        // API keys are now managed by StorageAdapter
         // Individual saves happen through setAPIKey method
         
         if let selectedModel = selectedModel {
@@ -97,10 +97,9 @@ class LLMManager: ObservableObject {
         // Reset validation state when key changes
         validationStates[provider] = ValidationState.none
         
-        // Save to storage using the current preferred method for this provider
-        let currentMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: provider)
+        // Save to storage using StorageAdapter
         if !apiKey.isEmpty {
-            let result = SecureAPIKeyStorage.shared.saveAPIKey(apiKey, for: provider, using: currentMethod)
+            let result = StorageAdapter.shared.saveAPIKey(apiKey, for: provider)
             switch result {
             case .success:
                 break
@@ -119,7 +118,7 @@ class LLMManager: ObservableObject {
         }
         
         // Load from storage if not in memory
-        let loadResult = SecureAPIKeyStorage.shared.loadAPIKey(for: provider)
+        let loadResult = StorageAdapter.shared.loadAPIKey(for: provider)
         switch loadResult {
         case .success(let storedKey):
             apiKeys[provider] = storedKey
