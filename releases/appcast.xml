@@ -4,9 +4,9 @@
     <title>Potter Updates</title>
     <description>Updates for Potter</description>
     <language>en</language>
-    <link>https://github.com/graydot/rephrasely</link>
+    <link>https://github.com/graydot/potter</link>
     <item>
-      <title>Potter 2.0.2</title>
+      <title>Potter 2.0.1</title>
       <description><![CDATA[Latest release with auto-update support
 
 Features:
@@ -21,7 +21,7 @@ Features:
 
 This release includes the StorageAdapter system for improved API key management.]]></description>
       <pubDate>Sat, 22 Jun 2025 00:00:00 +0000</pubDate>
-      <enclosure url="https://github.com/graydot/rephrasely/releases/download/v2.0.2/Potter-2.0.dmg" length="3455656" type="application/octet-stream" sparkle:version="2.0.2" sparkle:shortVersionString="2.0.2" sparkle:dsaSignature="placeholder_signature" />
+      <enclosure url="https://github.com/graydot/potter/releases/download/2.0.1/Potter-2.0.dmg" length="3455656" type="application/octet-stream" sparkle:version="2.0.1" sparkle:shortVersionString="2.0.1" sparkle:dsaSignature="placeholder_signature" />
     </item>
   </channel>
 </rss>
