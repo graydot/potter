@@ -17,7 +17,7 @@ struct PermissionsView: View {
             combinedNotificationsSection
             
             Divider()
-                .padding(.vertical, 8)
+                .padding(.vertical, 4)
             
             // Reset Permissions Section
             resetPermissionsSection
@@ -138,7 +138,7 @@ struct PermissionsView: View {
                 Spacer()
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .padding(.horizontal, 12)
         .background(
             RoundedRectangle(cornerRadius: 8)

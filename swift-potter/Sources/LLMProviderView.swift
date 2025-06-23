@@ -226,10 +226,18 @@ struct LLMProviderView: View {
                 TextField(llmManager.selectedProvider.apiKeyPlaceholder, text: $apiKeyText)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(textFieldBorderColor, lineWidth: 2)
+                    )
             } else {
                 SecureField(llmManager.selectedProvider.apiKeyPlaceholder, text: $apiKeyText)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(textFieldBorderColor, lineWidth: 2)
+                    )
             }
             
             Button(action: {
@@ -252,35 +260,29 @@ struct LLMProviderView: View {
     private var textFieldBorderColor: Color {
         switch llmManager.validationStates[llmManager.selectedProvider] {
         case .invalid:
-            return .red
+            return .red.opacity(0.8)
         case .valid:
-            return .green
+            return .green.opacity(0.8)
         case .validating:
-            return .blue
+            return .blue.opacity(0.6)
         default:
-            return .clear
+            if apiKeyText.isEmpty {
+                return .clear
+            } else {
+                return .gray.opacity(0.3) // Subtle border for non-empty, unvalidated
+            }
         }
     }
     
     private var validationStatusView: some View {
         Group {
             switch llmManager.validationStates[llmManager.selectedProvider] {
-            case .valid:
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.title3)
-                
-            case .invalid:
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red)
-                    .font(.title3)
-                
             case .validating:
                 ProgressView()
                     .scaleEffect(0.7)
                     .frame(width: 20, height: 20)
                 
-            case .some(.none), .none:
+            default:
                 EmptyView()
             }
         }
@@ -346,8 +348,8 @@ struct LLMProviderView: View {
         .disabled(isMigrating)
         .help(isMigrating ? "Migrating API keys..." :
               (storageMethod == .keychain ? 
-               "Switch to plain text storage (UserDefaults)" : 
-               "Switch to encrypted storage (Keychain)"))
+               "Selected mode: Keychain access. Click to change to insecure mode to avoid keychain password requests" : 
+               "Selected mode: Insecure. Click to change to keychain access for encrypted storage"))
     }
     
     private func toggleStorageMethod() {
