@@ -34,16 +34,37 @@ struct LLMProviderView: View {
         }
         .onAppear {
             // Load current API key and storage method for display
-            apiKeyText = llmManager.getAPIKey(for: llmManager.selectedProvider)
+            loadProviderState(for: llmManager.selectedProvider)
             storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
         }
         .onChange(of: llmManager.selectedProvider) { newProvider in
             // Load API key and storage method for the newly selected provider
-            apiKeyText = llmManager.getAPIKey(for: newProvider)
+            loadProviderState(for: newProvider)
             storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
             // Set default model for the new provider
             llmManager.selectedModel = newProvider.models.first
         }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func loadProviderState(for provider: LLMProvider) {
+        let storedKey = llmManager.getAPIKey(for: provider)
+        apiKeyText = storedKey
+        
+        // If there's a stored key, it means it was previously validated
+        // So we mark it as valid (green). Empty fields will show red via border color logic.
+        if !storedKey.isEmpty {
+            llmManager.validationStates[provider] = .valid
+        } else {
+            llmManager.validationStates[provider] = .none
+        }
+    }
+    
+    private func updateValidationStateForText(_ text: String, provider: LLMProvider) {
+        // Any text change should reset validation state to none
+        // Border color logic will handle empty vs non-empty display
+        llmManager.validationStates[provider] = .none
     }
     
     // MARK: - Provider Selection
@@ -54,7 +75,7 @@ struct LLMProviderView: View {
                     .fontWeight(.medium)
                     .frame(width: 80, alignment: .leading)
                 
-                Picker("Provider", selection: $llmManager.selectedProvider) {
+                Picker("", selection: $llmManager.selectedProvider) {
                     ForEach(LLMProvider.allCases) { provider in
                         Text(provider.displayName)
                             .tag(provider)
@@ -76,7 +97,7 @@ struct LLMProviderView: View {
                     .fontWeight(.medium)
                     .frame(width: 80, alignment: .leading)
                 
-                Picker("Model", selection: $llmManager.selectedModel) {
+                Picker("", selection: $llmManager.selectedModel) {
                     ForEach(llmManager.selectedProvider.models) { model in
                         Text(model.name)
                             .tag(model as LLMModel?)
@@ -244,25 +265,27 @@ struct LLMProviderView: View {
         }
         .frame(width: 300)
         .onChange(of: apiKeyText) { newValue in
-            // Only update the in-memory cache, actual storage happens in Test & Save
+            // Update the in-memory cache
             llmManager.apiKeys[llmManager.selectedProvider] = newValue
-            llmManager.validationStates[llmManager.selectedProvider] = LLMManager.ValidationState.none
+            
+            // Update validation state based on new content
+            updateValidationStateForText(newValue, provider: llmManager.selectedProvider)
         }
     }
     
     private var textFieldBorderColor: Color {
         switch llmManager.validationStates[llmManager.selectedProvider] {
-        case .invalid:
-            return .red.opacity(0.8)
-        case .valid:
-            return .green.opacity(0.8)
-        case .validating:
-            return .blue.opacity(0.6)
-        default:
+        case .some(.invalid):
+            return .red.opacity(0.8) // Invalid = red
+        case .some(.valid):
+            return .green.opacity(0.8) // Successfully validated = green
+        case .some(.validating):
+            return .blue.opacity(0.6) // Currently validating = blue
+        case .some(.none), .none:
             if apiKeyText.isEmpty {
-                return .clear
+                return .red.opacity(0.8) // Empty field = red
             } else {
-                return .gray.opacity(0.3) // Subtle border for non-empty, unvalidated
+                return .clear // Non-empty, unvalidated = default/clear
             }
         }
     }
@@ -270,7 +293,7 @@ struct LLMProviderView: View {
     private var validationStatusView: some View {
         Group {
             switch llmManager.validationStates[llmManager.selectedProvider] {
-            case .validating:
+            case .some(.validating):
                 ProgressView()
                     .scaleEffect(0.7)
                     .frame(width: 20, height: 20)
