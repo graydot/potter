@@ -16,9 +16,14 @@
 =======
     <link>https://github.com/graydot/rephrasely</link>
     <item>
+<<<<<<< HEAD
       <title>Potter 2.0.0</title>
       <description><![CDATA[Initial release with auto-update support
 >>>>>>> bdf3d7e (Add comprehensive auto-update system with Sparkle framework)
+=======
+      <title>Potter 2.0.2</title>
+      <description><![CDATA[Latest release with auto-update support
+>>>>>>> d3b7250 (Add Sparkle appcast.xml for auto-updates)
 
 Features:
 - AI-powered text processing with OpenAI, Anthropic, and Google Gemini
@@ -27,6 +32,7 @@ Features:
 - Secure API key storage in Keychain
 - Dynamic prompt system
 - Auto-update functionality with Sparkle framework
+<<<<<<< HEAD
 <<<<<<< HEAD
 - Improved storage adapter system
 - Enhanced error handling
@@ -94,6 +100,14 @@ This is the first release with built-in auto-update support!]]></description>
       <pubDate>Thu, 20 Jun 2025 12:00:00 +0000</pubDate>
       <enclosure url="https://github.com/graydot/rephrasely/releases/download/v2.0.0/Potter-2.0.0.dmg" length="0" type="application/octet-stream" sparkle:version="2.0.0" sparkle:shortVersionString="2.0.0" sparkle:dsaSignature="placeholder_signature" />
 >>>>>>> bdf3d7e (Add comprehensive auto-update system with Sparkle framework)
+=======
+- Improved storage adapter system
+- Enhanced error handling
+
+This release includes the StorageAdapter system for improved API key management.]]></description>
+      <pubDate>Sat, 22 Jun 2025 00:00:00 +0000</pubDate>
+      <enclosure url="https://github.com/graydot/rephrasely/releases/download/v2.0.2/Potter-2.0.dmg" length="3455656" type="application/octet-stream" sparkle:version="2.0.2" sparkle:shortVersionString="2.0.2" sparkle:dsaSignature="placeholder_signature" />
+>>>>>>> d3b7250 (Add Sparkle appcast.xml for auto-updates)
     </item>
   </channel>
 </rss>
