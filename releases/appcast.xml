@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<rss xmlns:ns0="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Potter Updates</title>
     <description>Updates for Potter</description>
@@ -7,7 +7,7 @@
     <link>https://github.com/graydot/potter</link>
     <item>
       <title>Potter 2.0.1</title>
-      <description><![CDATA[Latest release with auto-update support
+      <description>Latest release with auto-update support
 
 Features:
 - AI-powered text processing with OpenAI, Anthropic, and Google Gemini
@@ -19,9 +19,15 @@ Features:
 - Improved storage adapter system
 - Enhanced error handling
 
-This release includes the StorageAdapter system for improved API key management.]]></description>
+This release includes the StorageAdapter system for improved API key management.</description>
       <pubDate>Sat, 22 Jun 2025 00:00:00 +0000</pubDate>
-      <enclosure url="https://github.com/graydot/potter/releases/download/2.0.1/Potter-2.0.dmg" length="3455656" type="application/octet-stream" sparkle:version="2.0.1" sparkle:shortVersionString="2.0.1" sparkle:dsaSignature="placeholder_signature" />
+      <enclosure url="https://github.com/graydot/potter/releases/download/2.0.1/Potter-2.0.dmg" length="3455656" type="application/octet-stream" ns0:version="2.0.1" ns0:shortVersionString="2.0.1" ns0:dsaSignature="placeholder_signature" />
+    </item>
+    <item>
+      <title>Potter 2.0.2</title>
+      <description>&lt;![CDATA[something]]&gt;</description>
+      <pubDate>Mon, 23 Jun 2025 11:52:36 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.0.2/Potter-2.0.2.dmg" length="4441327" type="application/octet-stream" ns0:version="2.0.2" ns0:shortVersionString="2.0.2" ns0:edSignature="placeholder_signature" />
     </item>
   </channel>
 </rss>
