@@ -65,5 +65,11 @@ This release includes the StorageAdapter system for improved API key management.
       <pubDate>Mon, 23 Jun 2025 15:59:44 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.12/Potter-2.1.12-Memory-Melody.dmg" length="4589409" type="application/octet-stream" ns0:version="2.1.12" ns0:shortVersionString="2.1.12" ns0:edSignature="OQcFQ8lIGEsjaenjZW+NFczEU9xpwEr6PeilWQs6k032H+XDSZmUHp2nuKlKPCk2Bh5lyDD/NuexEQWK0FhoAg==" />
     </item>
+    <item>
+      <title>Potter 2.1.13</title>
+      <description>&lt;![CDATA[Enhanced release with version codenames - now properly targeting potter repository]]&gt;</description>
+      <pubDate>Mon, 23 Jun 2025 16:04:56 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.13/Potter-2.1.13-Memory-Melody.dmg" length="4589409" type="application/octet-stream" ns0:version="2.1.13" ns0:shortVersionString="2.1.13" ns0:edSignature="OQcFQ8lIGEsjaenjZW+NFczEU9xpwEr6PeilWQs6k032H+XDSZmUHp2nuKlKPCk2Bh5lyDD/NuexEQWK0FhoAg==" />
+    </item>
   </channel>
 </rss>
