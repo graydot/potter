@@ -56,15 +56,8 @@ struct LLMProviderView: View {
                 
                 Picker("Provider", selection: $llmManager.selectedProvider) {
                     ForEach(LLMProvider.allCases) { provider in
-                        HStack {
-                            Text(provider.displayName)
-                            if llmManager.isProviderConfigured(provider) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                            }
-                        }
-                        .tag(provider)
+                        Text(provider.displayName)
+                            .tag(provider)
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
