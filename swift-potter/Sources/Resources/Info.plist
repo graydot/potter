@@ -29,9 +29,10 @@
     
     <!-- Sparkle Auto-Update Configuration -->
     <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/graydot/potter/master/releasesappcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>sparkle:edDSAPublicKey</string>
+    <string>https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml</string>
+    <!-- Temporarily disable signature verification for testing -->
+    <!-- <key>SUPublicEDKey</key>
+    <string>MCowBQYDK2VwAyEAhYrJWZWSDrWPIQHtZPFYrUcyHzDKjcdLg8pE6/pYKz0=</string> -->
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUScheduledCheckInterval</key>

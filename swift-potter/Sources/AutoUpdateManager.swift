@@ -86,10 +86,12 @@ class AutoUpdateManager: NSObject {
     private func isRunningInDevelopmentMode() -> Bool {
         // Check if we're running from swift run (executable path contains .build)
         let executablePath = Bundle.main.executablePath ?? ""
+        let bundlePath = Bundle.main.bundlePath
+        
         return executablePath.contains(".build") || 
-               executablePath.contains("swift-potter") ||
-               Bundle.main.bundlePath.hasSuffix(".build/debug") ||
-               Bundle.main.bundlePath.hasSuffix(".build/release")
+               bundlePath.hasSuffix(".build/debug") ||
+               bundlePath.hasSuffix(".build/release") ||
+               bundlePath.contains(".build/")
     }
     
     // MARK: - Public API
