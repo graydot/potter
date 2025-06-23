@@ -41,5 +41,11 @@ This release includes the StorageAdapter system for improved API key management.
       <pubDate>Mon, 23 Jun 2025 12:32:13 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.0.5/Potter-2.0.5.dmg" length="4441105" type="application/octet-stream" ns0:version="2.0.5" ns0:shortVersionString="2.0.5" ns0:edSignature="placeholder_signature" />
     </item>
+    <item>
+      <title>Potter 2.1.9</title>
+      <description>&lt;![CDATA[Automated release build]]&gt;</description>
+      <pubDate>Mon, 23 Jun 2025 15:09:36 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.9/Potter-2.1.9.dmg" length="4589989" type="application/octet-stream" ns0:version="2.1.9" ns0:shortVersionString="2.1.9" ns0:edSignature="V0sj7j3PqQqOWAWLy9zHLfLqsH1aQYpIg/+1OKEQb54lYYMSpaA5bkHSMb6m2H3KjRg+z72S5KZs3JfExXogBg==" />
+    </item>
   </channel>
 </rss>
