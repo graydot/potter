@@ -9,6 +9,7 @@
     <description>Updates for Potter</description>
     <language>en</language>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <link>https://github.com/graydot/potter</link>
     <item>
       <title>Potter 2.0.1</title>
@@ -22,6 +23,11 @@
 >>>>>>> bdf3d7e (Add comprehensive auto-update system with Sparkle framework)
 =======
       <title>Potter 2.0.2</title>
+=======
+    <link>https://github.com/graydot/potter</link>
+    <item>
+      <title>Potter 2.0.1</title>
+>>>>>>> 3223960 (Update appcast.xml to match GitHub release and fix test assertion)
       <description><![CDATA[Latest release with auto-update support
 >>>>>>> d3b7250 (Add Sparkle appcast.xml for auto-updates)
 
@@ -106,8 +112,12 @@ This is the first release with built-in auto-update support!]]></description>
 
 This release includes the StorageAdapter system for improved API key management.]]></description>
       <pubDate>Sat, 22 Jun 2025 00:00:00 +0000</pubDate>
+<<<<<<< HEAD
       <enclosure url="https://github.com/graydot/rephrasely/releases/download/v2.0.2/Potter-2.0.dmg" length="3455656" type="application/octet-stream" sparkle:version="2.0.2" sparkle:shortVersionString="2.0.2" sparkle:dsaSignature="placeholder_signature" />
 >>>>>>> d3b7250 (Add Sparkle appcast.xml for auto-updates)
+=======
+      <enclosure url="https://github.com/graydot/potter/releases/download/2.0.1/Potter-2.0.dmg" length="3455656" type="application/octet-stream" sparkle:version="2.0.1" sparkle:shortVersionString="2.0.1" sparkle:dsaSignature="placeholder_signature" />
+>>>>>>> 3223960 (Update appcast.xml to match GitHub release and fix test assertion)
     </item>
   </channel>
 </rss>

@@ -17,7 +17,7 @@ class AutoUpdateManager: NSObject {
     private var updater: SPUUpdater?
     
     // Update configuration
-    private let feedURL = "https://raw.githubusercontent.com/graydot/rephrasely/main/releases/appcast.xml"
+    private let feedURL = "https://raw.githubusercontent.com/graydot/potter/master/appcast.xml"
     private let updateCheckInterval: TimeInterval = 60 * 60 * 24 // 24 hours
     
     private override init() {
