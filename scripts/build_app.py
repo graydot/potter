@@ -292,7 +292,7 @@ def create_info_plist(app_path):
     
     <!-- Sparkle Auto-Update Configuration -->
     <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/graydot/potter/master/appcast.xml</string>
+    <string>https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>sparkle:edDSAPublicKey</string>
     <key>SUEnableAutomaticChecks</key>

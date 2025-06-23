@@ -14,7 +14,7 @@ if let iconURL = Bundle.module.url(forResource: "potter-icon-512", withExtension
 let delegate = AppDelegate()
 app.delegate = delegate
 
-print("🎭 Potter - AI Text Processing Tool")
+print("🎭 Potter.ai: Copy → Enhance → Paste")
 print("Starting Swift version...")
 
 app.run()
@@ -148,7 +148,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         
         if let button = statusItem?.button {
             updateMenuBarIcon()
-            button.toolTip = "Potter - AI Text Processing"
+            button.toolTip = "Potter.ai: Copy → Enhance → Paste"
         }
         
         setupMenu()
@@ -267,27 +267,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func loadMenuBarIcon(forDarkMode isDarkMode: Bool) -> NSImage {
-        // Try direct file path approach since Bundle.module isn't working
-        let iconName = isDarkMode ? "menubar-icon-dark-18" : "menubar-icon-light-18"
-        let iconPath = "Sources/Resources/\(iconName).png"
-        
-        if FileManager.default.fileExists(atPath: iconPath),
-           let image = NSImage(contentsOfFile: iconPath) {
+        // Load from Resources bundle
+        if let iconURL = Bundle.module.url(forResource: "menubar-icon-template", withExtension: "png", subdirectory: "Resources"),
+           let image = NSImage(contentsOf: iconURL) {
             image.size = NSSize(width: 18, height: 18)
+            image.isTemplate = true  // This makes it adapt to light/dark mode automatically
             return image
         }
         
-        // Fallback: try @2x version
-        let iconName2x = isDarkMode ? "menubar-icon-dark-18@2x" : "menubar-icon-light-18@2x"
-        let iconPath2x = "Sources/Resources/\(iconName2x).png"
-        
-        if FileManager.default.fileExists(atPath: iconPath2x),
-           let image = NSImage(contentsOfFile: iconPath2x) {
-            image.size = NSSize(width: 18, height: 18)
-            return image
-        }
-        
-        // Try template icon
+        // Direct file path
         let templatePath = "Sources/Resources/menubar-icon-template.png"
         if FileManager.default.fileExists(atPath: templatePath),
            let image = NSImage(contentsOfFile: templatePath) {
@@ -296,8 +284,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
             return image
         }
         
-        // Ultimate fallback: create programmatically (keep old code as backup)
-        return createFallbackIcon(forDarkMode: isDarkMode)
+        // If no image found, create blank template
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.isTemplate = true
+        return image
     }
     
     private func createSpinnerIcon() -> NSImage {
@@ -323,79 +313,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         image.unlockFocus()
         
         return image
-    }
-    
-    private func createFallbackIcon(forDarkMode isDarkMode: Bool) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size)
-        
-        image.lockFocus()
-        drawCauldronIcon(isDarkMode: isDarkMode, size: size)
-        image.unlockFocus()
-        
-        return image
-    }
-    
-    private func drawCauldronIcon(isDarkMode: Bool, size: NSSize) {
-        // Use appropriate colors for light/dark mode
-        let potColor: NSColor
-        let steamColor: NSColor
-        let handleColor: NSColor
-        
-        if isDarkMode {
-            // White pot for dark mode
-            potColor = NSColor.white
-            steamColor = NSColor.lightGray
-            handleColor = NSColor.lightGray
-        } else {
-            // Black pot for light mode
-            potColor = NSColor.black
-            steamColor = NSColor.darkGray
-            handleColor = NSColor.darkGray
-        }
-        
-        // Scale everything down to fit in 18x18
-        let scale: CGFloat = 0.9
-        let offsetX: CGFloat = (18 * (1 - scale)) / 2
-        let offsetY: CGFloat = (18 * (1 - scale)) / 2
-        
-        // Draw steam particles (small circles)
-        steamColor.setFill()
-        let steamParticles = [
-            NSRect(x: 7 + offsetX, y: 3 + offsetY, width: 1, height: 1),
-            NSRect(x: 9 + offsetX, y: 2.5 + offsetY, width: 0.8, height: 0.8),
-            NSRect(x: 11 + offsetX, y: 3.5 + offsetY, width: 0.7, height: 0.7),
-        ]
-        
-        for particle in steamParticles {
-            NSBezierPath(ovalIn: particle).fill()
-        }
-        
-        // Draw main pot body (ellipse)
-        potColor.setFill()
-        let potBody = NSBezierPath(ovalIn: NSRect(x: 4 + offsetX, y: 6.5 + offsetY, width: 10, height: 7))
-        potBody.fill()
-        
-        // Draw pot rim (darker ellipse)
-        let rimColor = isDarkMode ? NSColor.lightGray : NSColor.darkGray
-        rimColor.setFill()
-        let rim = NSBezierPath(ovalIn: NSRect(x: 3.5 + offsetX, y: 6 + offsetY, width: 11, height: 2.4))
-        rim.fill()
-        
-        // Draw pot spout
-        let spout = NSBezierPath(ovalIn: NSRect(x: 13 + offsetX, y: 6.8 + offsetY, width: 3, height: 1.6))
-        spout.fill()
-        
-        // Draw pot base
-        let baseColor = isDarkMode ? NSColor.gray : NSColor.black
-        baseColor.setFill()
-        let base = NSBezierPath(ovalIn: NSRect(x: 5 + offsetX, y: 13 + offsetY, width: 8, height: 1.6))
-        base.fill()
-        
-        // Draw handle (simple rectangle)
-        handleColor.setFill()
-        let handle = NSRect(x: 14.5 + offsetX, y: 8 + offsetY, width: 1, height: 4)
-        NSBezierPath(rect: handle).fill()
     }
     
     private func drawSpinner() {

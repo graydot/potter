@@ -37,8 +37,9 @@ def create_menubar_icon_from_image(source_image_path, mode='light'):
         
         print(f"🎨 Creating {mode} mode menu bar icons...")
         
-        # Create Sources/Resources directory
-        icon_dir = "Sources/Resources"
+        # Create Sources/Resources directory relative to script location
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_dir = os.path.join(script_dir, "Sources", "Resources")
         os.makedirs(icon_dir, exist_ok=True)
         
         for size in sizes:
