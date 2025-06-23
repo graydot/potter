@@ -267,28 +267,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func loadMenuBarIcon(forDarkMode isDarkMode: Bool) -> NSImage {
-        // Try to load from Resources bundle
+        // Try direct file path approach since Bundle.module isn't working
         let iconName = isDarkMode ? "menubar-icon-dark-18" : "menubar-icon-light-18"
+        let iconPath = "Sources/Resources/\(iconName).png"
         
-        if let iconURL = Bundle.module.url(forResource: iconName, withExtension: "png", subdirectory: "Resources"),
-           let image = NSImage(contentsOf: iconURL) {
+        if FileManager.default.fileExists(atPath: iconPath),
+           let image = NSImage(contentsOfFile: iconPath) {
             image.size = NSSize(width: 18, height: 18)
             return image
         }
         
-        // Fallback: try @2x version and scale down
+        // Fallback: try @2x version
         let iconName2x = isDarkMode ? "menubar-icon-dark-18@2x" : "menubar-icon-light-18@2x"
-        if let iconURL = Bundle.module.url(forResource: iconName2x, withExtension: "png", subdirectory: "Resources"),
-           let image = NSImage(contentsOf: iconURL) {
+        let iconPath2x = "Sources/Resources/\(iconName2x).png"
+        
+        if FileManager.default.fileExists(atPath: iconPath2x),
+           let image = NSImage(contentsOfFile: iconPath2x) {
             image.size = NSSize(width: 18, height: 18)
             return image
         }
         
-        // Final fallback: use template icon and let system handle theming
-        if let iconURL = Bundle.module.url(forResource: "menubar-icon-template", withExtension: "png", subdirectory: "Resources"),
-           let image = NSImage(contentsOf: iconURL) {
+        // Try template icon
+        let templatePath = "Sources/Resources/menubar-icon-template.png"
+        if FileManager.default.fileExists(atPath: templatePath),
+           let image = NSImage(contentsOfFile: templatePath) {
             image.size = NSSize(width: 18, height: 18)
-            image.isTemplate = true  // Let system handle light/dark theming
+            image.isTemplate = true
             return image
         }
         
