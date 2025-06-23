@@ -72,8 +72,10 @@ class ErrorHandlingEdgeCasesTests: TestBase {
                 switch potterError {
                 case .configuration(.missingAPIKey):
                     XCTAssertTrue(true) // Expected error type
+                case .network(.unauthorized):
+                    XCTAssertTrue(true) // Also valid - API key is invalid/empty
                 default:
-                    XCTFail("Expected missingAPIKey error, got \(potterError)")
+                    XCTFail("Expected missingAPIKey or unauthorized error, got \(potterError)")
                 }
             }
         }

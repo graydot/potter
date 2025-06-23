@@ -29,6 +29,15 @@ class PotterLogger: ObservableObject {
                 case .debug: return .systemGray
                 }
             }
+            
+            var emoji: String {
+                switch self {
+                case .info: return "ℹ️"
+                case .warning: return "⚠️"
+                case .error: return "❌"
+                case .debug: return "🐛"
+                }
+            }
         }
         
         var formattedString: String {

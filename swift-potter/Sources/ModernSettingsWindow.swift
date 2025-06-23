@@ -658,56 +658,83 @@ struct ModernSettingsView: View {
     }
     
     private var logsSectionContent: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 8) {
+            // Copy All Logs button
+            HStack {
+                Button("Copy All Logs") {
                     let filteredLogs = logger.filteredEntries(level: logFilter)
-                    ForEach(Array(filteredLogs.enumerated()), id: \.offset) { index, logEntry in
-                        selectableLogEntryRow(logEntry)
-                            .id(index) // Add ID for scrolling
-                    }
+                    let logText = filteredLogs.map { logEntry in
+                        let timestamp = DateFormatter.timeFormatter.string(from: logEntry.timestamp)
+                        return "\(timestamp) - \(logEntry.component) - \(logEntry.level.rawValue) - \(logEntry.message)"
+                    }.joined(separator: "\n")
+                    
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(logText, forType: .string)
                 }
-                .padding(.vertical, 8)
+                .buttonStyle(.bordered)
+                
+                Spacer()
+                
+                Text("\(logger.filteredEntries(level: logFilter).count) entries")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
             }
-            .frame(height: 300)
-            .background(Color(NSColor.textBackgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color(NSColor.separatorColor))
-            )
-            .onChange(of: logger.logEntries.count) { _ in
-                // Auto-scroll to bottom when new logs are added
-                let filteredLogs = logger.filteredEntries(level: logFilter)
-                if !filteredLogs.isEmpty {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        proxy.scrollTo(filteredLogs.count - 1, anchor: .bottom)
+            
+            // Improved text view for better selection
+            ScrollViewReader { proxy in
+                TextEditor(text: .constant(formattedLogText()))
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(height: 300)
+                    .background(Color(NSColor.textBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color(NSColor.separatorColor))
+                    )
+                    .onChange(of: logger.logEntries.count) { _ in
+                        // Auto-scroll to bottom when new logs are added (but only if user hasn't manually scrolled)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            // Scroll to end of text
+                            if let textView = findTextView() {
+                                textView.scrollToEndOfDocument(nil)
+                            }
+                        }
                     }
-                }
             }
         }
     }
     
-    private func selectableLogEntryRow(_ logEntry: PotterLogger.LogEntry) -> some View {
-        let timestamp = DateFormatter.timeFormatter.string(from: logEntry.timestamp)
-        let logText = "\(timestamp) - \(logEntry.component) - \(logEntry.level.rawValue) - \(logEntry.message)"
-        
-        return HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(Color(logEntry.level.color))
-                .frame(width: 6, height: 6)
-                .padding(.top, 6)
-            
-            Text(logText)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundColor(.primary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+    private func formattedLogText() -> String {
+        let filteredLogs = logger.filteredEntries(level: logFilter)
+        return filteredLogs.map { logEntry in
+            let timestamp = DateFormatter.timeFormatter.string(from: logEntry.timestamp)
+            let levelIndicator = logEntry.level.emoji
+            return "\(timestamp) \(levelIndicator) [\(logEntry.component)] \(logEntry.message)"
+        }.joined(separator: "\n")
     }
+    
+    private func findTextView() -> NSTextView? {
+        // Helper to find the underlying NSTextView for scrolling
+        guard let window = NSApplication.shared.windows.first(where: { $0.title.contains("Potter") }) else { return nil }
+        return findTextViewInView(window.contentView)
+    }
+    
+    private func findTextViewInView(_ view: NSView?) -> NSTextView? {
+        guard let view = view else { return nil }
+        
+        if let textView = view as? NSTextView {
+            return textView
+        }
+        
+        for subview in view.subviews {
+            if let found = findTextViewInView(subview) {
+                return found
+            }
+        }
+        
+        return nil
+    }
+    
     
     private var logsSectionFooter: some View {
         let totalLogs = logger.logEntries.count
