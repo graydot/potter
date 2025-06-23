@@ -250,64 +250,36 @@ def create_app_bundle():
     return app_path
 
 def create_info_plist(app_path):
-    """Create Info.plist for the app bundle"""
-    print("📝 Creating Info.plist...")
+    """Copy and modify Info.plist from source"""
+    print("📝 Creating Info.plist from source...")
     
-    info_plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>{APP_NAME}</string>
-    <key>CFBundleIdentifier</key>
-    <string>{BUNDLE_ID}</string>
-    <key>CFBundleName</key>
-    <string>{APP_NAME}</string>
-    <key>CFBundleDisplayName</key>
-    <string>{APP_NAME}</string>
-    <key>CFBundleVersion</key>
-    <string>2.0.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>2.0.0</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSSupportsAutomaticGraphicsSwitching</key>
-    <true/>
-    <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Potter needs access to send Apple Events for system automation.</string>
-    <key>NSSystemAdministrationUsageDescription</key>
-    <string>Potter needs system access to monitor global hotkeys.</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
+    # Try to find source Info.plist
+    source_info_plist = f"{SWIFT_PROJECT_DIR}/Sources/Resources/Info.plist"
+    if not os.path.exists(source_info_plist):
+        print(f"❌ Source Info.plist not found at {source_info_plist}")
+        return False
     
-    <!-- Sparkle Auto-Update Configuration -->
-    <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml</string>
-    <!-- Signature verification disabled for testing -->
-    <key>SUDisableSignatureVerification</key>
-    <true/>
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-    <key>SUScheduledCheckInterval</key>
-    <integer>86400</integer>
-</dict>
-</plist>"""
-    
+    # Copy source Info.plist to app bundle
     info_plist_path = f"{app_path}/Contents/Info.plist"
-    with open(info_plist_path, 'w') as f:
-        f.write(info_plist_content)
+    shutil.copy2(source_info_plist, info_plist_path)
     
-    print("✅ Info.plist created")
+    # Read and modify the copied plist
+    import plistlib
+    with open(info_plist_path, 'rb') as f:
+        plist_data = plistlib.load(f)
+    
+    # Update bundle-specific fields
+    plist_data['CFBundleExecutable'] = APP_NAME
+    plist_data['CFBundleIdentifier'] = BUNDLE_ID
+    plist_data['CFBundleName'] = APP_NAME
+    plist_data['CFBundleDisplayName'] = APP_NAME
+    plist_data['CFBundleIconFile'] = 'AppIcon'
+    
+    # Write the modified plist back
+    with open(info_plist_path, 'wb') as f:
+        plistlib.dump(plist_data, f)
+    
+    print("✅ Info.plist created from source")
     return True
 
 def copy_app_icon(app_path):

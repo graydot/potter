@@ -79,8 +79,7 @@ class AutoUpdateManager: NSObject, SPUUpdaterDelegate {
         // Schedule an initial background check after startup
         DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
             PotterLogger.shared.info("autoupdate", "🔍 Performing initial background update check...")
-            PotterLogger.shared.info("autoupdate", "   Manually triggering update check to force error visibility...")
-            self.checkForUpdatesManually()
+            self.checkForUpdatesInBackground()
         }
     }
     
@@ -106,25 +105,7 @@ class AutoUpdateManager: NSObject, SPUUpdaterDelegate {
             return
         }
         PotterLogger.shared.info("autoupdate", "🔍 Manual update check requested")
-        PotterLogger.shared.info("autoupdate", "   Current version: \(getCurrentVersion())")
-        PotterLogger.shared.info("autoupdate", "   Feed URL: \(feedURL)")
-        PotterLogger.shared.info("autoupdate", "   Updater available: \(updater != nil)")
-        PotterLogger.shared.info("autoupdate", "   Auto checks enabled: \(updater?.automaticallyChecksForUpdates ?? false)")
-        
-        if let updater = updater {
-            PotterLogger.shared.info("autoupdate", "   Calling checkForUpdates()...")
-            
-            // Try both manual and background checks to see which one triggers the error
-            updater.checkForUpdates()
-            
-            // Also try background check
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                PotterLogger.shared.info("autoupdate", "   Also trying background check...")
-                updater.checkForUpdatesInBackground()
-            }
-        } else {
-            PotterLogger.shared.error("autoupdate", "❌ Updater is nil - cannot check for updates")
-        }
+        updater?.checkForUpdates()
     }
     
     /**
@@ -136,9 +117,6 @@ class AutoUpdateManager: NSObject, SPUUpdaterDelegate {
             return
         }
         PotterLogger.shared.info("autoupdate", "🔍 Background update check starting...")
-        PotterLogger.shared.info("autoupdate", "   Current version: \(getCurrentVersion())")
-        PotterLogger.shared.info("autoupdate", "   Feed URL: \(feedURL)")
-        PotterLogger.shared.info("autoupdate", "   Last check: \(updater?.lastUpdateCheckDate?.description ?? "never")")
         updater?.checkForUpdatesInBackground()
     }
     
@@ -190,13 +168,7 @@ class AutoUpdateManager: NSObject, SPUUpdaterDelegate {
 
 extension AutoUpdateManager {
     func feedURLString(for updater: SPUUpdater) -> String? {
-        PotterLogger.shared.debug("autoupdate", "🔗 Sparkle requesting feed URL: \(feedURL)")
         return feedURL
-    }
-    
-    func updaterShouldPromptForPermissionToCheckForUpdates(_ updater: SPUUpdater) -> Bool {
-        PotterLogger.shared.info("autoupdate", "📋 Sparkle asking for permission to check updates")
-        return true
     }
     
     func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
@@ -207,19 +179,17 @@ extension AutoUpdateManager {
     
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
         if let error = error {
-            PotterLogger.shared.error("autoupdate", "❌ Update check failed: \(error.localizedDescription)")
-            PotterLogger.shared.error("autoupdate", "   Error domain: \((error as NSError).domain)")
-            PotterLogger.shared.error("autoupdate", "   Error code: \((error as NSError).code)")
-            PotterLogger.shared.error("autoupdate", "   Feed URL: \(feedURL)")
+            // Only log actual errors, not "up to date" messages
+            let nsError = error as NSError
+            if nsError.domain == "SUSparkleErrorDomain" && nsError.code == 1001 {
+                // Code 1001 is "up to date", which is normal
+                PotterLogger.shared.info("autoupdate", "✅ No updates available - up to date")
+            } else {
+                PotterLogger.shared.error("autoupdate", "❌ Update check failed: \(error.localizedDescription)")
+            }
         } else {
             PotterLogger.shared.info("autoupdate", "✅ Update check completed successfully")
         }
-    }
-    
-    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
-        PotterLogger.shared.info("autoupdate", "✅ No updates available")
-        PotterLogger.shared.info("autoupdate", "   Current version: \(getCurrentVersion()) is up to date")
-        PotterLogger.shared.info("autoupdate", "   Feed checked: \(feedURL)")
     }
     
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
