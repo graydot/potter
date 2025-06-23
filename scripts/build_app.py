@@ -266,9 +266,9 @@ def create_info_plist(app_path):
     <key>CFBundleDisplayName</key>
     <string>{APP_NAME}</string>
     <key>CFBundleVersion</key>
-    <string>2.0.2</string>
+    <string>2.0.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.2</string>
+    <string>2.0.0</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundlePackageType</key>
@@ -293,8 +293,9 @@ def create_info_plist(app_path):
     <!-- Sparkle Auto-Update Configuration -->
     <key>SUFeedURL</key>
     <string>https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>sparkle:edDSAPublicKey</string>
+    <!-- Signature verification disabled for testing -->
+    <key>SUDisableSignatureVerification</key>
+    <true/>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUScheduledCheckInterval</key>

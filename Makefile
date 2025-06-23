@@ -56,6 +56,14 @@ swift-test-verbose: ## Run Swift tests with verbose output
 	@echo "$(GREEN)🧪 Running Swift tests (verbose)...$(NC)"
 	cd swift-potter && swift test --parallel --verbose
 
+swift-test-clean: ## Clean and run Swift tests
+	@echo "$(GREEN)🧹 Cleaning and running Swift tests...$(NC)"
+	cd swift-potter && swift package clean && swift test --parallel
+
+swift-test-fast: ## Fast Swift test run for pre-commit checks
+	@echo "$(GREEN)⚡ Running fast Swift test check...$(NC)"
+	cd swift-potter && swift test --quiet
+
 # Publishing
 publish: publish-github ## Alias for GitHub publish
 
