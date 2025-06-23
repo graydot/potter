@@ -174,7 +174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         iconImage.isTemplate = (currentIconState == .normal) // Only use template for normal state
         button.image = iconImage
         
-        PotterLogger.shared.debug("ui", "🎨 Updated menu bar icon for \(isDarkMode ? "dark" : "light") mode, state: \(currentIconState)")
+        // PotterLogger.shared.debug("ui", "🎨 Updated menu bar icon for \(isDarkMode ? "dark" : "light") mode, state: \(currentIconState)")
     }
     
     // Public methods to update icon state
