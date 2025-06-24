@@ -31,8 +31,8 @@ if [[ -f "swift-potter/Package.swift" ]]; then
     echo "• SecurityPrivacyTests - API key security and data protection"
     echo ""
     
-    # Use make test for consistency with developer workflow
-    if timeout 180 make test > /tmp/swift_test_output.log 2>&1; then
+    # Use swift test directly for consistency with developer workflow
+    if timeout 180 swift test --parallel > /tmp/swift_test_output.log 2>&1; then
         echo "$(green '✅ All Swift tests passed!')"
         
         # Show test summary
@@ -51,7 +51,7 @@ if [[ -f "swift-potter/Package.swift" ]]; then
         echo "$(yellow 'cat /tmp/swift_test_output.log')"
         echo ""
         echo "$(yellow 'To run tests manually:')"
-        echo "$(yellow 'make test')"
+        echo "$(yellow 'cd swift-potter && swift test --parallel')"
         
         TESTS_PASSED=false
     fi

@@ -26,37 +26,98 @@ GITHUB_REPO_URL = f"https://github.com/{REPO_NAME}"
 RELEASES_DIR = "releases"  # Generate appcast locally first
 APP_NAME = "Potter"
 
-def get_current_version():
-    """Get current version from latest GitHub release"""
+def get_version_from_appcast():
+    """Get latest version from appcast"""
     try:
-        # Use gh CLI to get latest release
+        appcast_url = "https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml"
+        import urllib.request
+        with urllib.request.urlopen(appcast_url) as response:
+            content = response.read().decode('utf-8')
+            
+        # Parse XML to find latest version
+        root = ET.fromstring(content)
+        versions = []
+        for enclosure in root.findall(".//enclosure"):
+            version = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString")
+            if version:
+                versions.append(version)
+        
+        if versions:
+            # Return the latest version (assumes semantic versioning)
+            return max(versions, key=lambda v: [int(x) for x in v.split('.')])
+    except:
+        pass
+    return None
+
+def get_version_from_github_releases():
+    """Get latest version from GitHub releases"""
+    try:
         result = subprocess.run(['gh', 'release', 'list', '--repo', 'graydot/potter', '--limit', '1', '--json', 'tagName'], 
                                capture_output=True, text=True, check=True)
         
         releases = json.loads(result.stdout)
         if releases:
             tag_name = releases[0]['tagName']
-            # Remove 'v' prefix if present
-            version = tag_name.lstrip('v')
-            return version
+            return tag_name.lstrip('v')
     except:
         pass
+    return None
+
+def get_version_from_local_tags():
+    """Get latest version from local git tags"""
+    try:
+        result = subprocess.run(['git', 'tag', '-l', '--sort=-version:refname'], 
+                               capture_output=True, text=True, check=True)
+        
+        tags = result.stdout.strip().split('\n')
+        for tag in tags:
+            tag = tag.strip()
+            if tag and re.match(r'^v?\d+\.\d+(\.\d+)?$', tag):
+                return tag.lstrip('v')
+    except:
+        pass
+    return None
+
+def get_current_version():
+    """Get current version from multiple sources and handle inconsistencies"""
+    print("🔍 Checking version from multiple sources...")
     
-    # Fallback to Info.plist
-    info_plist_paths = [
-        "swift-potter/Sources/Resources/Info.plist"
-    ]
+    # Check all sources
+    appcast_version = get_version_from_appcast()
+    github_version = get_version_from_github_releases()
+    local_version = get_version_from_local_tags()
     
-    for plist_path in info_plist_paths:
-        if os.path.exists(plist_path):
-            with open(plist_path, 'r') as f:
-                content = f.read()
-                match = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>', content)
-                if match:
-                    return match.group(1)
+    versions = {}
+    if appcast_version:
+        versions['appcast'] = appcast_version
+        print(f"   📡 Appcast version: {appcast_version}")
+    if github_version:
+        versions['github'] = github_version
+        print(f"   🚀 GitHub releases version: {github_version}")
+    if local_version:
+        versions['local'] = local_version
+        print(f"   🏷️  Local tags version: {local_version}")
     
-    # Ultimate fallback
-    return "2.0.0"
+    if not versions:
+        print("   ⚠️  No versions found, using fallback: 2.0.0")
+        return "2.0.0"
+    
+    # Check for inconsistencies
+    unique_versions = set(versions.values())
+    if len(unique_versions) > 1:
+        print(f"   ⚠️  Version inconsistency detected!")
+        for source, version in versions.items():
+            print(f"      {source}: {version}")
+        
+        # Use the highest version to avoid conflicts
+        highest_version = max(versions.values(), key=lambda v: [int(x) for x in v.split('.')])
+        print(f"   💡 Using highest version to avoid conflicts: {highest_version}")
+        return highest_version
+    else:
+        # All sources agree or only one source
+        current_version = list(versions.values())[0]
+        print(f"   ✅ Consistent version found: {current_version}")
+        return current_version
 
 def bump_version(current_version, bump_type='patch'):
     """Bump version number"""
