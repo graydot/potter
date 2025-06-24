@@ -51,7 +51,7 @@ if [[ -f "swift-potter/Package.swift" ]]; then
         echo "$(yellow 'cat /tmp/swift_test_output.log')"
         echo ""
         echo "$(yellow 'To run tests manually:')"
-        echo "$(yellow 'cd swift-potter && make test')"
+        echo "$(yellow 'make test')"
         
         TESTS_PASSED=false
     fi

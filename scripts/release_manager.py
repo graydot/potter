@@ -23,7 +23,7 @@ def get_repo_info():
 
 REPO_NAME = get_repo_info()
 GITHUB_REPO_URL = f"https://github.com/{REPO_NAME}"
-RELEASES_DIR = "../potter/releases"  # Store appcast in ../potter repo
+RELEASES_DIR = "releases"  # Generate appcast locally first
 APP_NAME = "Potter"
 
 def get_current_version():
@@ -155,12 +155,23 @@ def calculate_file_signature(file_path):
             print("   Using placeholder signature - update will fail verification")
             return "placeholder_signature"
         
-        # Create temporary directory with just our DMG
+        # Create temporary directory with properly named DMG
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Copy DMG to temp directory
+            # Copy DMG to temp directory with version in filename (required by Sparkle)
             import shutil
-            temp_dmg = os.path.join(temp_dir, os.path.basename(file_path))
+            from pathlib import Path
+            
+            # Extract version from filename or use default
+            original_name = Path(file_path).stem
+            version_match = re.search(r'(\d+\.\d+(?:\.\d+)?)', original_name)
+            if version_match:
+                version_str = version_match.group(1)
+            else:
+                version_str = "2.0.2"  # fallback
+            
+            # Sparkle expects files like AppName-Version.dmg
+            temp_dmg = os.path.join(temp_dir, f"Potter-{version_str}.dmg")
             shutil.copy2(file_path, temp_dmg)
             
             # Run generate_appcast on the temp directory
@@ -260,9 +271,9 @@ def update_appcast(version, dmg_path, release_notes):
     print(f"✅ Updated appcast: {appcast_path}")
     return appcast_path
 
-def commit_appcast_changes(version):
-    """Commit and push appcast changes to ../potter repo"""
-    print("📡 Committing appcast changes to potter repo...")
+def copy_appcast_to_potter_repo(version):
+    """Copy appcast to ../potter repo and commit"""
+    print("📡 Copying appcast to potter repo...")
     
     potter_dir = "../potter"
     if not os.path.exists(potter_dir):
@@ -270,6 +281,19 @@ def commit_appcast_changes(version):
         return False
     
     try:
+        # Copy appcast file
+        local_appcast = f"{RELEASES_DIR}/appcast.xml"
+        potter_releases_dir = f"{potter_dir}/releases"
+        potter_appcast = f"{potter_releases_dir}/appcast.xml"
+        
+        # Ensure potter releases directory exists
+        os.makedirs(potter_releases_dir, exist_ok=True)
+        
+        # Copy file
+        import shutil
+        shutil.copy2(local_appcast, potter_appcast)
+        print(f"✅ Copied appcast to {potter_appcast}")
+        
         # Change to potter directory
         original_cwd = os.getcwd()
         os.chdir(potter_dir)
@@ -279,7 +303,7 @@ def commit_appcast_changes(version):
         
         # Commit changes
         commit_msg = f"Update appcast for Potter {version}"
-        subprocess.run(['git', 'commit', '--no-verify', '-m', commit_msg], check=True)
+        subprocess.run(['git', 'commit', '-m', commit_msg], check=True)
         
         # Push changes
         subprocess.run(['git', 'push'], check=True)
@@ -289,6 +313,9 @@ def commit_appcast_changes(version):
         
     except subprocess.CalledProcessError as e:
         print(f"❌ Git operation failed: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Copy operation failed: {e}")
         return False
     finally:
         # Return to original directory
@@ -316,8 +343,14 @@ def create_github_release(version, dmg_path, release_notes):
             print(f"✅ GitHub release created: {GITHUB_REPO_URL}/releases/tag/v{version}")
             return True
         else:
-            print(f"❌ GitHub release failed: {result.stderr}")
-            return False
+            stderr = result.stderr.strip()
+            if "already exists" in stderr:
+                print(f"⚠️  GitHub release v{version} already exists - skipping creation")
+                print(f"🔗 Existing release: {GITHUB_REPO_URL}/releases/tag/v{version}")
+                return True
+            else:
+                print(f"❌ GitHub release failed: {stderr}")
+                return False
             
     except subprocess.CalledProcessError:
         print("❌ GitHub CLI (gh) not found. Please install it to create releases automatically.")
@@ -336,14 +369,14 @@ def commit_version_changes(version):
     print("📝 Committing version changes...")
     
     try:
-        # Add changed files
+        # Add changed files (only local files, not appcast which is in ../potter)
         subprocess.run(['git', 'add', 
                        'scripts/build_app.py',
-                       f'{RELEASES_DIR}/appcast.xml'],
+                       'swift-potter/Sources/Resources/Info.plist'],
                       check=True)
         
         # Commit
-        commit_message = f"Release {version}\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+        commit_message = f"Release {version}"
         
         subprocess.run(['git', 'commit', '-m', commit_message], check=True)
         
@@ -430,8 +463,8 @@ def main():
     # Update appcast
     appcast_path = update_appcast(new_version, dmg_path, release_notes)
     
-    # Commit appcast changes to potter repo
-    commit_appcast_changes(new_version)
+    # Copy appcast to potter repo and commit
+    copy_appcast_to_potter_repo(new_version)
     
     # Create GitHub release
     if not args.skip_github:
