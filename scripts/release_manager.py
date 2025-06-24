@@ -301,8 +301,13 @@ def copy_appcast_to_potter_repo(version):
         os.chdir(original_cwd)
 
 def create_github_release(version, dmg_path, release_notes):
-    """Create GitHub release using gh CLI"""
+    """Create GitHub release using gh CLI in the potter repo"""
     print(f"🚀 Creating GitHub release v{version}...")
+    
+    potter_dir = "../potter"
+    if not os.path.exists(potter_dir):
+        print(f"❌ Potter repo not found at {potter_dir}")
+        return False
     
     try:
         # Check if gh CLI is available
@@ -318,15 +323,30 @@ def create_github_release(version, dmg_path, release_notes):
             print(f"⚠️  Could not get codename for release title, using standard naming: {e}")
             release_title = f'{APP_NAME} {version}'
         
+        # Change to potter directory to create release there
+        original_cwd = os.getcwd()
+        os.chdir(potter_dir)
+        
+        # Create absolute path to DMG from potter repo perspective  
+        dmg_absolute_path = os.path.abspath(os.path.join(original_cwd, dmg_path))
+        
+        # Create tag first
+        print(f"🏷️  Creating tag v{version} in potter repo...")
+        subprocess.run(['git', 'tag', f'v{version}'], check=False)  # Don't fail if tag exists
+        subprocess.run(['git', 'push', 'origin', f'v{version}'], check=False)  # Don't fail if already pushed
+        
         # Create release
         cmd = [
             'gh', 'release', 'create', f'v{version}',
-            dmg_path,
+            dmg_absolute_path,
             '--title', release_title,
             '--notes', release_notes
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Return to original directory
+        os.chdir(original_cwd)
         
         if result.returncode == 0:
             print(f"✅ GitHub release created: {GITHUB_REPO_URL}/releases/tag/v{version}")
