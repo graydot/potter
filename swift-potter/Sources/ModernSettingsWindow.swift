@@ -1113,8 +1113,6 @@ struct ModernSettingsView: View {
             initializeFreshState()
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                ModernSettingsWindowController.shared.close()
-                
                 let alert = NSAlert()
                 alert.messageText = "Data Deleted"
                 alert.informativeText = "All Potter data has been deleted. The app has been reset to its initial state."

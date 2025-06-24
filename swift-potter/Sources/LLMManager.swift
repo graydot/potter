@@ -93,37 +93,63 @@ class LLMManager: ObservableObject {
     
     // MARK: - API Key Management
     func setAPIKey(_ apiKey: String, for provider: LLMProvider) {
-        apiKeys[provider] = apiKey
-        // Reset validation state when key changes
-        validationStates[provider] = ValidationState.none
+        let maskedKey = apiKey.isEmpty ? "empty" : String(apiKey.prefix(12)) + "..." + String(apiKey.suffix(8))
+        PotterLogger.shared.info("llm_manager", "🔧 Setting API key for \(provider.displayName): \(maskedKey) (length: \(apiKey.count))")
         
-        // Save to storage using StorageAdapter
+        // Only log full key for shorter keys to avoid performance issues in tests
+        if apiKey.count < 1000 {
+            PotterLogger.shared.info("llm_manager", "🔍 FULL KEY BEING SET: \(apiKey)")
+        }
+        
+        // Store in memory
+        apiKeys[provider] = apiKey
+        
+        // Save to persistent storage
         if !apiKey.isEmpty {
             let result = StorageAdapter.shared.saveAPIKey(apiKey, for: provider)
             switch result {
             case .success:
+                PotterLogger.shared.info("llm_manager", "✅ API key saved to storage")
                 break
             case .failure(let error):
-                PotterLogger.shared.error("llm_manager", "Failed to save API key for \(provider.displayName): \(error.localizedDescription)")
+                PotterLogger.shared.error("llm_manager", "❌ Failed to save API key: \(error.localizedDescription)")
             }
         }
         
-        saveSettings()
+        // Note: Don't reset validation state here - let validation functions manage that
     }
     
     func getAPIKey(for provider: LLMProvider) -> String {
+        PotterLogger.shared.info("llm_manager", "🔍 Getting API key for \(provider.displayName)")
+        
         // First check memory cache
         if let cachedKey = apiKeys[provider] {
+            let maskedKey = String(cachedKey.prefix(12)) + "..." + String(cachedKey.suffix(8))
+            PotterLogger.shared.info("llm_manager", "✅ Found cached API key: \(maskedKey) (length: \(cachedKey.count))")
+            
+            // Only log full key for shorter keys to avoid performance issues in tests
+            if cachedKey.count < 1000 {
+                PotterLogger.shared.info("llm_manager", "🔍 FULL CACHED KEY: \(cachedKey)")
+            }
             return cachedKey
         }
         
         // Load from storage if not in memory
+        PotterLogger.shared.info("llm_manager", "💾 Loading API key from storage for \(provider.displayName)")
         let loadResult = StorageAdapter.shared.loadAPIKey(for: provider)
         switch loadResult {
         case .success(let storedKey):
+            let maskedKey = String(storedKey.prefix(12)) + "..." + String(storedKey.suffix(8))
+            PotterLogger.shared.info("llm_manager", "✅ Loaded API key from storage: \(maskedKey) (length: \(storedKey.count))")
+            
+            // Only log full key for shorter keys to avoid performance issues in tests
+            if storedKey.count < 1000 {
+                PotterLogger.shared.info("llm_manager", "🔍 FULL STORED KEY: \(storedKey)")
+            }
             apiKeys[provider] = storedKey
             return storedKey
         case .failure:
+            PotterLogger.shared.warning("llm_manager", "❌ Failed to load API key from storage for \(provider.displayName)")
             break
         }
         
@@ -140,19 +166,30 @@ class LLMManager: ObservableObject {
         validationStates[provider] = .validating
         isValidating = true
         
-        PotterLogger.shared.info("llm_manager", "🔑 Validating \(provider.displayName) API key...")
+        let maskedKey = String(apiKey.prefix(12)) + "..." + String(apiKey.suffix(8))
+        PotterLogger.shared.info("llm_manager", "🔑 Validating \(provider.displayName) API key: \(maskedKey) (length: \(apiKey.count))")
+        
+        // Only log full key for shorter keys to avoid performance issues in tests
+        if apiKey.count < 1000 {
+            PotterLogger.shared.info("llm_manager", "🔍 FULL API KEY FOR VALIDATION: \(apiKey)")
+        }
         
         do {
             let client = createClient(for: provider, apiKey: apiKey)
             _ = try await client.validateAPIKey(apiKey)
             
             // If we get here, validation succeeded
-            validationStates[provider] = .valid
-            apiKeys[provider] = apiKey
-            clients[provider] = client
-            saveSettings()
-            
             PotterLogger.shared.info("llm_manager", "✅ \(provider.displayName) API key validated successfully")
+            
+            // Save the key using the simple setter
+            setAPIKey(apiKey, for: provider)
+            
+            // Update validation state AFTER saving to avoid conflicts
+            validationStates[provider] = .valid
+            clients[provider] = client
+            
+            // Save other settings (provider, model selection)
+            saveSettings()
         } catch {
             let errorMessage = error.localizedDescription
             validationStates[provider] = .invalid(errorMessage)

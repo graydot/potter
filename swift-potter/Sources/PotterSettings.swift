@@ -1,7 +1,7 @@
 import Foundation
 
 class PotterSettings: ObservableObject {
-    private let userDefaults = UserDefaults.standard
+    private let userDefaults: UserDefaults
     
     // Keys - Updated to match StorageAdapter format
     private enum Keys {
@@ -14,27 +14,44 @@ class PotterSettings: ObservableObject {
     
     // Published properties for SwiftUI bindings
     @Published var openaiAPIKey: String? {
-        didSet { userDefaults.set(openaiAPIKey, forKey: Keys.openaiAPIKey) }
+        didSet { 
+            userDefaults.set(openaiAPIKey, forKey: Keys.openaiAPIKey)
+            userDefaults.synchronize()
+        }
     }
     
     @Published var anthropicAPIKey: String? {
-        didSet { userDefaults.set(anthropicAPIKey, forKey: Keys.anthropicAPIKey) }
+        didSet { 
+            userDefaults.set(anthropicAPIKey, forKey: Keys.anthropicAPIKey)
+            userDefaults.synchronize()
+        }
     }
     
     @Published var googleAPIKey: String? {
-        didSet { userDefaults.set(googleAPIKey, forKey: Keys.googleAPIKey) }
+        didSet { 
+            userDefaults.set(googleAPIKey, forKey: Keys.googleAPIKey)
+            userDefaults.synchronize()
+        }
     }
     
     @Published var currentProvider: String {
-        didSet { userDefaults.set(currentProvider, forKey: Keys.currentProvider) }
+        didSet { 
+            userDefaults.set(currentProvider, forKey: Keys.currentProvider)
+            userDefaults.synchronize()
+        }
     }
     
     @Published var currentPrompt: String {
-        didSet { userDefaults.set(currentPrompt, forKey: Keys.currentPrompt) }
+        didSet { 
+            userDefaults.set(currentPrompt, forKey: Keys.currentPrompt)
+            userDefaults.synchronize()
+        }
     }
     
     
-    init() {
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        
         // Load from UserDefaults
         self.openaiAPIKey = userDefaults.string(forKey: Keys.openaiAPIKey)
         self.anthropicAPIKey = userDefaults.string(forKey: Keys.anthropicAPIKey)

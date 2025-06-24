@@ -33,8 +33,20 @@ protocol StorageBackend {
 // MARK: - Keychain Storage Implementation
 
 class KeychainStorage: StorageBackend {
-    private let serviceName = "Potter-API-Keys"
+    private let serviceName: String
     private let accountName = "potter-all-keys"
+    
+    init() {
+        // Use bundle identifier to ensure consistency between dev and production
+        if let bundleId = Bundle.main.bundleIdentifier {
+            serviceName = "\(bundleId).api-keys"
+            PotterLogger.shared.debug("keychain", "🔑 Using keychain service: \(serviceName) (from bundle ID)")
+        } else {
+            // Fallback for development or when bundle ID is not available
+            serviceName = "com.potter.swift.api-keys"
+            PotterLogger.shared.debug("keychain", "🔑 Using keychain service: \(serviceName) (fallback)")
+        }
+    }
     private var cache: [String: String]? = nil // nil = not loaded yet
     private let queue = DispatchQueue(label: "keychain-storage", qos: .userInitiated)
     
@@ -230,15 +242,37 @@ class KeychainStorage: StorageBackend {
 class UserDefaultsStorage: StorageBackend {
     func get(key: String) -> Result<String, PotterError> {
         PotterLogger.shared.info("userdefaults", "📋 Reading key: \(key)")
+        let bundleId = Bundle.main.bundleIdentifier ?? "no-bundle-id"
+        PotterLogger.shared.debug("userdefaults", "📋 Bundle ID during read: \(bundleId)")
+        
+        // Debug: Show which storage method is currently selected
+        let currentMethod = UserDefaults.standard.string(forKey: "storage_method") ?? "not-set"
+        PotterLogger.shared.debug("userdefaults", "📋 Current storage method: \(currentMethod)")
+        
         guard let value = UserDefaults.standard.string(forKey: key), !value.isEmpty else {
+            PotterLogger.shared.debug("userdefaults", "📋 Key '\(key)' not found or empty")
             return .failure(.storage(.keyNotFound(key: key)))
         }
+        PotterLogger.shared.debug("userdefaults", "📋 Key '\(key)' found, value length: \(value.count)")
         return .success(value)
     }
     
     func put(key: String, value: String) -> Result<Void, PotterError> {
         PotterLogger.shared.info("userdefaults", "📋 Writing key: \(key)")
+        let bundleId = Bundle.main.bundleIdentifier ?? "no-bundle-id"
+        PotterLogger.shared.debug("userdefaults", "📋 Bundle ID during write: \(bundleId)")
+        
+        // Debug: Show which storage method is currently selected
+        let currentMethod = UserDefaults.standard.string(forKey: "storage_method") ?? "not-set"
+        PotterLogger.shared.debug("userdefaults", "📋 Current storage method during write: \(currentMethod)")
+        PotterLogger.shared.debug("userdefaults", "📋 Writing value of length: \(value.count)")
+        
         UserDefaults.standard.set(value, forKey: key)
+        
+        // Debug: Verify the write worked
+        let verification = UserDefaults.standard.string(forKey: key)
+        PotterLogger.shared.debug("userdefaults", "📋 Write verification - value exists: \(verification != nil), length: \(verification?.count ?? 0)")
+        
         return .success(())
     }
     
@@ -270,7 +304,12 @@ class StorageAdapter {
     /// When true, forces UserDefaults storage for all operations (used in testing)
     public var forceUserDefaultsForTesting = false
     
-    private init() {}
+    private init() {
+        // Debug: Log bundle identifier and UserDefaults suite info
+        let bundleId = Bundle.main.bundleIdentifier ?? "no-bundle-id"
+        PotterLogger.shared.debug("storage", "🏗️ Storage initialized - Bundle ID: \(bundleId)")
+        PotterLogger.shared.debug("storage", "🏗️ UserDefaults domain info available")
+    }
     
     var currentStorageMethod: StorageMethod {
         get {

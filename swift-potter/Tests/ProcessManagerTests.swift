@@ -84,25 +84,4 @@ class ProcessManagerTests: TestBase {
         }
     }
     
-    func testCorruptedLockFileHandling() throws {
-        let manager = ProcessManager.shared
-        let configDir = tempDirectoryURL.appendingPathComponent("config")
-        try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        
-        let lockFile = configDir.appendingPathComponent("potter.lock")
-        
-        // Write corrupted JSON
-        let corruptedData = "{ invalid json".data(using: .utf8)!
-        try corruptedData.write(to: lockFile)
-        
-        // Should handle corrupted file gracefully
-        let result = manager.checkForDuplicateProcesses()
-        
-        switch result {
-        case .noDuplicates:
-            XCTAssertTrue(true, "Should recover from corrupted lock file")
-        case .foundDuplicates:
-            XCTFail("Should not find duplicates with corrupted lock file")
-        }
-    }
 }

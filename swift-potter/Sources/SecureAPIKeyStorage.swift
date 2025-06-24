@@ -34,13 +34,23 @@ class SecureAPIKeyStorage {
     /// Check if an API key exists without loading it (lightweight UserDefaults check)
     func hasAPIKey(for provider: LLMProvider) -> Bool {
         let key = "has_api_key_\(provider.rawValue)"
-        return UserDefaults.standard.bool(forKey: key)
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        let result = UserDefaults.standard.bool(forKey: key)
+        
+        PotterLogger.shared.info("api_storage", "🔍 hasAPIKey check - Bundle: \(bundleId), Provider: \(provider.rawValue), Key: \(key), Result: \(result)")
+        
+        return result
     }
     
     /// Mark that an API key exists for the provider (used internally)
     private func setHasAPIKey(_ hasKey: Bool, for provider: LLMProvider) {
         let key = "has_api_key_\(provider.rawValue)"
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        
+        PotterLogger.shared.info("api_storage", "🏷️ SETTING hasAPIKey flag - Bundle: \(bundleId), Key: \(key), Value: \(hasKey)")
+        
         UserDefaults.standard.set(hasKey, forKey: key)
+        UserDefaults.standard.synchronize()
     }
     
     func getStorageMethod(for provider: LLMProvider) -> APIKeyStorageMethod {
@@ -56,14 +66,25 @@ class SecureAPIKeyStorage {
     
     func setStorageMethod(_ method: APIKeyStorageMethod, for provider: LLMProvider) {
         let key = "\(storageMethodKey)_\(provider.rawValue)"
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        
+        PotterLogger.shared.info("api_storage", "⚙️ SETTING storage method - Bundle: \(bundleId), Key: \(key), Method: \(method.rawValue)")
+        
         UserDefaults.standard.set(method.rawValue, forKey: key)
+        UserDefaults.standard.synchronize()
     }
     
     // MARK: - API Key Storage (Single Access Point)
     
     func saveAPIKey(_ apiKey: String, for provider: LLMProvider, using method: APIKeyStorageMethod) -> Result<Void, PotterError> {
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        let maskedKey = String(apiKey.prefix(8)) + "..." + String(apiKey.suffix(4))
+        
+        PotterLogger.shared.info("api_storage", "🚀 START saveAPIKey - Bundle: \(bundleId), Provider: \(provider.rawValue), Method: \(method.rawValue), Key: \(maskedKey)")
+        
         // Validate input
         guard !apiKey.isEmpty else {
+            PotterLogger.shared.error("api_storage", "❌ VALIDATION FAILED - Empty API key")
             return .failure(.validation(.emptyInput(field: "API Key")))
         }
         
@@ -93,28 +114,40 @@ class SecureAPIKeyStorage {
         
         switch result {
         case .success:
+            PotterLogger.shared.info("api_storage", "✅ SAVE SUCCESS - Setting storage method and hasAPIKey flag")
             setStorageMethod(method, for: provider)
             setHasAPIKey(true, for: provider)
+            PotterLogger.shared.info("api_storage", "🎉 COMPLETE saveAPIKey - Provider: \(provider.rawValue), Method: \(method.rawValue)")
             return .success(())
         case .failure(let error):
+            PotterLogger.shared.error("api_storage", "❌ SAVE FAILED - Error: \(error.technicalDescription)")
             return .failure(error)
         }
     }
     
     func loadAPIKey(for provider: LLMProvider) -> Result<String, PotterError> {
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
         let preferredMethod = getStorageMethod(for: provider)
+        
+        PotterLogger.shared.info("api_storage", "🔍 START loadAPIKey - Bundle: \(bundleId), Provider: \(provider.rawValue), Method: \(preferredMethod.rawValue)")
         
         let apiKey: String?
         switch preferredMethod {
         case .keychain:
+            PotterLogger.shared.info("api_storage", "🔐 Loading from KEYCHAIN for \(provider.rawValue)")
             apiKey = KeychainManager.shared.loadAPIKey(for: provider)
         case .userDefaults:
+            PotterLogger.shared.info("api_storage", "💾 Loading from USERDEFAULTS for \(provider.rawValue)")
             apiKey = loadFromUserDefaults(for: provider)
         }
         
         guard let apiKey = apiKey, !apiKey.isEmpty else {
+            PotterLogger.shared.error("api_storage", "❌ LOAD FAILED - No API key found for \(provider.rawValue) using \(preferredMethod.rawValue)")
             return .failure(.storage(.keyNotFound(key: "api_key_\(provider.rawValue)")))
         }
+        
+        let maskedKey = String(apiKey.prefix(8)) + "..." + String(apiKey.suffix(4))
+        PotterLogger.shared.info("api_storage", "✅ LOAD SUCCESS - Found key: \(maskedKey) for \(provider.rawValue)")
         
         return .success(apiKey)
     }
@@ -140,6 +173,7 @@ class SecureAPIKeyStorage {
         // Remove storage method preference and API key existence flag
         let key = "\(storageMethodKey)_\(provider.rawValue)"
         UserDefaults.standard.removeObject(forKey: key)
+        UserDefaults.standard.synchronize()
         setHasAPIKey(false, for: provider)
         
         if keychainSuccess && userDefaultsSuccess {
@@ -222,6 +256,7 @@ class SecureAPIKeyStorage {
             // Clear storage method preference
             let key = "\(storageMethodKey)_\(provider.rawValue)"
             UserDefaults.standard.removeObject(forKey: key)
+            UserDefaults.standard.synchronize()
             PotterLogger.shared.info("api_storage", "✅ Atomic removal successful: \(provider.rawValue)")
             return .success(())
         case .failure(let error):
@@ -340,18 +375,83 @@ class SecureAPIKeyStorage {
     
     private func saveToUserDefaults(_ apiKey: String, for provider: LLMProvider) -> Bool {
         let key = "api_key_\(provider.rawValue)"
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        let maskedKey = String(apiKey.prefix(12)) + "..." + String(apiKey.suffix(8))
+        
+        PotterLogger.shared.info("api_storage", "📝 SAVING to UserDefaults - Bundle: \(bundleId), Key: \(key), Value: \(maskedKey) (length: \(apiKey.count))")
+        
+        // Only log full key for shorter keys to avoid performance issues in tests
+        if apiKey.count < 1000 {
+            PotterLogger.shared.info("api_storage", "🔍 FULL KEY BEING SAVED: \(apiKey)")
+        }
+        
         UserDefaults.standard.set(apiKey, forKey: key)
+        let syncResult = UserDefaults.standard.synchronize()
+        
+        PotterLogger.shared.info("api_storage", "💾 UserDefaults sync result: \(syncResult) for key: \(key)")
+        
+        // Verify the save worked by reading it back immediately
+        let verification = UserDefaults.standard.string(forKey: key)
+        if let verification = verification, verification == apiKey {
+            let maskedVerification = String(verification.prefix(12)) + "..." + String(verification.suffix(8))
+            PotterLogger.shared.info("api_storage", "✅ VERIFICATION SUCCESS - Saved: \(maskedKey), Read back: \(maskedVerification)")
+            
+            // Only log full key for shorter keys to avoid performance issues in tests
+            if verification.count < 1000 {
+                PotterLogger.shared.info("api_storage", "🔍 FULL VERIFICATION KEY: \(verification)")
+            }
+        } else {
+            let maskedVerification = verification != nil ? String(verification!.prefix(12)) + "..." + String(verification!.suffix(8)) : "nil"
+            PotterLogger.shared.error("api_storage", "❌ VERIFICATION FAILED - Saved: \(maskedKey), Got back: \(maskedVerification)")
+            
+            // Only log full key for shorter keys to avoid performance issues in tests
+            if apiKey.count < 1000 {
+                PotterLogger.shared.error("api_storage", "🔍 FULL VERIFICATION MISMATCH - Expected: \(apiKey), Got: \(verification ?? "nil")")
+            }
+        }
+        
         return true
     }
     
     private func loadFromUserDefaults(for provider: LLMProvider) -> String? {
         let key = "api_key_\(provider.rawValue)"
-        return UserDefaults.standard.string(forKey: key)
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        
+        PotterLogger.shared.info("api_storage", "🔍 LOADING from UserDefaults - Bundle: \(bundleId), Key: \(key)")
+        
+        let result = UserDefaults.standard.string(forKey: key)
+        
+        if let result = result {
+            let maskedKey = String(result.prefix(12)) + "..." + String(result.suffix(8))
+            PotterLogger.shared.info("api_storage", "✅ FOUND in UserDefaults - Value: \(maskedKey) (length: \(result.count))")
+            
+            // Only log full key for shorter keys to avoid performance issues in tests
+            if result.count < 1000 {
+                PotterLogger.shared.info("api_storage", "🔍 FULL KEY FOR DEBUG: \(result)")
+            }
+        } else {
+            PotterLogger.shared.warning("api_storage", "❌ NOT FOUND in UserDefaults for key: \(key)")
+            
+            // List all UserDefaults keys for debugging
+            let allKeys = UserDefaults.standard.dictionaryRepresentation().keys.filter { $0.contains("api_key") }
+            PotterLogger.shared.info("api_storage", "🔍 Available API key-related keys in UserDefaults: \(allKeys)")
+            
+            // Show all UserDefaults contents for this key specifically
+            let fullDict = UserDefaults.standard.dictionaryRepresentation()
+            for (k, v) in fullDict {
+                if k.contains("api_key") {
+                    PotterLogger.shared.info("api_storage", "🔍 UserDefaults contains: \(k) = \(v)")
+                }
+            }
+        }
+        
+        return result
     }
     
     private func removeFromUserDefaults(for provider: LLMProvider) -> Bool {
         let key = "api_key_\(provider.rawValue)"
         UserDefaults.standard.removeObject(forKey: key)
+        UserDefaults.standard.synchronize()
         return true
     }
     

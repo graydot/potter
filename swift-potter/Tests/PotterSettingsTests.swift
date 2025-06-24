@@ -4,39 +4,26 @@ import Foundation
 
 class PotterSettingsTests: TestBase {
     var potterSettings: PotterSettings!
+    var testUserDefaults: UserDefaults!
     
     override func setUp() {
         super.setUp()
         
-        // Clear UserDefaults before each test
-        let keys = [
-            "openai_api_key",
-            "anthropic_api_key", 
-            "google_api_key",
-            "current_provider",
-            "current_prompt",
-        ]
+        // Create test-specific UserDefaults suite
+        testUserDefaults = UserDefaults(suiteName: "com.potter.tests")!
         
-        for key in keys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
+        // Clear any existing test data
+        testUserDefaults.removePersistentDomain(forName: "com.potter.tests")
+        testUserDefaults.synchronize()
         
-        potterSettings = PotterSettings()
+        // Create PotterSettings with test UserDefaults
+        potterSettings = PotterSettings(userDefaults: testUserDefaults)
     }
     
     override func tearDown() {
-        // Clean up UserDefaults after each test
-        let keys = [
-            "openai_api_key",
-            "anthropic_api_key",
-            "google_api_key", 
-            "current_provider",
-            "current_prompt",
-        ]
-        
-        for key in keys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
+        // Clean up test UserDefaults
+        testUserDefaults.removePersistentDomain(forName: "com.potter.tests")
+        testUserDefaults.synchronize()
         
         super.tearDown()
     }
@@ -57,10 +44,10 @@ class PotterSettingsTests: TestBase {
         XCTAssertEqual(potterSettings.anthropicAPIKey, testKey)
         
         // Force UserDefaults synchronization before checking persistence
-        UserDefaults.standard.synchronize()
+        testUserDefaults.synchronize()
         
         // Check UserDefaults persistence  
-        let savedKey = UserDefaults.standard.string(forKey: "api_key_anthropic")
+        let savedKey = testUserDefaults.string(forKey: "api_key_anthropic")
         XCTAssertEqual(savedKey, testKey)
     }
     
@@ -71,10 +58,10 @@ class PotterSettingsTests: TestBase {
         XCTAssertEqual(potterSettings.googleAPIKey, testKey)
         
         // Force UserDefaults synchronization before checking persistence
-        UserDefaults.standard.synchronize()
+        testUserDefaults.synchronize()
         
         // Check UserDefaults persistence
-        let savedKey = UserDefaults.standard.string(forKey: "api_key_google")
+        let savedKey = testUserDefaults.string(forKey: "api_key_google")
         XCTAssertEqual(savedKey, testKey)
     }
     
@@ -84,10 +71,10 @@ class PotterSettingsTests: TestBase {
         XCTAssertEqual(potterSettings.currentProvider, "anthropic")
         
         // Force UserDefaults synchronization before checking persistence
-        UserDefaults.standard.synchronize()
+        testUserDefaults.synchronize()
         
         // Check UserDefaults persistence
-        let savedProvider = UserDefaults.standard.string(forKey: "current_provider")
+        let savedProvider = testUserDefaults.string(forKey: "current_provider")
         XCTAssertEqual(savedProvider, "anthropic")
     }
     
@@ -128,7 +115,7 @@ class PotterSettingsTests: TestBase {
         
         // Check UserDefaults persistence - when setting an empty string,
         // UserDefaults may return nil when reading string(forKey:)
-        let savedKey = UserDefaults.standard.string(forKey: "api_key_openai")
+        let savedKey = testUserDefaults.string(forKey: "api_key_openai")
         // Empty string may be read back as nil from UserDefaults
         XCTAssertTrue(savedKey == "" || savedKey == nil)
     }

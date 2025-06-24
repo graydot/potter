@@ -7,75 +7,54 @@ A powerful text processing and rephraseing tool for macOS with AI capabilities.
 ### Latest Release
 Download the latest version from the [Releases](https://github.com/jebasingh/potter/releases) page.
 
-### 🔧 Easy Installation
-1. Download `Potter.dmg` from the releases page
-2. Open the DMG file
-3. Drag Potter.app to your Applications folder
+### Installation
+1. Download the `Potter-1.0.0.dmg` file
+2. Double-click to mount the DMG
+3. Drag Potter to your Applications folder
 4. Launch Potter from Applications
-
-### ⚙️ Prerequisites
-- **macOS 10.14+** (Mojave or later)
-- **Architecture**: Intel x64 or Apple Silicon
-- **Permissions**: Accessibility access for global hotkeys
 
 ## ✨ Features
 
-### 🎯 Core Functionality
-- **Global hotkey** (⌘⇧9) for instant text processing from any app
-- **AI-powered rephraseing** with multiple providers (OpenAI, Anthropic, Google)
-- **Clipboard integration** - processes selected text automatically
-- **Custom prompts** - Create and manage your own text processing workflows
+- **AI-Powered Text Processing** - Advanced text rephrasing and improvement
+- **Global Hotkeys** - Quick access from anywhere on your system
+- **Native macOS Integration** - Fully signed and notarized
+- **Privacy Focused** - All processing respects your privacy settings
 
-### 🛡️ Security & Privacy
-- **Secure API key storage** in macOS Keychain
-- **Local processing** - your text is only sent to your chosen AI provider
-- **No data collection** - Potter respects your privacy
+## 🚀 Quick Start
 
-### 🎨 User Experience
-- **Native macOS app** with menu bar integration
-- **Modern SwiftUI interface** with intuitive settings
-- **Auto-updates** via Sparkle framework
-- **Creative build names** and version codenames
+1. **Install Potter** from the DMG
+2. **Launch the app** from Applications
+3. **Configure your preferences** in the Potter settings
+4. **Set up global hotkeys** for quick access
+5. **Start processing text** with AI assistance
 
-## 🚀 Usage
+## 🔧 System Requirements
 
-1. **Setup**: Configure your AI provider and API key in Settings
-2. **Select text** anywhere in macOS
-3. **Press ⌘⇧9** to process the selected text
-4. **Get results** - processed text replaces your selection
+- **macOS 10.14** or later
+- **Apple Silicon** or Intel Mac
+- **Internet connection** for AI features
 
-### 🔧 Configuration
-- Open Potter settings from the menu bar icon
-- Choose your preferred AI provider (OpenAI, Anthropic, or Google)
-- Add your API key
-- Customize prompts and hotkeys
+## 🛡️ Security & Privacy
 
-## 🏗️ Development
+Potter is:
+- ✅ **Code signed** with Apple Developer ID
+- ✅ **Notarized** by Apple for security
+- ✅ **Privacy compliant** - no data collection without permission
 
-Potter is built with modern Swift and SwiftUI for macOS.
+## 📝 License
 
-### 🛠 Build Requirements
-- **Xcode 15+** 
-- **Swift 5.9+**
-- **macOS 13+ SDK**
+This software is provided as-is for personal and commercial use.
 
-### 📋 Commands
-- **Run app**: `make run` or `cd swift-potter && swift run`
-- **Run tests**: `make test` or `cd swift-potter && swift test --parallel`
-- **Build app**: `make build` 
-- **Create release**: `make release`
+## 🐛 Support
 
-### 🏗️ Architecture
-- **Core Engine**: `swift-potter/Sources/PotterCore.swift`
-- **LLM Integration**: Multiple provider support with unified interface
-- **Settings UI**: Native SwiftUI with modern sidebar design
-- **Global Hotkeys**: Carbon APIs for system-wide shortcuts
-- **Auto Updates**: Sparkle framework integration
+For issues, feature requests, or questions:
+- **Create an issue** in this repository
+- **Check existing issues** for solutions
 
-## 📄 License
+## 🔄 Updates
 
-Potter is proprietary software. All rights reserved.
+Potter automatically checks for updates and will notify you when new versions are available.
 
 ---
 
-**Enjoy your secure, AI-powered text enhancement!** 🚀
+**Potter** - Making text processing magical ✨
