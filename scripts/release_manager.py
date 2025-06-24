@@ -195,7 +195,16 @@ def update_appcast(version, dmg_path, release_notes):
     os.makedirs(RELEASES_DIR, exist_ok=True)
     
     appcast_path = f"{RELEASES_DIR}/appcast.xml"
-    download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{APP_NAME}-{version}.dmg"
+    
+    # Use enhanced DMG name for download URL
+    try:
+        from codename_utils import get_enhanced_dmg_name
+        enhanced_dmg_name = get_enhanced_dmg_name(version)
+        download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{enhanced_dmg_name}"
+        print(f"🎭 Using enhanced download URL: {enhanced_dmg_name}")
+    except Exception as e:
+        print(f"⚠️  Could not get enhanced DMG name for URL, using standard naming: {e}")
+        download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{APP_NAME}-{version}.dmg"
     
     # Create new entry
     entry = create_appcast_entry(version, dmg_path, release_notes, download_url)
@@ -454,17 +463,34 @@ def main():
         time.sleep(3)
         print("⏳ Waiting for DMG file to be ready...")
     
-    # Find DMG file
-    dmg_path = f"dist/{APP_NAME}-{new_version}.dmg"
+    # Find DMG file (now with enhanced naming that includes codenames)
+    try:
+        from codename_utils import get_enhanced_dmg_name
+        enhanced_dmg_name = get_enhanced_dmg_name(new_version)
+        dmg_path = f"dist/{enhanced_dmg_name}"
+        print(f"🎭 Looking for enhanced DMG: {dmg_path}")
+    except Exception as e:
+        print(f"⚠️  Could not get enhanced DMG name, trying standard naming: {e}")
+        dmg_path = f"dist/{APP_NAME}-{new_version}.dmg"
+    
     if not os.path.exists(dmg_path):
-        # Try current version DMG
-        dmg_path = f"dist/{APP_NAME}-{current_version}.dmg"
+        # Try standard naming as fallback
+        dmg_path = f"dist/{APP_NAME}-{new_version}.dmg"
         if not os.path.exists(dmg_path):
-            # Try generic DMG name
-            dmg_path = f"dist/{APP_NAME}-2.0.dmg"
+            # Try current version DMG
+            dmg_path = f"dist/{APP_NAME}-{current_version}.dmg"
             if not os.path.exists(dmg_path):
-                print(f"❌ DMG file not found. Expected: dist/{APP_NAME}-{new_version}.dmg")
-                sys.exit(1)
+                # Try to find any DMG in dist directory
+                import glob
+                dmg_files = glob.glob("dist/*.dmg")
+                if dmg_files:
+                    dmg_path = sorted(dmg_files)[-1]  # Use the most recent
+                    print(f"🔍 Found DMG: {dmg_path}")
+                else:
+                    print(f"❌ No DMG file found in dist/ directory")
+                    print(f"   Expected: dist/{APP_NAME}-{new_version}.dmg")
+                    print(f"   Or enhanced: {enhanced_dmg_name if 'enhanced_dmg_name' in locals() else 'N/A'}")
+                    sys.exit(1)
     
     print(f"📦 Using DMG: {dmg_path}")
     
