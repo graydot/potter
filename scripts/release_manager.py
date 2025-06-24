@@ -47,16 +47,17 @@ def get_release_notes():
     return "\n".join(lines).strip()
 
 def build_app():
-    """Build the app using the build script"""
-    print("🔨 Building Potter.app...")
+    """Build the app using the build script with proper signing for release"""
+    print("🔨 Building signed Potter.app for release...")
     
     try:
+        # Use make build which already has proper code signing configured
         result = subprocess.run([
-            'python3', 'scripts/build_app.py', '--target', 'local'
+            'make', 'build'
         ], capture_output=True, text=True)
         
         if result.returncode == 0:
-            print("✅ Build completed successfully")
+            print("✅ Signed build completed successfully")
             return True
         else:
             print(f"❌ Build failed with return code {result.returncode}")

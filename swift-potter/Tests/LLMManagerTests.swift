@@ -67,6 +67,9 @@ class LLMManagerTests: TestBase {
     }
     
     func testHasValidProvider() {
+        // Ensure no API keys are stored for selected provider
+        llmManager.setAPIKey("", for: .openAI)
+        
         // Initially no valid provider
         XCTAssertFalse(llmManager.hasValidProvider())
         
@@ -74,7 +77,8 @@ class LLMManagerTests: TestBase {
         llmManager.validationStates[.openAI] = .valid
         XCTAssertTrue(llmManager.hasValidProvider())
         
-        // Set to invalid
+        // Set to invalid - this should make hasValidProvider false
+        // even if there's a stored API key, because validation state is explicitly invalid
         llmManager.validationStates[.openAI] = .invalid("Test error")
         XCTAssertFalse(llmManager.hasValidProvider())
     }
