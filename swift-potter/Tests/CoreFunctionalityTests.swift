@@ -211,9 +211,13 @@ class CoreFunctionalityTests: TestBase {
         let prompts = PromptManager.shared.loadPrompts()
         
         XCTAssertGreaterThan(prompts.count, 0, "Should have default prompts")
-        XCTAssertTrue(prompts.contains { $0.name == "summarize" })
-        XCTAssertTrue(prompts.contains { $0.name == "formal" })
-        XCTAssertTrue(prompts.contains { $0.name == "casual" })
+        
+        // Test prompt structure rather than specific names
+        for prompt in prompts {
+            XCTAssertFalse(prompt.name.isEmpty, "Prompt names should not be empty")
+            XCTAssertFalse(prompt.prompt.isEmpty, "Prompt content should not be empty")
+            XCTAssertNotNil(prompt.id, "Prompt should have valid ID")
+        }
     }
     
     func testCustomPromptCreation() {

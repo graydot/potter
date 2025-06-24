@@ -311,16 +311,13 @@ class SecurityPrivacyTests: TestBase {
         permissionManager.checkAllPermissions()
         
         let accessibilityStatus = permissionManager.getPermissionStatus(for: .accessibility)
-        let notificationsStatus = permissionManager.getPermissionStatus(for: .notifications)
         
         // Should return valid status values
         let validStatuses: [PermissionStatus] = [.granted, .denied, .notDetermined, .unknown]
         XCTAssertTrue(validStatuses.contains(accessibilityStatus))
-        XCTAssertTrue(validStatuses.contains(notificationsStatus))
         
         // Status descriptions should be safe
         XCTAssertFalse(accessibilityStatus.displayText.isEmpty)
-        XCTAssertFalse(notificationsStatus.displayText.isEmpty)
     }
     
     func testErrorHandlingSecurity() {

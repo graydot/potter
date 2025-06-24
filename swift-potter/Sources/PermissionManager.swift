@@ -1,30 +1,25 @@
 import Foundation
 import AppKit
-import UserNotifications
 
 // MARK: - Permission Types
 enum PermissionType: String, CaseIterable {
     case accessibility = "accessibility"
-    case notifications = "notifications"
     
     var displayName: String {
         switch self {
         case .accessibility: return "Accessibility"
-        case .notifications: return "Notifications"
         }
     }
     
     var description: String {
         switch self {
         case .accessibility: return "Required for global hotkey (⌘⇧9)"
-        case .notifications: return "Optional for status updates"
         }
     }
     
     var isRequired: Bool {
         switch self {
         case .accessibility: return true
-        case .notifications: return false
         }
     }
 }
@@ -68,7 +63,6 @@ enum PermissionStatus {
 @MainActor
 class PermissionManager: ObservableObject {
     @Published var accessibilityStatus: PermissionStatus = .unknown
-    @Published var notificationsStatus: PermissionStatus = .unknown
     @Published var isCheckingPermissions = false
     
     private var permissionCheckTimer: Timer?
@@ -91,7 +85,6 @@ class PermissionManager: ObservableObject {
     // MARK: - Permission Checking
     func checkAllPermissions() {
         checkAccessibilityPermission()
-        checkNotificationPermission()
         
         // Force reset checking state if it's been too long
         if isCheckingPermissions {
@@ -128,47 +121,6 @@ class PermissionManager: ObservableObject {
         }
     }
     
-    private func checkNotificationPermission() {
-        // Check if we're running in debug mode without proper bundle
-        let isDebugMode = Bundle.main.bundleIdentifier == nil
-        
-        if isDebugMode {
-            // For debug mode, simulate a reasonable notification status
-            notificationsStatus = .notDetermined
-            PotterLogger.shared.info("permissions", "📱 Notifications: \(notificationsStatus.displayText) (debug mode)")
-            return
-        }
-        
-        // Check if we're in a test environment (Xcode test runner)
-        if Bundle.main.bundleIdentifier?.contains("xctest") == true || 
-           ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            notificationsStatus = .notDetermined
-            PotterLogger.shared.info("permissions", "📱 Notifications: \(notificationsStatus.displayText) (test environment)")
-            return
-        }
-        
-        // For production builds with proper bundle identifier
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                switch settings.authorizationStatus {
-                case .authorized:
-                    self.notificationsStatus = .granted
-                case .denied:
-                    self.notificationsStatus = .denied
-                case .notDetermined:
-                    self.notificationsStatus = .notDetermined
-                case .provisional:
-                    self.notificationsStatus = .granted
-                case .ephemeral:
-                    self.notificationsStatus = .granted
-                @unknown default:
-                    self.notificationsStatus = .unknown
-                }
-                
-                PotterLogger.shared.info("permissions", "📱 Notifications: \(self.notificationsStatus.displayText)")
-            }
-        }
-    }
     
     // MARK: - Permission Requests
     func requestAccessibilityPermission() {
@@ -177,29 +129,6 @@ class PermissionManager: ObservableObject {
         startPermissionMonitoring()
     }
     
-    func requestNotificationPermission() {
-        PotterLogger.shared.info("permissions", "📱 Requesting notification permission...")
-        
-        // Check if we're running in debug mode without proper bundle
-        let isDebugMode = Bundle.main.bundleIdentifier == nil
-        
-        if isDebugMode {
-            PotterLogger.shared.warning("permissions", "📱 Notification permission not available in debug mode")
-            openSystemSettings(for: .notifications)
-            return
-        }
-        
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    PotterLogger.shared.error("permissions", "❌ Notification permission error: \(error.localizedDescription)")
-                } else {
-                    PotterLogger.shared.info("permissions", "📱 Notification permission: \(granted ? "granted" : "denied")")
-                }
-                self.checkNotificationPermission()
-            }
-        }
-    }
     
     // MARK: - System Settings Navigation
     func openSystemSettings(for permission: PermissionType) {
@@ -208,8 +137,6 @@ class PermissionManager: ObservableObject {
         switch permission {
         case .accessibility:
             urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        case .notifications:
-            urlString = "x-apple.systempreferences:com.apple.preference.notifications"
         }
         
         if let url = URL(string: urlString) {
@@ -353,8 +280,7 @@ class PermissionManager: ObservableObject {
     // MARK: - Status Helpers
     func getAllPermissions() -> [(PermissionType, PermissionStatus)] {
         return [
-            (.accessibility, accessibilityStatus),
-            (.notifications, notificationsStatus)
+            (.accessibility, accessibilityStatus)
         ]
     }
     
@@ -370,7 +296,6 @@ class PermissionManager: ObservableObject {
     func getPermissionStatus(for type: PermissionType) -> PermissionStatus {
         switch type {
         case .accessibility: return accessibilityStatus
-        case .notifications: return notificationsStatus
         }
     }
 }

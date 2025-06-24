@@ -1,7 +1,6 @@
 import Foundation
 import AppKit
 import Carbon
-import UserNotifications
 
 // Protocol for menu bar icon updates
 protocol IconStateDelegate: AnyObject {
@@ -101,7 +100,7 @@ class PotterCore {
         Task { @MainActor in
             guard let llmManager = self.llmManager, llmManager.hasValidProvider() else {
                 PotterLogger.shared.error("text_processor", "❌ No valid LLM provider configured")
-                self.showNotification(title: "Configuration Error", message: "Please configure an API key in Settings")
+                // Configuration error handled by icon state
                 self.iconDelegate?.setErrorState(message: "No API key configured")
                 return
             }
@@ -119,7 +118,7 @@ class PotterCore {
             // Put helpful message in clipboard instead of showing alert
             pasteboard.clearContents()
             pasteboard.setString("No text was in clipboard", forType: .string)
-            showNotification(title: "No Text", message: "No text was in clipboard - message copied to clipboard")
+            // No text in clipboard handled by icon state
             iconDelegate?.setErrorState(message: "No text in clipboard")
             return
         }
@@ -128,13 +127,13 @@ class PotterCore {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedText == "No text was in clipboard" {
             PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
-            showNotification(title: "No Text", message: "Still no text in clipboard")
+            // Still no text handled by icon state
             iconDelegate?.setErrorState(message: "Still no text in clipboard")
             return
         }
         
         PotterLogger.shared.info("text_processor", "📝 Processing \(trimmedText.count) characters")
-        showNotification(title: "Processing...", message: "AI is processing your text")
+        // Processing state handled by spinner icon
         
         // Update menu bar icon to show processing state
         iconDelegate?.setProcessingState()
@@ -167,10 +166,7 @@ class PotterCore {
                     // Update menu bar icon to show success state
                     self.iconDelegate?.setSuccessState()
                     
-                    self.showNotification(
-                        title: "Processing Complete",
-                        message: "Text processed with '\(currentPromptName)' and copied to clipboard! Press ⌘V to paste."
-                    )
+                    // Success state handled by icon
                 }
             } catch {
                 let potterError: PotterError
@@ -187,10 +183,7 @@ class PotterCore {
                     // Set error state with user-friendly message
                     self.iconDelegate?.setErrorState(message: potterError.localizedDescription)
                     
-                    self.showNotification(
-                        title: "Processing Failed",
-                        message: potterError.localizedDescription
-                    )
+                    // Error state handled by icon
                 }
             }
         }
@@ -199,7 +192,7 @@ class PotterCore {
     func setPromptMode(_ mode: PromptMode) {
         currentMode = mode
         PotterLogger.shared.info("core", "🎯 Mode changed to: \(mode.displayName)")
-        showNotification(title: "Mode Changed", message: "Now using: \(mode.displayName)")
+        // Mode change logged only
     }
     
     func getLLMManager() -> LLMManager? {
@@ -352,10 +345,6 @@ class PotterCore {
         return (keyCode, modifiers)
     }
     
-    private func showNotification(title: String, message: String) {
-        // Just log the notification - don't try to show UI notifications in CLI context
-        PotterLogger.shared.info("notification", "📢 \(title): \(message)")
-    }
 }
 
 // Convert string to FourCharCode

@@ -15,7 +15,6 @@ class PotterSettingsTests: TestBase {
             "google_api_key",
             "current_provider",
             "current_prompt",
-            "notifications_enabled"
         ]
         
         for key in keys {
@@ -33,7 +32,6 @@ class PotterSettingsTests: TestBase {
             "google_api_key", 
             "current_provider",
             "current_prompt",
-            "notifications_enabled"
         ]
         
         for key in keys {
@@ -49,7 +47,6 @@ class PotterSettingsTests: TestBase {
         XCTAssertNil(potterSettings.googleAPIKey)
         XCTAssertEqual(potterSettings.currentProvider, "openai")
         XCTAssertEqual(potterSettings.currentPrompt, "formal")
-        XCTAssertTrue(potterSettings.notificationsEnabled)
     }
     
     
@@ -104,22 +101,6 @@ class PotterSettingsTests: TestBase {
         let savedPrompt = UserDefaults.standard.string(forKey: "current_prompt")
         XCTAssertEqual(savedPrompt, "summarize")
     }
-    
-    func testNotificationsEnabledSetting() {
-        potterSettings.notificationsEnabled = false
-        
-        XCTAssertFalse(potterSettings.notificationsEnabled)
-        
-        // Force UserDefaults synchronization before checking persistence
-        UserDefaults.standard.synchronize()
-        
-        // Check UserDefaults persistence
-        let savedValue = UserDefaults.standard.bool(forKey: "notifications_enabled")
-        XCTAssertFalse(savedValue)
-    }
-    
-    
-    
     
     
     func testSettingsChangeObservation() {

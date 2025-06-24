@@ -10,7 +10,6 @@ class PotterSettings: ObservableObject {
         static let googleAPIKey = "api_key_google"
         static let currentProvider = "current_provider"
         static let currentPrompt = "current_prompt"
-        static let notifications = "notifications_enabled"
     }
     
     // Published properties for SwiftUI bindings
@@ -34,9 +33,6 @@ class PotterSettings: ObservableObject {
         didSet { userDefaults.set(currentPrompt, forKey: Keys.currentPrompt) }
     }
     
-    @Published var notificationsEnabled: Bool {
-        didSet { userDefaults.set(notificationsEnabled, forKey: Keys.notifications) }
-    }
     
     init() {
         // Load from UserDefaults
@@ -45,7 +41,6 @@ class PotterSettings: ObservableObject {
         self.googleAPIKey = userDefaults.string(forKey: Keys.googleAPIKey)
         self.currentProvider = userDefaults.string(forKey: Keys.currentProvider) ?? "openai"
         self.currentPrompt = userDefaults.string(forKey: Keys.currentPrompt) ?? "formal"
-        self.notificationsEnabled = userDefaults.object(forKey: Keys.notifications) as? Bool ?? true
     }
     
     func save() {

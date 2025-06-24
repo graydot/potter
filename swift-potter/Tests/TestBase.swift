@@ -45,6 +45,5 @@ class TestBase: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "selected_model")
         UserDefaults.standard.removeObject(forKey: "current_prompt")
         UserDefaults.standard.removeObject(forKey: "global_hotkey")
-        UserDefaults.standard.removeObject(forKey: "notifications_enabled")
     }
 }

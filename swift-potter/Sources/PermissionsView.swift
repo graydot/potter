@@ -6,15 +6,11 @@ struct PermissionsView: View {
     @StateObject private var permissionManager = PermissionManager.shared
     @State private var showingResetConfirmation = false
     @State private var isResettingPermissions = false
-    @State private var notificationsEnabled = true
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Combined Accessibility + Hotkey Section
-            combinedAccessibilitySection
-            
-            // Combined Notifications Section
-            combinedNotificationsSection
+            // Accessibility Section
+            accessibilitySection
             
             Divider()
                 .padding(.vertical, 4)
@@ -24,8 +20,6 @@ struct PermissionsView: View {
         }
         .onAppear {
             permissionManager.checkAllPermissions()
-            // Load notifications setting
-            notificationsEnabled = UserDefaults.standard.bool(forKey: "notifications_enabled")
         }
         .confirmationDialog(
             "Reset All Permissions",
@@ -90,7 +84,6 @@ struct PermissionsView: View {
                         handlePermissionAction(for: permission, status: status)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(permission == .notifications && !notificationsEnabled)
                 }
             }
             .padding(.vertical, 8)
@@ -151,7 +144,7 @@ struct PermissionsView: View {
     }
     
     // MARK: - Combined Accessibility + Hotkey Section
-    private var combinedAccessibilitySection: some View {
+    private var accessibilitySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Accessibility permission
             accessibilityPermissionContent
@@ -255,155 +248,6 @@ struct PermissionsView: View {
         }
     }
     
-    // MARK: - Combined Notifications Section
-    private var combinedNotificationsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Notifications preference toggle
-            HStack {
-                // Notification Icon and Name
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Show Notifications")
-                            .fontWeight(.medium)
-                        
-                        Text("Display status messages and alerts")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Toggle Switch
-                Toggle("", isOn: $notificationsEnabled)
-                    .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle())
-                    .onChange(of: notificationsEnabled) { newValue in
-                        // Save to UserDefaults
-                        UserDefaults.standard.set(newValue, forKey: "notifications_enabled")
-                        PotterLogger.shared.info("settings", "📱 Notifications enabled: \(newValue)")
-                        
-                        // Re-check permissions when notifications are enabled
-                        if newValue {
-                            permissionManager.checkAllPermissions()
-                        }
-                    }
-            }
-            
-            // Divider between toggle and permission
-            Divider()
-                .opacity(0.5)
-            
-            // Notifications permission
-            notificationPermissionContent
-                .opacity(!notificationsEnabled ? 0.5 : 1.0)
-                .disabled(!notificationsEnabled)
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    // MARK: - Notification Permission Content (without background)
-    private var notificationPermissionContent: some View {
-        let status = permissionManager.getPermissionStatus(for: .notifications)
-        
-        return HStack {
-            // Permission Icon and Name
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(PermissionType.notifications.displayName)
-                            .fontWeight(.medium)
-                        
-                        if PermissionType.notifications.isRequired {
-                            Text("(Required)")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                                .fontWeight(.medium)
-                        }
-                    }
-                    
-                    Text(PermissionType.notifications.description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
-            
-            // Status and Action
-            HStack(spacing: 12) {
-                // Status Text
-                Text(status.displayText)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(Color(status.color))
-                
-                // Loading Spinner
-                if permissionManager.isCheckingPermissions {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 16, height: 16)
-                }
-                
-                // Action Button
-                Button(actionButtonText(for: .notifications, status: status)) {
-                    handlePermissionAction(for: .notifications, status: status)
-                }
-                .buttonStyle(.bordered)
-                .disabled(!notificationsEnabled)
-            }
-        }
-    }
-    
-    // MARK: - Notifications Preference Row (Legacy - keeping for reference)
-    private var notificationsPreferenceRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Notification Icon and Name
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Show Notifications")
-                            .fontWeight(.medium)
-                        
-                        Text("Display status messages and alerts")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Toggle Switch
-                Toggle("", isOn: $notificationsEnabled)
-                    .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle())
-                    .onChange(of: notificationsEnabled) { newValue in
-                        // Save to UserDefaults
-                        UserDefaults.standard.set(newValue, forKey: "notifications_enabled")
-                        PotterLogger.shared.info("settings", "📱 Notifications enabled: \(newValue)")
-                    }
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-            )
-        }
-    }
     
     // MARK: - Helper Methods
     private func actionButtonText(for permission: PermissionType, status: PermissionStatus) -> String {
@@ -424,14 +268,6 @@ struct PermissionsView: View {
                 permissionManager.requestAccessibilityPermission()
             }
             
-        case .notifications:
-            if status == .granted {
-                permissionManager.openSystemSettings(for: .notifications)
-            } else if status == .notDetermined {
-                permissionManager.requestNotificationPermission()
-            } else {
-                permissionManager.openSystemSettings(for: .notifications)
-            }
         }
     }
     

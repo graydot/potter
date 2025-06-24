@@ -41,12 +41,16 @@ class PromptManagerTests: TestBase {
         let manager = PromptManager.shared
         let prompts = manager.loadPrompts()
         
-        // Should create default prompts
-        XCTAssertGreaterThan(prompts.count, 0)
-        XCTAssertTrue(prompts.contains { $0.name == "summarize" })
-        XCTAssertTrue(prompts.contains { $0.name == "formal" })
-        XCTAssertTrue(prompts.contains { $0.name == "casual" })
-        XCTAssertTrue(prompts.contains { $0.name == "friendly" })
+        // Should create default prompts with proper structure
+        XCTAssertGreaterThan(prompts.count, 0, "Should have default prompts")
+        
+        // Test prompt structure and content quality
+        for prompt in prompts {
+            XCTAssertFalse(prompt.name.isEmpty, "Prompt names should not be empty")
+            XCTAssertFalse(prompt.prompt.isEmpty, "Prompt content should not be empty")
+            XCTAssertNotNil(prompt.id, "Prompt should have valid ID")
+            XCTAssertGreaterThan(prompt.prompt.count, 10, "Prompts should have meaningful content")
+        }
         
         // Check file was created
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")

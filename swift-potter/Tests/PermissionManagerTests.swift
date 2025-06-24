@@ -17,17 +17,14 @@ class PermissionManagerTests: XCTestCase {
     
     func testPermissionTypeEnum() {
         let allTypes = PermissionType.allCases
-        XCTAssertEqual(allTypes.count, 2)
+        XCTAssertEqual(allTypes.count, 1)
         XCTAssertTrue(allTypes.contains(.accessibility))
-        XCTAssertTrue(allTypes.contains(.notifications))
         
         // Test display names
         XCTAssertEqual(PermissionType.accessibility.displayName, "Accessibility")
-        XCTAssertEqual(PermissionType.notifications.displayName, "Notifications")
         
         // Test raw values
         XCTAssertEqual(PermissionType.accessibility.rawValue, "accessibility")
-        XCTAssertEqual(PermissionType.notifications.rawValue, "notifications")
     }
     
     
@@ -41,7 +38,6 @@ class PermissionManagerTests: XCTestCase {
     func testInitialPermissionStates() {
         // Initially should have some default states
         XCTAssertNotNil(permissionManager.accessibilityStatus)
-        XCTAssertNotNil(permissionManager.notificationsStatus)
         
         // Allow a small delay for any background permission checks to complete
         // This prevents test isolation issues when tests run in parallel
@@ -63,29 +59,22 @@ class PermissionManagerTests: XCTestCase {
     
     func testGetPermissionStatus() {
         let accessibilityStatus = permissionManager.getPermissionStatus(for: .accessibility)
-        let notificationsStatus = permissionManager.getPermissionStatus(for: .notifications)
         
         // Should return valid status values
         let validStatuses: [PermissionStatus] = [.granted, .denied, .notDetermined, .unknown]
         XCTAssertTrue(validStatuses.contains(accessibilityStatus))
-        XCTAssertTrue(validStatuses.contains(notificationsStatus))
     }
     
     func testPermissionStatusUpdate() {
         let originalAccessibilityStatus = permissionManager.accessibilityStatus
-        let originalNotificationsStatus = permissionManager.notificationsStatus
         
         // Update accessibility status
         permissionManager.accessibilityStatus = .denied
         XCTAssertEqual(permissionManager.accessibilityStatus, .denied)
         
-        // Update notifications status  
-        permissionManager.notificationsStatus = .granted
-        XCTAssertEqual(permissionManager.notificationsStatus, .granted)
         
         // Restore original statuses
         permissionManager.accessibilityStatus = originalAccessibilityStatus
-        permissionManager.notificationsStatus = originalNotificationsStatus
     }
     
     
@@ -93,17 +82,14 @@ class PermissionManagerTests: XCTestCase {
     // func testOpenSystemSettingsDoesNotCrash() {
     //     // These methods should not crash even if they can't actually open settings
     //     permissionManager.openSystemSettings(for: .accessibility)
-    //     permissionManager.openSystemSettings(for: .notifications)
     //     
     //     XCTAssertTrue(true)
     // }
     
     func testPermissionTypeIdentifiable() {
         let accessibilityType = PermissionType.accessibility
-        let notificationsType = PermissionType.notifications
         
         XCTAssertEqual(accessibilityType.rawValue, "accessibility")
-        XCTAssertEqual(notificationsType.rawValue, "notifications")
     }
     
     func testPermissionStatusDisplayProperties() {
@@ -144,7 +130,6 @@ class PermissionManagerTests: XCTestCase {
     func testPermissionManagerPublishedProperties() {
         // Test that all expected properties are marked as @Published
         XCTAssertNotNil(permissionManager.$accessibilityStatus)
-        XCTAssertNotNil(permissionManager.$notificationsStatus)
         XCTAssertNotNil(permissionManager.$isCheckingPermissions)
     }
     
@@ -159,10 +144,9 @@ class PermissionManagerTests: XCTestCase {
     
     func testPermissionTypeHashable() {
         let accessibilityType = PermissionType.accessibility
-        let notificationsType = PermissionType.notifications
         
-        let set: Set<PermissionType> = [accessibilityType, notificationsType, accessibilityType]
-        XCTAssertEqual(set.count, 2) // Should be deduplicated
+        let set: Set<PermissionType> = [accessibilityType, accessibilityType]
+        XCTAssertEqual(set.count, 1) // Should be deduplicated
     }
     
     func testPermissionStatusHashable() {

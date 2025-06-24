@@ -75,16 +75,13 @@ class FirstLaunchTests: TestBase {
     func testInitialPermissionStates() {
         // Test initial permission states
         XCTAssertNotNil(permissionManager.accessibilityStatus)
-        XCTAssertNotNil(permissionManager.notificationsStatus)
         XCTAssertFalse(permissionManager.isCheckingPermissions)
         
         // Verify permission types
         let accessibilityStatus = permissionManager.getPermissionStatus(for: .accessibility)
-        let notificationsStatus = permissionManager.getPermissionStatus(for: .notifications)
         
         let validStatuses: [PermissionStatus] = [.granted, .denied, .notDetermined, .unknown]
         XCTAssertTrue(validStatuses.contains(accessibilityStatus))
-        XCTAssertTrue(validStatuses.contains(notificationsStatus))
     }
     
     
@@ -104,7 +101,6 @@ class FirstLaunchTests: TestBase {
     // func testOpenSystemSettingsDoesNotCrash() {
     //     // Test that opening system settings doesn't crash (even if it can't actually open)
     //     permissionManager.openSystemSettings(for: .accessibility)
-    //     permissionManager.openSystemSettings(for: .notifications)
     //     XCTAssertTrue(true)
     // }
     
@@ -214,7 +210,6 @@ class FirstLaunchTests: TestBase {
         UserDefaults.standard.removeObject(forKey: "selected_model")
         UserDefaults.standard.removeObject(forKey: "current_prompt")
         UserDefaults.standard.removeObject(forKey: "global_hotkey")
-        UserDefaults.standard.removeObject(forKey: "notifications_enabled")
         
         // Reset validation states
         if llmManager != nil {

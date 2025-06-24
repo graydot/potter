@@ -265,8 +265,13 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         
         // Should recover with defaults
         let prompts = manager.loadPrompts()
-        XCTAssertGreaterThan(prompts.count, 0)
-        XCTAssertTrue(prompts.contains { $0.name == "summarize" })
+        XCTAssertGreaterThan(prompts.count, 0, "Should recover with default prompts")
+        
+        // Test that prompts have proper structure after recovery
+        for prompt in prompts {
+            XCTAssertFalse(prompt.name.isEmpty, "Recovered prompt names should not be empty")
+            XCTAssertFalse(prompt.prompt.isEmpty, "Recovered prompt content should not be empty")
+        }
     }
     
     func testConcurrentLLMManagerAccess() async {

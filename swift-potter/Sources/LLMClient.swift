@@ -128,33 +128,28 @@ class OpenAIClient: LLMClient {
         let jsonData = try JSONEncoder().encode(requestBody)
         request.httpBody = jsonData
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        PotterLogger.shared.debug("llm_client", "🌐 Making OpenAI API request...")
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            PotterLogger.shared.error("llm_client", "🚫 OpenAI Network Error: \(error)")
+            throw createResponseError(reason: "Network error: \(error.localizedDescription)")
+        }
+        
+        // Debug logging for response investigation
+        PotterLogger.shared.debug("llm_client", "🔍 OpenAI Raw Response Type: \(type(of: response))")
         
         guard let httpResponse = response as? HTTPURLResponse else {
+            PotterLogger.shared.error("llm_client", "❌ OpenAI Invalid Response Type: \(type(of: response))")
             throw createResponseError(reason: "OpenAI API returned invalid HTTP response")
         }
         
+        // Always log the status code for debugging
+        PotterLogger.shared.debug("llm_client", "📡 OpenAI Response Status: \(httpResponse.statusCode)")
+        
         guard httpResponse.statusCode == 200 else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            
-            // Log the full API response for debugging
-            PotterLogger.shared.error("llm_client", "❌ OpenAI API Error - Status: \(httpResponse.statusCode)")
-            PotterLogger.shared.error("llm_client", "📄 Full API Response: \(errorMessage)")
-            
-            // Log headers that might contain rate limiting info
-            if let rateLimitHeaders = httpResponse.allHeaderFields as? [String: String] {
-                let relevantHeaders = rateLimitHeaders.filter { key, _ in
-                    key.lowercased().contains("rate") || 
-                    key.lowercased().contains("limit") || 
-                    key.lowercased().contains("retry") ||
-                    key.lowercased().contains("quota")
-                }
-                if !relevantHeaders.isEmpty {
-                    PotterLogger.shared.error("llm_client", "🔢 Rate Limit Headers: \(relevantHeaders)")
-                }
-            }
-            
-            throw createLLMError(for: httpResponse.statusCode, message: errorMessage, provider: "OpenAI")
+            throw handleLLMError(httpResponse: httpResponse, data: data, provider: "OpenAI")
         }
         
         let openAIResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
@@ -233,26 +228,7 @@ class AnthropicClient: LLMClient {
         }
         
         guard httpResponse.statusCode == 200 else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            
-            // Log the full API response for debugging
-            PotterLogger.shared.error("llm_client", "❌ Anthropic API Error - Status: \(httpResponse.statusCode)")
-            PotterLogger.shared.error("llm_client", "📄 Full API Response: \(errorMessage)")
-            
-            // Log headers that might contain rate limiting info
-            if let rateLimitHeaders = httpResponse.allHeaderFields as? [String: String] {
-                let relevantHeaders = rateLimitHeaders.filter { key, _ in
-                    key.lowercased().contains("rate") || 
-                    key.lowercased().contains("limit") || 
-                    key.lowercased().contains("retry") ||
-                    key.lowercased().contains("quota")
-                }
-                if !relevantHeaders.isEmpty {
-                    PotterLogger.shared.error("llm_client", "🔢 Rate Limit Headers: \(relevantHeaders)")
-                }
-            }
-            
-            throw createLLMError(for: httpResponse.statusCode, message: errorMessage, provider: "Anthropic")
+            throw handleLLMError(httpResponse: httpResponse, data: data, provider: "Anthropic")
         }
         
         let anthropicResponse = try JSONDecoder().decode(AnthropicResponse.self, from: data)
@@ -326,26 +302,7 @@ class GoogleClient: LLMClient {
         }
         
         guard httpResponse.statusCode == 200 else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            
-            // Log the full API response for debugging
-            PotterLogger.shared.error("llm_client", "❌ Google API Error - Status: \(httpResponse.statusCode)")
-            PotterLogger.shared.error("llm_client", "📄 Full API Response: \(errorMessage)")
-            
-            // Log headers that might contain rate limiting info
-            if let rateLimitHeaders = httpResponse.allHeaderFields as? [String: String] {
-                let relevantHeaders = rateLimitHeaders.filter { key, _ in
-                    key.lowercased().contains("rate") || 
-                    key.lowercased().contains("limit") || 
-                    key.lowercased().contains("retry") ||
-                    key.lowercased().contains("quota")
-                }
-                if !relevantHeaders.isEmpty {
-                    PotterLogger.shared.error("llm_client", "🔢 Rate Limit Headers: \(relevantHeaders)")
-                }
-            }
-            
-            throw createLLMError(for: httpResponse.statusCode, message: errorMessage, provider: "Google")
+            throw handleLLMError(httpResponse: httpResponse, data: data, provider: "Google")
         }
         
         let googleResponse = try JSONDecoder().decode(GoogleResponse.self, from: data)
@@ -423,6 +380,31 @@ struct GoogleCandidate: Codable {
 }
 
 // MARK: - Error Conversion Helpers
+
+/// Unified error handling for all LLM providers
+private func handleLLMError(httpResponse: HTTPURLResponse, data: Data, provider: String) -> PotterError {
+    let statusCode = httpResponse.statusCode
+    let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+    
+    // Log the full API response for debugging
+    PotterLogger.shared.error("llm_client", "❌ \(provider) API Error - Status: \(statusCode)")
+    PotterLogger.shared.error("llm_client", "📄 Full API Response: \(errorMessage)")
+    
+    // Log headers that might contain rate limiting info
+    if let rateLimitHeaders = httpResponse.allHeaderFields as? [String: String] {
+        let relevantHeaders = rateLimitHeaders.filter { key, _ in
+            key.lowercased().contains("rate") || 
+            key.lowercased().contains("limit") || 
+            key.lowercased().contains("retry") ||
+            key.lowercased().contains("quota")
+        }
+        if !relevantHeaders.isEmpty {
+            PotterLogger.shared.error("llm_client", "🔢 Rate Limit Headers: \(relevantHeaders)")
+        }
+    }
+    
+    return createLLMError(for: statusCode, message: errorMessage, provider: provider)
+}
 
 /// Helper function to convert common LLM API errors to PotterError
 private func createLLMError(for statusCode: Int, message: String, provider: String) -> PotterError {
