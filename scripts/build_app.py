@@ -669,7 +669,16 @@ def create_dmg_professional(app_path):
             plist_data = plistlib.load(f)
         
         version = plist_data.get('CFBundleShortVersionString', '2.0.0')
-        dmg_name = f"{APP_NAME}-{version}.dmg"
+        
+        # Get version codename for enhanced naming
+        try:
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from codename_utils import get_enhanced_dmg_name
+            dmg_name = get_enhanced_dmg_name(version)
+            print(f"🎭 Using enhanced DMG name: {dmg_name}")
+        except Exception as e:
+            print(f"⚠️  Could not get codename, using standard naming: {e}")
+            dmg_name = f"{APP_NAME}-{version}.dmg"
         dmg_path = f"dist/{dmg_name}"
         source_folder = "dist/dmg_source"
         
@@ -713,9 +722,18 @@ def create_dmg_professional(app_path):
         # Use hdiutil create with proper formatting
         print("🔨 Creating DMG with hdiutil...")
         
+        # Get enhanced volume name with codename
+        try:
+            from codename_utils import get_enhanced_volume_name
+            volume_name = get_enhanced_volume_name(version)
+            print(f"🎭 Using enhanced volume name: {volume_name}")
+        except Exception as e:
+            print(f"⚠️  Could not get codename for volume, using standard naming: {e}")
+            volume_name = f"{APP_NAME} Installer"
+        
         cmd = [
             'hdiutil', 'create',
-            '-volname', f"{APP_NAME} Installer",  # Use different name to avoid conflicts
+            '-volname', volume_name,
             '-srcfolder', source_folder,
             '-ov',
             '-format', 'UDRW',  # Read-write for customization

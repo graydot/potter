@@ -226,12 +226,29 @@ cat > "dist/archives/INSTALLATION.md" << EOF
 - Internet connection for AI processing
 EOF
 
-# Create DMG installer in dist/dmg
-echo "💿 Creating DMG installer..."
+# Create DMG installer in dist/dmg with enhanced naming
+echo "💿 Creating DMG installer with version codename..."
 
-DMG_NAME="Potter-$VERSION.dmg"
+# Get version codename for enhanced naming
+if command -v python3 &> /dev/null; then
+    CODENAME=$(python3 scripts/codename_utils.py 2>/dev/null | grep "Current Codename:" | cut -d':' -f2 | xargs)
+    if [[ -n "$CODENAME" && "$CODENAME" != "Unknown" ]]; then
+        echo "🎭 Using codename: $CODENAME"
+        CODENAME_SANITIZED=$(echo "$CODENAME" | sed 's/ /-/g' | sed 's/[^a-zA-Z0-9-]//g')
+        DMG_NAME="Potter-$VERSION-$CODENAME_SANITIZED.dmg"
+        VOLUME_NAME="Potter $VERSION - $CODENAME"
+    else
+        echo "⚠️  Could not get codename, using standard naming"
+        DMG_NAME="Potter-$VERSION.dmg"
+        VOLUME_NAME="Potter $VERSION"
+    fi
+else
+    echo "⚠️  Python3 not available, using standard naming"
+    DMG_NAME="Potter-$VERSION.dmg"
+    VOLUME_NAME="Potter $VERSION"
+fi
+
 DMG_TEMP_NAME="temp_$DMG_NAME"
-VOLUME_NAME="Potter $VERSION"
 DMG_STAGING_DIR="dist/dmg/staging"
 
 # Create staging directory
@@ -404,12 +421,26 @@ echo "   • DMG installer: $DMG_SIZE (dist/dmg/$DMG_NAME)"
 # Get the repository name for download URLs
 REPO_INFO=$(cd "$POTTER_DIR" && gh repo view --json owner,name -q '.owner.login + "/" + .name')
 
-# Generate release notes
+# Generate enhanced release notes with codename
 RELEASE_NOTES_FILE="release_notes_temp.md"
+
+# Use codename in release notes if available
+if [[ -n "$CODENAME" && "$CODENAME" != "Unknown" ]]; then
+    RELEASE_TITLE="Potter $VERSION - $CODENAME"
+    CODENAME_SECTION="## 🎭 $CODENAME
+
+*$CODENAME* brings enhanced AI-powered text processing to macOS with improved performance and reliability."
+else
+    RELEASE_TITLE="Potter $VERSION"
+    CODENAME_SECTION=""
+fi
+
 cat > "$RELEASE_NOTES_FILE" << EOF
-# Potter $VERSION
+# $RELEASE_TITLE
 
 AI-powered text processing for macOS with global hotkey support.
+
+$CODENAME_SECTION
 
 ---
 
@@ -499,7 +530,7 @@ git push origin "$VERSION" 2>/dev/null || echo "   Tag already pushed or no remo
 gh release create "$VERSION" \
     "$PROJECT_ROOT/dist/dmg/$DMG_NAME" \
     "$PROJECT_ROOT/dist/archives/INSTALLATION.md" \
-    --title "Potter $VERSION" \
+    --title "$RELEASE_TITLE" \
     --notes-file "$PROJECT_ROOT/$RELEASE_NOTES_FILE"
 
 if [[ $? -eq 0 ]]; then

@@ -32,9 +32,21 @@ APP_NAME = "Potter"
 # Removed old messy version management - now using deterministic version_manager.py
 
 def get_release_notes():
-    """Get release notes from user input"""
-    print("\n📝 Enter release notes (press Ctrl+D when done):")
-    print("=" * 50)
+    """Get release notes from user input with codename theming"""
+    # Get current codename for theming
+    try:
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from codename_utils import get_current_codename
+        codename = get_current_codename()
+        print(f"\n🎭 This release codename: {codename}")
+    except Exception as e:
+        print(f"⚠️  Could not get codename: {e}")
+        codename = "Unknown"
+    
+    print(f"\n📝 Enter release notes for '{codename}' (press Ctrl+D when done):")
+    print("=" * 60)
+    print(f"💡 Tip: Consider theming your notes around '{codename}' for consistency!")
+    print("=" * 60)
     
     lines = []
     try:
@@ -44,7 +56,26 @@ def get_release_notes():
     except EOFError:
         pass
     
-    return "\n".join(lines).strip()
+    user_notes = "\n".join(lines).strip()
+    
+    # If user provided notes, enhance them with codename context
+    if user_notes:
+        enhanced_notes = f"## 🎭 {codename}\n\n{user_notes}"
+        if codename.lower() not in user_notes.lower():
+            enhanced_notes += f"\n\n*This release is codenamed **{codename}** - bringing AI-powered text processing with creative flair to macOS.*"
+        return enhanced_notes
+    else:
+        # Provide a default template if no notes were provided
+        return f"""## 🎭 {codename}
+
+*{codename}* brings enhanced AI-powered text processing to macOS with improved performance and reliability.
+
+### What's New
+- Performance improvements and bug fixes
+- Enhanced LLM integration
+- Better error handling and user experience
+
+*This release is codenamed **{codename}** - continuing Potter's tradition of elegant, powerful text processing.*"""
 
 def build_app():
     """Build the app using the build script with proper signing for release"""
@@ -268,11 +299,21 @@ def create_github_release(version, dmg_path, release_notes):
         # Check if gh CLI is available
         subprocess.run(['gh', '--version'], capture_output=True, check=True)
         
+        # Get enhanced release title with codename
+        try:
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from codename_utils import get_enhanced_release_title
+            release_title = get_enhanced_release_title(version)
+            print(f"🎭 Using enhanced release title: {release_title}")
+        except Exception as e:
+            print(f"⚠️  Could not get codename for release title, using standard naming: {e}")
+            release_title = f'{APP_NAME} {version}'
+        
         # Create release
         cmd = [
             'gh', 'release', 'create', f'v{version}',
             dmg_path,
-            '--title', f'{APP_NAME} {version}',
+            '--title', release_title,
             '--notes', release_notes
         ]
         
