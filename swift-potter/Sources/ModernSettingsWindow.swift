@@ -533,7 +533,6 @@ struct ModernSettingsView: View {
                     Divider()
                         .padding(.vertical, 4)
                     
-                    infoRow("Build ID:", buildInfo.buildId)
                     infoRow("Version:", "\(buildInfo.version) • \(buildInfo.versionCodename)")
                     infoRow("Built:", buildInfo.buildDate)
                 }

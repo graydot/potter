@@ -268,8 +268,9 @@ class AdvancedFeaturesTests: TestBase {
         
         // Build ID should follow expected format
         XCTAssertFalse(buildInfo.buildId.isEmpty)
-        XCTAssertTrue(buildInfo.buildId.contains("-"))
-        XCTAssertTrue(buildInfo.buildId.hasSuffix("-DEV"))
+        // Build ID is now the same as build name, so test for build name format
+        XCTAssertTrue(buildInfo.buildId.contains("Potter"))
+        XCTAssertTrue(buildInfo.buildId.contains("#"))
         
         // Version should be valid
         XCTAssertFalse(buildInfo.version.isEmpty)
@@ -293,17 +294,19 @@ class AdvancedFeaturesTests: TestBase {
         XCTAssertTrue(buildInfo.buildDate.contains(":"))
     }
     
-    func testBuildIdUniqueness() {
-        // Test that build IDs have consistent structure across instances
+    func testBuildIdConsistency() {
+        // Test that build IDs are consistent across instances (since they're now deterministic)
         let buildInfo1 = BuildInfo.current()
         let buildInfo2 = BuildInfo.current()
         
-        // Build IDs should be different due to UUID generation
-        XCTAssertNotEqual(buildInfo1.buildId, buildInfo2.buildId, "Build IDs should be unique due to UUID generation")
+        // Build IDs should be the same since they're deterministic build names
+        XCTAssertEqual(buildInfo1.buildId, buildInfo2.buildId, "Build IDs should be consistent (deterministic build names)")
         
-        // But both should follow the same format
-        XCTAssertTrue(buildInfo1.buildId.hasSuffix("-DEV"))
-        XCTAssertTrue(buildInfo2.buildId.hasSuffix("-DEV"))
+        // Both should follow the build name format
+        XCTAssertTrue(buildInfo1.buildId.contains("Potter"))
+        XCTAssertTrue(buildInfo1.buildId.contains("#"))
+        XCTAssertTrue(buildInfo2.buildId.contains("Potter"))
+        XCTAssertTrue(buildInfo2.buildId.contains("#"))
         
         // Other properties should be the same for current build
         XCTAssertEqual(buildInfo1.version, buildInfo2.version)
@@ -318,8 +321,9 @@ class AdvancedFeaturesTests: TestBase {
         let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
         XCTAssertEqual(buildInfo.version, expectedVersion)
         
-        // Build ID should contain version-related info
-        XCTAssertTrue(buildInfo.buildId.contains("-DEV"))
+        // Build ID should contain build name format
+        XCTAssertTrue(buildInfo.buildId.contains("Potter"))
+        XCTAssertTrue(buildInfo.buildId.contains("#"))
     }
     
     func testDiagnosticInformationFormat() {
@@ -335,8 +339,8 @@ class AdvancedFeaturesTests: TestBase {
         // Test that numeric fields are valid
         XCTAssertGreaterThan(buildInfo.processId, 0)
         
-        // Test string format validity
-        XCTAssertFalse(buildInfo.buildId.contains(" "))
+        // Test string format validity - build ID can contain spaces (it's a build name)
+        // XCTAssertFalse(buildInfo.buildId.contains(" ")) // Build names can have spaces
         XCTAssertFalse(buildInfo.version.contains(" "))
     }
     
@@ -349,9 +353,10 @@ class AdvancedFeaturesTests: TestBase {
         XCTAssertEqual(originalBuildInfo.version, secondBuildInfo.version)
         XCTAssertEqual(originalBuildInfo.processId, secondBuildInfo.processId)
         
-        // Build IDs might be different due to UUID generation
-        XCTAssertTrue(originalBuildInfo.buildId.hasSuffix("-DEV"))
-        XCTAssertTrue(secondBuildInfo.buildId.hasSuffix("-DEV"))
+        // Build IDs should be the same since they're deterministic build names
+        XCTAssertEqual(originalBuildInfo.buildId, secondBuildInfo.buildId)
+        XCTAssertTrue(originalBuildInfo.buildId.contains("Potter"))
+        XCTAssertTrue(originalBuildInfo.buildId.contains("#"))
     }
     
     func testProcessManagerDiagnostics() {

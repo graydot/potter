@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Build Info Structure
 struct BuildInfo {
-    let buildId: String
+    let buildId: String  // This will now be the same as buildName
     let version: String
     let buildDate: String
     let processId: Int32
@@ -17,7 +17,7 @@ struct BuildInfo {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
         
         return BuildInfo(
-            buildId: UUID().uuidString.prefix(8).uppercased() + "-DEV",
+            buildId: creativeNames.buildName,  // Use build name as build ID
             version: version,
             buildDate: DateFormatter.buildDateFormatter.string(from: Date()),
             processId: getpid(),

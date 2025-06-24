@@ -122,7 +122,9 @@ class SystemIntegrationTests: TestBase {
         let buildInfo = BuildInfo.current()
         
         XCTAssertFalse(buildInfo.buildId.isEmpty)
-        XCTAssertTrue(buildInfo.buildId.hasSuffix("-DEV"))
+        // Build ID is now the same as build name, so test for build name format
+        XCTAssertTrue(buildInfo.buildId.contains("Potter"))
+        XCTAssertTrue(buildInfo.buildId.contains("#"))
         
         // Version should come from Info.plist, not be hardcoded
         let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
