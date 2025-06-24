@@ -133,7 +133,7 @@ class PotterSettingsTests: TestBase {
         
         XCTAssertEqual(potterSettings.openaiAPIKey, "")
         
-        // Check UserDefaults persistence
+        // Check UserDefaults persistence - empty strings are preserved as empty strings
         let savedKey = UserDefaults.standard.string(forKey: "api_key_openai")
         XCTAssertEqual(savedKey, "") // Empty string is preserved in UserDefaults
     }

@@ -17,7 +17,6 @@ TESTS_PASSED=true
 # Check if we're in Swift potter directory
 if [[ -f "swift-potter/Package.swift" ]]; then
     echo "$(blue '🧪 Running Swift automated test suites...')"
-    cd swift-potter
     
     # Run tests with timeout and capture output
     echo "$(yellow 'Testing 8 comprehensive test suites:')"
@@ -31,8 +30,8 @@ if [[ -f "swift-potter/Package.swift" ]]; then
     echo "• SecurityPrivacyTests - API key security and data protection"
     echo ""
     
-    # Use swift test directly for consistency with developer workflow
-    if timeout 180 swift test --parallel > /tmp/swift_test_output.log 2>&1; then
+    # Use make test for consistency with developer workflow
+    if timeout 180 make test > /tmp/swift_test_output.log 2>&1; then
         echo "$(green '✅ All Swift tests passed!')"
         
         # Show test summary
@@ -51,12 +50,10 @@ if [[ -f "swift-potter/Package.swift" ]]; then
         echo "$(yellow 'cat /tmp/swift_test_output.log')"
         echo ""
         echo "$(yellow 'To run tests manually:')"
-        echo "$(yellow 'cd swift-potter && swift test --parallel')"
+        echo "$(yellow 'make test')"
         
         TESTS_PASSED=false
     fi
-    
-    cd ..
     
     # Clean up log file
     rm -f /tmp/swift_test_output.log
