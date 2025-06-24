@@ -102,6 +102,7 @@ This release includes the StorageAdapter system for improved API key management.
       <pubDate>Mon, 23 Jun 2025 16:04:56 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.13/Potter-2.1.12-Memory-Melody.dmg" length="4589409" type="application/octet-stream" ns0:version="2.1.13" ns0:shortVersionString="2.1.13" ns0:edSignature="OQcFQ8lIGEsjaenjZW+NFczEU9xpwEr6PeilWQs6k032H+XDSZmUHp2nuKlKPCk2Bh5lyDD/NuexEQWK0FhoAg==" />
     </item>
+<<<<<<< HEAD
     <item>
       <title>Potter 2.1.14</title>
       <description>&lt;![CDATA[Test release with refactored DMG name handling]]&gt;</description>
@@ -160,5 +161,7 @@ This release includes the StorageAdapter system for improved API key management.
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.10/Potter-2.1.10.dmg" length="4592166" type="application/octet-stream" ns0:version="2.1.10" ns0:shortVersionString="2.1.10" ns0:edSignature="XL39RZ+GONgW9jr/jheA8ce9kgrmKIPsCPSA7O7Zj+AZzDEwA/IXSoVW96mvBGBXtMHmBXmectEn3ejpeky5Bw==" />
 >>>>>>> 7b6eae8 (Fixed release, dmg still not created though)
     </item>
+=======
+>>>>>>> 678b146 (Fix appcast URL generation to use actual DMG filename)
   </channel>
 </rss>

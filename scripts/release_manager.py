@@ -196,15 +196,11 @@ def update_appcast(version, dmg_path, release_notes):
     
     appcast_path = f"{RELEASES_DIR}/appcast.xml"
     
-    # Use enhanced DMG name for download URL
-    try:
-        from codename_utils import get_enhanced_dmg_name
-        enhanced_dmg_name = get_enhanced_dmg_name(version)
-        download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{enhanced_dmg_name}"
-        print(f"🎭 Using enhanced download URL: {enhanced_dmg_name}")
-    except Exception as e:
-        print(f"⚠️  Could not get enhanced DMG name for URL, using standard naming: {e}")
-        download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{APP_NAME}-{version}.dmg"
+    # Use actual DMG filename for download URL (extract from dmg_path)
+    import os
+    actual_dmg_filename = os.path.basename(dmg_path)
+    download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{actual_dmg_filename}"
+    print(f"🎭 Using actual DMG filename for download URL: {actual_dmg_filename}")
     
     # Create new entry
     entry = create_appcast_entry(version, dmg_path, release_notes, download_url)
