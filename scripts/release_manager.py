@@ -187,7 +187,7 @@ def create_appcast_entry(version, dmg_path, release_notes, download_url):
         "release_notes": release_notes
     }
 
-def update_appcast(version, dmg_path, release_notes):
+def update_appcast(version, dmg_path, release_notes, actual_dmg_name):
     """Update or create appcast.xml file"""
     print("📡 Updating appcast.xml...")
     
@@ -196,11 +196,9 @@ def update_appcast(version, dmg_path, release_notes):
     
     appcast_path = f"{RELEASES_DIR}/appcast.xml"
     
-    # Use actual DMG filename for download URL (extract from dmg_path)
-    import os
-    actual_dmg_filename = os.path.basename(dmg_path)
-    download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{actual_dmg_filename}"
-    print(f"🎭 Using actual DMG filename for download URL: {actual_dmg_filename}")
+    # Use the actual DMG filename passed in
+    download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{actual_dmg_name}"
+    print(f"🎭 Using actual DMG filename for download URL: {actual_dmg_name}")
     
     # Create new entry
     entry = create_appcast_entry(version, dmg_path, release_notes, download_url)
@@ -480,6 +478,17 @@ def main():
         print(f"❌ Could not update version: {e}")
         sys.exit(1)
     
+    # Determine expected DMG name upfront
+    try:
+        from codename_utils import get_enhanced_dmg_name
+        expected_dmg_name = get_enhanced_dmg_name(new_version)
+        print(f"🎭 Expected DMG name: {expected_dmg_name}")
+    except Exception as e:
+        print(f"⚠️  Could not get enhanced DMG name, using standard naming: {e}")
+        expected_dmg_name = f"{APP_NAME}-{new_version}.dmg"
+    
+    expected_dmg_path = f"dist/{expected_dmg_name}"
+    
     # Build app
     if not args.skip_build:
         if not build_app():
@@ -490,40 +499,38 @@ def main():
         import time
         time.sleep(3)
         print("⏳ Waiting for DMG file to be ready...")
-    
-    # Find DMG file (now with enhanced naming that includes codenames)
-    try:
-        from codename_utils import get_enhanced_dmg_name
-        enhanced_dmg_name = get_enhanced_dmg_name(new_version)
-        dmg_path = f"dist/{enhanced_dmg_name}"
-        print(f"🎭 Looking for enhanced DMG: {dmg_path}")
-    except Exception as e:
-        print(f"⚠️  Could not get enhanced DMG name, trying standard naming: {e}")
-        dmg_path = f"dist/{APP_NAME}-{new_version}.dmg"
-    
-    if not os.path.exists(dmg_path):
-        # Try standard naming as fallback
-        dmg_path = f"dist/{APP_NAME}-{new_version}.dmg"
-        if not os.path.exists(dmg_path):
-            # Try current version DMG
-            dmg_path = f"dist/{APP_NAME}-{current_version}.dmg"
-            if not os.path.exists(dmg_path):
-                # Try to find any DMG in dist directory
-                import glob
-                dmg_files = glob.glob("dist/*.dmg")
-                if dmg_files:
-                    dmg_path = sorted(dmg_files)[-1]  # Use the most recent
-                    print(f"🔍 Found DMG: {dmg_path}")
-                else:
-                    print(f"❌ No DMG file found in dist/ directory")
-                    print(f"   Expected: dist/{APP_NAME}-{new_version}.dmg")
-                    print(f"   Or enhanced: {enhanced_dmg_name if 'enhanced_dmg_name' in locals() else 'N/A'}")
-                    sys.exit(1)
+        
+        # Verify the expected DMG was created
+        if not os.path.exists(expected_dmg_path):
+            print(f"❌ Expected DMG not found: {expected_dmg_path}")
+            sys.exit(1)
+        
+        dmg_path = expected_dmg_path
+        actual_dmg_name = expected_dmg_name
+    else:
+        # Skip build - try to find existing DMG
+        if os.path.exists(expected_dmg_path):
+            dmg_path = expected_dmg_path
+            actual_dmg_name = expected_dmg_name
+            print(f"✅ Using existing DMG: {dmg_path}")
+        else:
+            # Try to find any DMG in dist directory
+            import glob
+            dmg_files = glob.glob("dist/*.dmg")
+            if dmg_files:
+                dmg_path = sorted(dmg_files)[-1]  # Use the most recent
+                actual_dmg_name = os.path.basename(dmg_path)
+                print(f"🔍 Found existing DMG: {dmg_path}")
+                print(f"⚠️  Note: Using {actual_dmg_name} instead of expected {expected_dmg_name}")
+            else:
+                print(f"❌ No DMG file found in dist/ directory")
+                print(f"   Expected: {expected_dmg_path}")
+                sys.exit(1)
     
     print(f"📦 Using DMG: {dmg_path}")
     
-    # Update appcast
-    appcast_path = update_appcast(new_version, dmg_path, release_notes)
+    # Update appcast with actual DMG name
+    appcast_path = update_appcast(new_version, dmg_path, release_notes, actual_dmg_name)
     
     # Copy appcast to potter repo and commit
     copy_appcast_to_potter_repo(new_version)
