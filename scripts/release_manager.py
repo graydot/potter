@@ -17,48 +17,46 @@ import re
 
 # Configuration - Auto-detect from git remote
 def get_repo_info():
-    """Get repository info from git remote"""
-    try:
-        result = subprocess.run(['git', 'remote', 'get-url', 'origin'], 
-                               capture_output=True, text=True, check=True)
-        remote_url = result.stdout.strip()
-        
-        # Parse GitHub URL (handles both SSH and HTTPS)
-        if 'github.com' in remote_url:
-            if remote_url.startswith('git@'):
-                # SSH: git@github.com:user/repo.git
-                repo_part = remote_url.split(':')[1].replace('.git', '')
-            else:
-                # HTTPS: https://github.com/user/repo.git
-                repo_part = remote_url.split('github.com/')[1].replace('.git', '')
-            
-            return repo_part
-    except:
-        pass
-    
-    # Fallback
-    return "graydot/rephrasely"
+    """Get repository info for appcast hosting (../potter repo)"""
+    # Appcast is hosted in the separate potter repo
+    return "graydot/potter"
 
 REPO_NAME = get_repo_info()
 GITHUB_REPO_URL = f"https://github.com/{REPO_NAME}"
-RELEASES_DIR = "releases"
+RELEASES_DIR = "../potter/releases"  # Store appcast in ../potter repo
 APP_NAME = "Potter"
 
 def get_current_version():
-    """Get current version from build script"""
-    build_script = "scripts/build_app.py"
-    if not os.path.exists(build_script):
-        return None
-    
-    with open(build_script, 'r') as f:
-        content = f.read()
+    """Get current version from latest GitHub release"""
+    try:
+        # Use gh CLI to get latest release
+        result = subprocess.run(['gh', 'release', 'list', '--repo', 'graydot/potter', '--limit', '1', '--json', 'tagName'], 
+                               capture_output=True, text=True, check=True)
         
-    # Look for version in CFBundleShortVersionString
-    version_match = re.search(r'<string>(\d+\.\d+(?:\.\d+)?)</string>', content)
-    if version_match:
-        return version_match.group(1)
+        releases = json.loads(result.stdout)
+        if releases:
+            tag_name = releases[0]['tagName']
+            # Remove 'v' prefix if present
+            version = tag_name.lstrip('v')
+            return version
+    except:
+        pass
     
-    return None
+    # Fallback to Info.plist
+    info_plist_paths = [
+        "swift-potter/Sources/Resources/Info.plist"
+    ]
+    
+    for plist_path in info_plist_paths:
+        if os.path.exists(plist_path):
+            with open(plist_path, 'r') as f:
+                content = f.read()
+                match = re.search(r'<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>', content)
+                if match:
+                    return match.group(1)
+    
+    # Ultimate fallback
+    return "2.0.0"
 
 def bump_version(current_version, bump_type='patch'):
     """Bump version number"""
@@ -147,12 +145,47 @@ def build_app():
         return False
 
 def calculate_file_signature(file_path):
-    """Calculate DSA signature for Sparkle (placeholder)"""
-    # In a real implementation, you'd use Sparkle's sign_update tool
-    # For now, we'll use SHA256 hash as a placeholder
-    with open(file_path, 'rb') as f:
-        file_hash = hashlib.sha256(f.read()).hexdigest()
-    return file_hash
+    """Calculate EdDSA signature using Sparkle's generate_appcast tool"""
+    try:
+        # Use Sparkle's generate_appcast tool to get proper EdDSA signature
+        sparkle_tool = "swift-potter/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+        
+        if not os.path.exists(sparkle_tool):
+            print(f"⚠️  Sparkle generate_appcast tool not found at {sparkle_tool}")
+            print("   Using placeholder signature - update will fail verification")
+            return "placeholder_signature"
+        
+        # Create temporary directory with just our DMG
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Copy DMG to temp directory
+            import shutil
+            temp_dmg = os.path.join(temp_dir, os.path.basename(file_path))
+            shutil.copy2(file_path, temp_dmg)
+            
+            # Run generate_appcast on the temp directory
+            result = subprocess.run([sparkle_tool, temp_dir], 
+                                   capture_output=True, text=True, check=True)
+            
+            # Parse the generated appcast to extract signature
+            temp_appcast = os.path.join(temp_dir, "appcast.xml")
+            if os.path.exists(temp_appcast):
+                tree = ET.parse(temp_appcast)
+                root = tree.getroot()
+                
+                # Find the edSignature attribute
+                for enclosure in root.findall(".//enclosure"):
+                    ed_sig = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature")
+                    if ed_sig:
+                        return ed_sig
+            
+            # Fallback to placeholder
+            return "placeholder_signature"
+            
+    except Exception as e:
+        print(f"⚠️  Failed to generate EdDSA signature: {e}")
+        print("   Using placeholder signature - update will fail verification")
+        return "placeholder_signature"
 
 def get_file_size(file_path):
     """Get file size in bytes"""
@@ -218,7 +251,7 @@ def update_appcast(version, dmg_path, release_notes):
     enclosure.set('type', 'application/octet-stream')
     enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}version', version)
     enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString', version)
-    enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}dsaSignature', entry['signature'])
+    enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature', entry['signature'])
     
     # Write appcast
     ET.indent(tree, space="  ", level=0)
@@ -226,6 +259,40 @@ def update_appcast(version, dmg_path, release_notes):
     
     print(f"✅ Updated appcast: {appcast_path}")
     return appcast_path
+
+def commit_appcast_changes(version):
+    """Commit and push appcast changes to ../potter repo"""
+    print("📡 Committing appcast changes to potter repo...")
+    
+    potter_dir = "../potter"
+    if not os.path.exists(potter_dir):
+        print(f"❌ Potter repo not found at {potter_dir}")
+        return False
+    
+    try:
+        # Change to potter directory
+        original_cwd = os.getcwd()
+        os.chdir(potter_dir)
+        
+        # Add appcast file
+        subprocess.run(['git', 'add', 'releases/appcast.xml'], check=True)
+        
+        # Commit changes
+        commit_msg = f"Update appcast for Potter {version}"
+        subprocess.run(['git', 'commit', '--no-verify', '-m', commit_msg], check=True)
+        
+        # Push changes
+        subprocess.run(['git', 'push'], check=True)
+        
+        print(f"✅ Appcast changes pushed to potter repo")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Git operation failed: {e}")
+        return False
+    finally:
+        # Return to original directory
+        os.chdir(original_cwd)
 
 def create_github_release(version, dmg_path, release_notes):
     """Create GitHub release using gh CLI"""
@@ -315,7 +382,15 @@ def main():
     if args.version:
         new_version = args.version
     else:
-        new_version = bump_version(current_version, args.bump)
+        # Suggest patch bump as default
+        suggested_version = bump_version(current_version, 'patch')
+        print(f"💡 Suggested version (patch bump): {suggested_version}")
+        
+        user_input = input(f"Enter version (press Enter for {suggested_version}): ").strip()
+        if user_input:
+            new_version = user_input
+        else:
+            new_version = suggested_version
     
     print(f"🆕 New version: {new_version}")
     
@@ -354,6 +429,9 @@ def main():
     
     # Update appcast
     appcast_path = update_appcast(new_version, dmg_path, release_notes)
+    
+    # Commit appcast changes to potter repo
+    commit_appcast_changes(new_version)
     
     # Create GitHub release
     if not args.skip_github:
