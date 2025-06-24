@@ -150,10 +150,12 @@ class PromptManager {
     
     private func defaultPrompts() -> [PromptItem] {
         return [
+            PromptItem(name: "polish", prompt: "Polish this text while preserving the author's original tone and voice. Focus on improving clarity and flow without adding unnecessary adjectives or changing the fundamental character of the writing."),
             PromptItem(name: "summarize", prompt: "Please provide a concise summary of the following text. Focus on the key points and main ideas while maintaining clarity and brevity."),
+            PromptItem(name: "elaborate", prompt: "Expand this text using only the existing information. Add depth by breaking ideas into multiple sentences or expanding on points already present, without introducing new details or examples."),
+            PromptItem(name: "considerate", prompt: "Review and refine this text to ensure it's appropriate and safe to share. Smooth out any rough edges, anticipate potential concerns, and make the message more thoughtful while staying direct and authentic."),
             PromptItem(name: "formal", prompt: "Please rewrite the following text in a formal, professional tone. Use proper business language and maintain a respectful, authoritative voice."),
-            PromptItem(name: "casual", prompt: "Please rewrite the following text in a casual, relaxed tone. Make it sound conversational and friendly, as if talking to a friend."),
-            PromptItem(name: "friendly", prompt: "Please rewrite the following text in a warm, friendly tone. Make it sound welcoming and approachable while maintaining professionalism."),
+            PromptItem(name: "clarity", prompt: "Restructure this text to improve clarity and readability. Organize ideas logically, simplify complex sentences, and ensure the message is easy to understand without changing the core meaning."),
         ]
     }
 }
