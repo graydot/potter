@@ -15,6 +15,9 @@ from pathlib import Path
 from datetime import datetime
 import re
 
+# Import our deterministic version manager
+from version_manager import get_current_version, set_version, bump_version
+
 # Configuration - Auto-detect from git remote
 def get_repo_info():
     """Get repository info for appcast hosting (../potter repo)"""
@@ -26,149 +29,7 @@ GITHUB_REPO_URL = f"https://github.com/{REPO_NAME}"
 RELEASES_DIR = "releases"  # Generate appcast locally first
 APP_NAME = "Potter"
 
-def get_version_from_appcast():
-    """Get latest version from appcast"""
-    try:
-        appcast_url = "https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml"
-        import urllib.request
-        with urllib.request.urlopen(appcast_url) as response:
-            content = response.read().decode('utf-8')
-            
-        # Parse XML to find latest version
-        root = ET.fromstring(content)
-        versions = []
-        for enclosure in root.findall(".//enclosure"):
-            version = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString")
-            if version:
-                versions.append(version)
-        
-        if versions:
-            # Return the latest version (assumes semantic versioning)
-            return max(versions, key=lambda v: [int(x) for x in v.split('.')])
-    except:
-        pass
-    return None
-
-def get_version_from_github_releases():
-    """Get latest version from GitHub releases"""
-    try:
-        result = subprocess.run(['gh', 'release', 'list', '--repo', 'graydot/potter', '--limit', '1', '--json', 'tagName'], 
-                               capture_output=True, text=True, check=True)
-        
-        releases = json.loads(result.stdout)
-        if releases:
-            tag_name = releases[0]['tagName']
-            return tag_name.lstrip('v')
-    except:
-        pass
-    return None
-
-def get_version_from_local_tags():
-    """Get latest version from local git tags"""
-    try:
-        result = subprocess.run(['git', 'tag', '-l', '--sort=-version:refname'], 
-                               capture_output=True, text=True, check=True)
-        
-        tags = result.stdout.strip().split('\n')
-        for tag in tags:
-            tag = tag.strip()
-            if tag and re.match(r'^v?\d+\.\d+(\.\d+)?$', tag):
-                return tag.lstrip('v')
-    except:
-        pass
-    return None
-
-def get_current_version():
-    """Get current version from multiple sources and handle inconsistencies"""
-    print("🔍 Checking version from multiple sources...")
-    
-    # Check all sources
-    appcast_version = get_version_from_appcast()
-    github_version = get_version_from_github_releases()
-    local_version = get_version_from_local_tags()
-    
-    versions = {}
-    if appcast_version:
-        versions['appcast'] = appcast_version
-        print(f"   📡 Appcast version: {appcast_version}")
-    if github_version:
-        versions['github'] = github_version
-        print(f"   🚀 GitHub releases version: {github_version}")
-    if local_version:
-        versions['local'] = local_version
-        print(f"   🏷️  Local tags version: {local_version}")
-    
-    if not versions:
-        print("   ⚠️  No versions found, using fallback: 2.0.0")
-        return "2.0.0"
-    
-    # Check for inconsistencies
-    unique_versions = set(versions.values())
-    if len(unique_versions) > 1:
-        print(f"   ⚠️  Version inconsistency detected!")
-        for source, version in versions.items():
-            print(f"      {source}: {version}")
-        
-        # Use the highest version to avoid conflicts
-        highest_version = max(versions.values(), key=lambda v: [int(x) for x in v.split('.')])
-        print(f"   💡 Using highest version to avoid conflicts: {highest_version}")
-        return highest_version
-    else:
-        # All sources agree or only one source
-        current_version = list(versions.values())[0]
-        print(f"   ✅ Consistent version found: {current_version}")
-        return current_version
-
-def bump_version(current_version, bump_type='patch'):
-    """Bump version number"""
-    if not current_version:
-        return "2.0.0"
-    
-    parts = current_version.split('.')
-    
-    # Ensure we have 3 parts (major.minor.patch)
-    while len(parts) < 3:
-        parts.append('0')
-    
-    major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
-    
-    if bump_type == 'major':
-        major += 1
-        minor = 0
-        patch = 0
-    elif bump_type == 'minor':
-        minor += 1
-        patch = 0
-    else:  # patch
-        patch += 1
-    
-    return f"{major}.{minor}.{patch}"
-
-def update_version_in_files(old_version, new_version):
-    """Update version in relevant files"""
-    print(f"📝 Updating version from {old_version} to {new_version}...")
-    
-    files_to_update = [
-        "scripts/build_app.py",
-        "swift-potter/Sources/Resources/Info.plist"
-    ]
-    
-    for file_path in files_to_update:
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Replace version strings
-            content = content.replace(f"<string>{old_version}</string>", f"<string>{new_version}</string>")
-            content = re.sub(r'version.*=.*["\']' + re.escape(old_version) + r'["\']', 
-                           f'version": "{new_version}"', content)
-            
-            with open(file_path, 'w') as f:
-                f.write(content)
-            
-            print(f"✅ Updated {file_path}")
-        else:
-            print(f"⚠️  File not found: {file_path}")
+# Removed old messy version management - now using deterministic version_manager.py
 
 def get_release_notes():
     """Get release notes from user input"""
@@ -198,7 +59,11 @@ def build_app():
             print("✅ Build completed successfully")
             return True
         else:
-            print(f"❌ Build failed: {result.stderr}")
+            print(f"❌ Build failed with return code {result.returncode}")
+            if result.stdout:
+                print(f"STDOUT: {result.stdout}")
+            if result.stderr:
+                print(f"STDERR: {result.stderr}")
             return False
             
     except Exception as e:
@@ -207,57 +72,69 @@ def build_app():
 
 def calculate_file_signature(file_path):
     """Calculate EdDSA signature using Sparkle's generate_appcast tool"""
-    try:
-        # Use Sparkle's generate_appcast tool to get proper EdDSA signature
-        sparkle_tool = "swift-potter/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+    # Use Sparkle's generate_appcast tool to get proper EdDSA signature
+    sparkle_tool = "swift-potter/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+    
+    if not os.path.exists(sparkle_tool):
+        raise FileNotFoundError(f"❌ Sparkle generate_appcast tool not found at {sparkle_tool}")
+    
+    # Create temporary directory with properly named DMG
+    import tempfile
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Copy DMG to temp directory with version in filename (required by Sparkle)
+        import shutil
+        from pathlib import Path
         
-        if not os.path.exists(sparkle_tool):
-            print(f"⚠️  Sparkle generate_appcast tool not found at {sparkle_tool}")
-            print("   Using placeholder signature - update will fail verification")
-            return "placeholder_signature"
+        # Extract version from filename or use default
+        original_name = Path(file_path).stem
+        version_match = re.search(r'(\d+\.\d+(?:\.\d+)?)', original_name)
+        if version_match:
+            version_str = version_match.group(1)
+        else:
+            raise ValueError(f"❌ Could not extract version from DMG filename: {original_name}")
         
-        # Create temporary directory with properly named DMG
-        import tempfile
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Copy DMG to temp directory with version in filename (required by Sparkle)
-            import shutil
-            from pathlib import Path
+        # Sparkle expects files like AppName-Version.dmg
+        temp_dmg = os.path.join(temp_dir, f"Potter-{version_str}.dmg")
+        shutil.copy2(file_path, temp_dmg)
+        
+        # Run generate_appcast on the temp directory
+        result = subprocess.run([sparkle_tool, temp_dir], 
+                               capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            error_msg = f"❌ generate_appcast failed with exit code {result.returncode}"
+            if result.stdout:
+                error_msg += f"\nSTDOUT: {result.stdout}"
+            if result.stderr:
+                error_msg += f"\nSTDERR: {result.stderr}"
             
-            # Extract version from filename or use default
-            original_name = Path(file_path).stem
-            version_match = re.search(r'(\d+\.\d+(?:\.\d+)?)', original_name)
-            if version_match:
-                version_str = version_match.group(1)
-            else:
-                version_str = "2.0.2"  # fallback
+            # Additional debugging info
+            error_msg += f"\nTrying to process DMG: {file_path}"
+            error_msg += f"\nTemp directory: {temp_dir}"
+            error_msg += f"\nTemp DMG created: {temp_dmg}"
+            error_msg += f"\nTemp DMG exists: {os.path.exists(temp_dmg)}"
+            if os.path.exists(temp_dmg):
+                error_msg += f"\nTemp DMG size: {os.path.getsize(temp_dmg)} bytes"
             
-            # Sparkle expects files like AppName-Version.dmg
-            temp_dmg = os.path.join(temp_dir, f"Potter-{version_str}.dmg")
-            shutil.copy2(file_path, temp_dmg)
+            print(error_msg)
+            raise subprocess.CalledProcessError(result.returncode, [sparkle_tool, temp_dir], error_msg)
+        
+        # Parse the generated appcast to extract signature
+        temp_appcast = os.path.join(temp_dir, "appcast.xml")
+        if not os.path.exists(temp_appcast):
+            raise FileNotFoundError(f"❌ generate_appcast did not create appcast.xml in {temp_dir}")
             
-            # Run generate_appcast on the temp directory
-            result = subprocess.run([sparkle_tool, temp_dir], 
-                                   capture_output=True, text=True, check=True)
-            
-            # Parse the generated appcast to extract signature
-            temp_appcast = os.path.join(temp_dir, "appcast.xml")
-            if os.path.exists(temp_appcast):
-                tree = ET.parse(temp_appcast)
-                root = tree.getroot()
-                
-                # Find the edSignature attribute
-                for enclosure in root.findall(".//enclosure"):
-                    ed_sig = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature")
-                    if ed_sig:
-                        return ed_sig
-            
-            # Fallback to placeholder
-            return "placeholder_signature"
-            
-    except Exception as e:
-        print(f"⚠️  Failed to generate EdDSA signature: {e}")
-        print("   Using placeholder signature - update will fail verification")
-        return "placeholder_signature"
+        tree = ET.parse(temp_appcast)
+        root = tree.getroot()
+        
+        # Find the edSignature attribute
+        for enclosure in root.findall(".//enclosure"):
+            ed_sig = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature")
+            if ed_sig:
+                print(f"✅ Generated EdDSA signature: {ed_sig[:20]}...")
+                return ed_sig
+        
+        raise ValueError("❌ No EdDSA signature found in generated appcast")
 
 def get_file_size(file_path):
     """Get file size in bytes"""
@@ -464,27 +341,45 @@ def main():
     print("🎭 Potter Release Manager")
     print("=" * 50)
     
-    # Get current version
-    current_version = get_current_version()
-    if not current_version:
-        print("❌ Could not determine current version")
+    # Get current version from authoritative source (Info.plist)
+    try:
+        current_version = get_current_version()
+        print(f"📋 Current version: {current_version}")
+    except Exception as e:
+        print(f"❌ Could not read current version: {e}")
         sys.exit(1)
-    
-    print(f"📋 Current version: {current_version}")
     
     # Determine new version
     if args.version:
         new_version = args.version
+        # Validate format
+        if not re.match(r'^\d+\.\d+\.\d+$', new_version):
+            print(f"❌ Invalid version format: {new_version}. Must be X.Y.Z")
+            sys.exit(1)
     else:
-        # Suggest patch bump as default
-        suggested_version = bump_version(current_version, 'patch')
-        print(f"💡 Suggested version (patch bump): {suggested_version}")
-        
-        user_input = input(f"Enter version (press Enter for {suggested_version}): ").strip()
-        if user_input:
-            new_version = user_input
-        else:
-            new_version = suggested_version
+        # Use bump type to determine version automatically
+        try:
+            suggested_version = bump_version(current_version, args.bump)
+            print(f"💡 Suggested version ({args.bump} bump): {suggested_version}")
+            
+            # If running non-interactively (e.g., from make), use suggested version
+            try:
+                user_input = input(f"Enter version (press Enter for {suggested_version}): ").strip()
+                if user_input:
+                    new_version = user_input
+                    # Validate format
+                    if not re.match(r'^\d+\.\d+\.\d+$', new_version):
+                        print(f"❌ Invalid version format: {new_version}. Must be X.Y.Z")
+                        sys.exit(1)
+                else:
+                    new_version = suggested_version
+            except EOFError:
+                # Non-interactive mode, use suggested version
+                new_version = suggested_version
+                print(f"Non-interactive mode: using {new_version}")
+        except Exception as e:
+            print(f"❌ Could not bump version: {e}")
+            sys.exit(1)
     
     print(f"🆕 New version: {new_version}")
     
@@ -498,14 +393,24 @@ def main():
         print("❌ Release notes are required")
         sys.exit(1)
     
-    # Update version in files
-    update_version_in_files(current_version, new_version)
+    # Update version in authoritative source
+    try:
+        set_version(new_version)
+        print(f"✅ Version updated to {new_version}")
+    except Exception as e:
+        print(f"❌ Could not update version: {e}")
+        sys.exit(1)
     
     # Build app
     if not args.skip_build:
         if not build_app():
             print("❌ Build failed, aborting release")
             sys.exit(1)
+        
+        # Delay to ensure DMG file is fully written and not locked
+        import time
+        time.sleep(3)
+        print("⏳ Waiting for DMG file to be ready...")
     
     # Find DMG file
     dmg_path = f"dist/{APP_NAME}-{new_version}.dmg"

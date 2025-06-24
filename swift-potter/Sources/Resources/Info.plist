@@ -2,39 +2,37 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>Potter</string>
-    <key>CFBundleDisplayName</key>
-    <string>Potter</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.potter.swift</string>
-    <key>CFBundleVersion</key>
-    <string>2.0.3</string>
-    <key>CFBundleShortVersionString</key>
-    <string>2.0.3</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleExecutable</key>
-    <string>Potter</string>
-    <key>CFBundleIconFile</key>
-    <string>potter-icon</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHumanReadableCopyright</key>
-    <string>© 2024 Potter. All rights reserved.</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    
-    <!-- Sparkle Auto-Update Configuration -->
-    <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>o6iM36SFa6RidAFlCIrdf5nJbHHSZIi7t2G/DrgN2m0=</string>
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-    <key>SUScheduledCheckInterval</key>
-    <integer>86400</integer>
+	<key>CFBundleDisplayName</key>
+	<string>Potter</string>
+	<key>CFBundleExecutable</key>
+	<string>Potter</string>
+	<key>CFBundleIconFile</key>
+	<string>potter-icon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.potter.swift</string>
+	<key>CFBundleName</key>
+	<string>Potter</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.1.3</string>
+	<key>CFBundleVersion</key>
+	<string>2.1.3</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2024 Potter. All rights reserved.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/graydot/potter/master/releases/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>o6iM36SFa6RidAFlCIrdf5nJbHHSZIi7t2G/DrgN2m0=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
