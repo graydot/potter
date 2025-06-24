@@ -395,7 +395,13 @@ def main():
     # Get current version from authoritative source (Info.plist)
     try:
         current_version = get_current_version()
-        print(f"📋 Current version: {current_version}")
+        # Get current version's codename
+        try:
+            from codename_utils import get_codename_for_version
+            current_codename = get_codename_for_version(current_version)
+            print(f"📋 Current version: {current_version} - {current_codename}")
+        except Exception:
+            print(f"📋 Current version: {current_version}")
     except Exception as e:
         print(f"❌ Could not read current version: {e}")
         sys.exit(1)
@@ -432,7 +438,13 @@ def main():
             print(f"❌ Could not bump version: {e}")
             sys.exit(1)
     
-    print(f"🆕 New version: {new_version}")
+    # Get new version's codename
+    try:
+        from codename_utils import get_codename_for_version
+        new_codename = get_codename_for_version(new_version)
+        print(f"🆕 New version: {new_version} - {new_codename}")
+    except Exception:
+        print(f"🆕 New version: {new_version}")
     
     # Get release notes
     if args.notes:

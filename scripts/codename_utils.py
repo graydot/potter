@@ -10,6 +10,90 @@ import os
 import sys
 from pathlib import Path
 
+def get_codename_for_version(version_string):
+    """Get codename for a specific version (deterministic based on version and date)"""
+    try:
+        # Parse version to get major.minor.patch
+        version_parts = version_string.split('.')
+        if len(version_parts) != 3:
+            return "Unknown"
+        
+        major, minor, patch = map(int, version_parts)
+        
+        # Create a deterministic seed based on version components
+        # This ensures the same version always gets the same codename
+        version_seed = (major * 1000) + (minor * 100) + patch
+        
+        # Create a temporary Swift script with the version-based seed
+        temp_script = f'''
+import Foundation
+
+// MARK: - Creative Build Names Generator
+struct CreativeBuildNames {{
+    static func generate(versionSeed: Int) -> (buildName: String, versionCodename: String) {{
+        let adjectives = [
+            "Swift", "Clever", "Nimble", "Brilliant", "Elegant", "Graceful",
+            "Luminous", "Radiant", "Stellar", "Cosmic", "Ethereal", "Mystical",
+            "Quantum", "Phoenix", "Tornado", "Lightning", "Thunder", "Aurora"
+        ]
+        
+        let nouns = [
+            "Potter", "Alchemist", "Wizard", "Sage", "Oracle", "Mage",
+            "Artisan", "Craftsman", "Sculptor", "Weaver", "Architect", "Builder",
+            "Voyager", "Explorer", "Pioneer", "Pathfinder", "Trailblazer", "Navigator"
+        ]
+        
+        let versionNames = [
+            "Midnight Codex", "Digital Sorcery", "Swift Enchantment", "Code Alchemy",
+            "Text Transmutation", "AI Resonance", "Neural Harmony", "Data Symphony",
+            "Quantum Quill", "Silicon Dreams", "Binary Ballet", "Algorithm Aria",
+            "Compiler Crescendo", "Runtime Rhapsody", "Memory Melody", "Thread Tango"
+        ]
+        
+        // Use version-based seed for deterministic naming per version
+        let seed = versionSeed % 1000
+        
+        let adjective = adjectives[seed % adjectives.count]
+        let noun = nouns[(seed + 7) % nouns.count]
+        let versionName = versionNames[(seed + 13) % versionNames.count]
+        
+        return (
+            buildName: "\\(adjective) \\(noun) #\\(versionSeed)",
+            versionCodename: versionName
+        )
+    }}
+}}
+
+// Extract codename and print it
+let names = CreativeBuildNames.generate(versionSeed: {version_seed})
+print("CODENAME:\\(names.versionCodename)")
+print("BUILD_NAME:\\(names.buildName)")
+'''
+        
+        # Write temporary script
+        temp_file = "/tmp/extract_version_codename.swift"
+        with open(temp_file, 'w') as f:
+            f.write(temp_script)
+        
+        # Run Swift script
+        result = subprocess.run(['swift', temp_file], capture_output=True, text=True)
+        
+        # Clean up
+        os.remove(temp_file)
+        
+        if result.returncode == 0:
+            # Parse output to extract codename
+            for line in result.stdout.split('\n'):
+                if line.startswith('CODENAME:'):
+                    return line.split('CODENAME:')[1].strip()
+        else:
+            print(f"Swift execution failed: {result.stderr}")
+            
+    except Exception as e:
+        print(f"Error extracting codename for version {version_string}: {e}")
+    
+    return "Unknown"
+
 def get_current_codename():
     """Extract current version codename from Swift ProcessManager"""
     try:
