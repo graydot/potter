@@ -190,7 +190,8 @@ dev: run ## Alias for run (development mode)
 all: clean build test ## Clean, build, and test everything
 release: ## Create a new release with auto-update support (with version bump)
 	@echo "$(GREEN)🚀 Creating new Potter release...$(NC)"
-	python3 scripts/release_manager.py
+	@echo "$(YELLOW)💡 Using automatic patch version bump. For custom version, use: python3 scripts/release_manager.py --version X.Y.Z$(NC)"
+	python3 scripts/release_manager.py --bump patch --notes "Automated release build" --version $$(python3 -c "from scripts.version_manager import get_current_version, bump_version; print(bump_version(get_current_version(), 'patch'))")
 
 old-release: clean build publish ## Complete release workflow (legacy)
 quick: build-unsigned ## Quick build without signing (for testing)

@@ -662,7 +662,14 @@ def create_dmg_professional(app_path):
     print("💿 Creating professional DMG for distribution...")
     
     try:
-        dmg_name = f"{APP_NAME}-2.0.dmg"
+        # Get version from the app's Info.plist
+        info_plist_path = f"{app_path}/Contents/Info.plist"
+        import plistlib
+        with open(info_plist_path, 'rb') as f:
+            plist_data = plistlib.load(f)
+        
+        version = plist_data.get('CFBundleShortVersionString', '2.0.0')
+        dmg_name = f"{APP_NAME}-{version}.dmg"
         dmg_path = f"dist/{dmg_name}"
         source_folder = "dist/dmg_source"
         
@@ -877,16 +884,6 @@ def build_app(target='local', skip_tests=False):
     # Embed build ID
     embed_build_id(app_path)
     
-    # Create DMG BEFORE signing to avoid permission issues with signed apps
-    dmg_path = None
-    if target == 'local':
-        print("📦 Creating professional DMG before code signing...")
-        dmg_path = create_dmg_professional(app_path)
-        if dmg_path:
-            print(f"✅ Professional DMG created: {dmg_path}")
-        else:
-            print("❌ DMG creation failed, continuing with app-only build")
-    
     # Code signing
     entitlements_file = create_entitlements_file(target)
     
@@ -906,11 +903,14 @@ def build_app(target='local', skip_tests=False):
                 else:
                     print("⚠️  Notarization failed - app may trigger security warnings")
             
-            # DMG was already created before signing
-            if target == 'local' and dmg_path:
-                print(f"✅ Distribution DMG available: {dmg_path}")
-            elif target == 'local':
-                print("⚠️  No DMG was created")
+            # Create DMG AFTER signing to include signed app
+            if target == 'local':
+                print("📦 Creating professional DMG with signed app...")
+                dmg_path = create_dmg_professional(app_path)
+                if dmg_path:
+                    print(f"✅ Distribution DMG created: {dmg_path}")
+                else:
+                    print("❌ DMG creation failed, but signed app is available")
                 
         else:
             print("❌ Signature verification failed")
