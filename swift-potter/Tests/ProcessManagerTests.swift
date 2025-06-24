@@ -41,7 +41,11 @@ class ProcessManagerTests: TestBase {
         
         XCTAssertFalse(buildInfo.buildId.isEmpty)
         XCTAssertTrue(buildInfo.buildId.hasSuffix("-DEV"))
-        XCTAssertEqual(buildInfo.version, "2.0.0-dev")
+        
+        // Version should come from Info.plist, not be hardcoded
+        let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        XCTAssertEqual(buildInfo.version, expectedVersion)
+        
         XCTAssertFalse(buildInfo.buildDate.isEmpty)
         XCTAssertEqual(buildInfo.processId, getpid())
     }

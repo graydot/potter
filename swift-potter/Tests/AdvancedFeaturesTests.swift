@@ -274,7 +274,10 @@ class AdvancedFeaturesTests: TestBase {
         // Version should be valid
         XCTAssertFalse(buildInfo.version.isEmpty)
         XCTAssertTrue(buildInfo.version.contains("."))
-        XCTAssertEqual(buildInfo.version, "2.0.0-dev")
+        
+        // Version should come from Info.plist, not be hardcoded
+        let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        XCTAssertEqual(buildInfo.version, expectedVersion)
         
         // Build date should be formatted correctly
         XCTAssertFalse(buildInfo.buildDate.isEmpty)
@@ -311,8 +314,9 @@ class AdvancedFeaturesTests: TestBase {
         // Test version numbers are consistent across different components
         let buildInfo = BuildInfo.current()
         
-        // Version should match expected development version
-        XCTAssertEqual(buildInfo.version, "2.0.0-dev")
+        // Version should come from Info.plist, not be hardcoded
+        let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        XCTAssertEqual(buildInfo.version, expectedVersion)
         
         // Build ID should contain version-related info
         XCTAssertTrue(buildInfo.buildId.contains("-DEV"))

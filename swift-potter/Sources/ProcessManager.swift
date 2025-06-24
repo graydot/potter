@@ -12,9 +12,13 @@ struct BuildInfo {
     
     static func current() -> BuildInfo {
         let creativeNames = CreativeBuildNames.generate()
+        
+        // Read version from Info.plist instead of hardcoding
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        
         return BuildInfo(
             buildId: UUID().uuidString.prefix(8).uppercased() + "-DEV",
-            version: "2.0.0-dev",
+            version: version,
             buildDate: DateFormatter.buildDateFormatter.string(from: Date()),
             processId: getpid(),
             buildName: creativeNames.buildName,
