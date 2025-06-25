@@ -668,9 +668,20 @@ def main():
     # Prompt to push to remote
     push_to_remote = prompt_git_push()
     
-    # Update Potter webpage if we pushed to remote
-    if push_to_remote:
-        update_potter_webpage(new_version)
+    # If user chose not to push, abort the release
+    if not push_to_remote:
+        print("\n❌ Release process aborted!")
+        print("=" * 50)
+        print("🚨 Release was not completed because changes were not pushed to remote.")
+        print("📋 To complete the release manually:")
+        print("1. Push Potter repo: git push && git push --tags")
+        print("2. Push blog repo changes (if any)")
+        print("3. Verify the GitHub release was created")
+        print("4. Update Potter webpage download link manually")
+        sys.exit(1)
+    
+    # Update Potter webpage since we pushed to remote
+    update_potter_webpage(new_version)
     
     print("\n🎉 Release process completed!")
     print("=" * 50)
@@ -681,14 +692,9 @@ def main():
     print()
     print("📋 Next steps:")
     print("1. Test the DMG installation")
-    if push_to_remote:
-        print("2. ✅ Repositories pushed to remote")
-        print("3. ✅ Potter webpage updated with new download link")
-        print("4. Verify auto-update works with new appcast")
-    else:
-        print("2. Push changes to GitHub: git push && git push --tags")
-        print("3. Verify auto-update works with new appcast")
-        print("4. Manually update Potter webpage download link")
+    print("2. ✅ Repositories pushed to remote")
+    print("3. ✅ Potter webpage updated with new download link")
+    print("4. Verify auto-update works with new appcast")
 
 if __name__ == "__main__":
     main()
