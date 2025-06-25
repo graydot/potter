@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Potter Release Manager with Auto-Update Support
-Handles version bumping, building, appcast generation, and GitHub releases
+Refactored with utility classes for better organization and error handling
 """
 
 import os
@@ -14,58 +14,158 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from datetime import datetime
 import re
+from typing import Optional, Dict, Any
 
-# Import our deterministic version manager
+# Import our utilities
 from version_manager import get_current_version, set_version, bump_version
+from release_utils import generate_ai_release_notes, get_commits_for_release_notes
 
-# Configuration - Auto-detect from git remote
-def get_repo_info():
-    """Get repository info for appcast hosting (../potter repo)"""
-    # Appcast is hosted in the separate potter repo
-    return "graydot/potter"
 
-REPO_NAME = get_repo_info()
-GITHUB_REPO_URL = f"https://github.com/{REPO_NAME}"
-RELEASES_DIR = "releases"  # Generate appcast locally first
-APP_NAME = "Potter"
+class ReleaseConfig:
+    """Configuration for release process"""
+    
+    def __init__(self):
+        self.repo_name = "graydot/potter"
+        self.github_repo_url = f"https://github.com/{self.repo_name}"
+        self.releases_dir = "releases"
+        self.app_name = "Potter"
+        self.sparkle_tool = "swift-potter/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
 
-# Removed old messy version management - now using deterministic version_manager.py
 
-def get_release_notes():
-    """Get release notes from user input with codename theming"""
-    # Get current codename for theming
-    try:
-        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-        from codename_utils import get_current_codename
-        codename = get_current_codename()
+class CodenameManager:
+    """Handles codename operations"""
+    
+    @staticmethod
+    def get_current_codename() -> str:
+        try:
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from codename_utils import get_current_codename
+            return get_current_codename()
+        except Exception as e:
+            print(f"⚠️  Could not get codename: {e}")
+            return "Unknown"
+    
+    @staticmethod
+    def get_enhanced_release_title(version: str) -> str:
+        try:
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from codename_utils import get_enhanced_release_title
+            return get_enhanced_release_title(version)
+        except Exception as e:
+            print(f"⚠️  Could not get codename for release title: {e}")
+            return f"Potter {version}"
+    
+    @staticmethod
+    def get_enhanced_dmg_name(version: str) -> str:
+        try:
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from codename_utils import get_enhanced_dmg_name
+            return get_enhanced_dmg_name(version)
+        except Exception as e:
+            return f"Potter-{version}.dmg"
+
+
+class ReleaseNotesManager:
+    """Handles release notes generation and input"""
+    
+    def __init__(self, config: ReleaseConfig):
+        self.config = config
+        self.codename_manager = CodenameManager()
+    
+    def get_release_notes(self, version: str, use_ai: bool = True) -> str:
+        """Get release notes using AI generation or manual input"""
+        codename = self.codename_manager.get_current_codename()
         print(f"\n🎭 This release codename: {codename}")
-    except Exception as e:
-        print(f"⚠️  Could not get codename: {e}")
-        codename = "Unknown"
+        
+        if use_ai:
+            ai_notes = self._try_ai_generation(version, codename)
+            if ai_notes:
+                return ai_notes
+        
+        return self._get_manual_notes(version, codename)
     
-    print(f"\n📝 Enter release notes for '{codename}' (press Ctrl+D when done):")
-    print("=" * 60)
-    print(f"💡 Tip: Consider theming your notes around '{codename}' for consistency!")
-    print("=" * 60)
+    def _try_ai_generation(self, version: str, codename: str) -> Optional[str]:
+        """Try to generate AI release notes"""
+        print(f"\n🤖 Attempting to generate AI release notes...")
+        ai_notes = generate_ai_release_notes(version, codename)
+        
+        if not ai_notes:
+            print("❌ AI generation failed, falling back to manual entry...")
+            return None
+        
+        print("\n📝 AI-generated release notes:")
+        print("=" * 60)
+        print(ai_notes)
+        print("=" * 60)
+        
+        try:
+            response = input("\nUse these AI-generated notes? [Y/n]: ").strip().lower()
+            if response in ['', 'y', 'yes']:
+                return ai_notes
+            elif response in ['e', 'edit']:
+                return self._edit_ai_notes(ai_notes)
+            else:
+                print("📝 Falling back to manual notes entry...")
+                return None
+        except (EOFError, KeyboardInterrupt):
+            print("\n📝 Using AI-generated notes...")
+            return ai_notes
     
-    lines = []
-    try:
-        while True:
-            line = input()
-            lines.append(line)
-    except EOFError:
-        pass
+    def _edit_ai_notes(self, ai_notes: str) -> str:
+        """Allow editing of AI-generated notes"""
+        print("\n📝 Edit the AI-generated notes (press Ctrl+D when done):")
+        lines = ai_notes.split('\n')
+        
+        for i, line in enumerate(lines):
+            try:
+                new_line = input(f"{i+1:2d}: {line}\n    ")
+                if new_line.strip():
+                    lines[i] = new_line
+            except EOFError:
+                break
+        
+        return '\n'.join(lines)
     
-    user_notes = "\n".join(lines).strip()
+    def _get_manual_notes(self, version: str, codename: str) -> str:
+        """Get manual release notes input"""
+        print(f"\n📝 Enter release notes for '{codename}' (press Ctrl+D when done):")
+        print("=" * 60)
+        print(f"💡 Tip: Consider theming your notes around '{codename}' for consistency!")
+        print(f"💡 Or type 'ai' on a new line to retry AI generation")
+        print("=" * 60)
+        
+        lines = []
+        try:
+            while True:
+                line = input()
+                if line.strip().lower() == 'ai':
+                    print("🤖 Retrying AI generation...")
+                    ai_notes = generate_ai_release_notes(version, codename)
+                    if ai_notes:
+                        return ai_notes
+                    else:
+                        print("❌ AI generation failed again, continue with manual entry...")
+                        continue
+                lines.append(line)
+        except EOFError:
+            pass
+        
+        user_notes = "\n".join(lines).strip()
+        
+        if user_notes:
+            return self._enhance_manual_notes(user_notes, codename)
+        else:
+            return self._get_default_notes(codename)
     
-    # If user provided notes, enhance them with codename context
-    if user_notes:
+    def _enhance_manual_notes(self, user_notes: str, codename: str) -> str:
+        """Enhance manual notes with codename context"""
         enhanced_notes = f"## 🎭 {codename}\n\n{user_notes}"
         if codename.lower() not in user_notes.lower():
             enhanced_notes += f"\n\n*This release is codenamed **{codename}** - bringing AI-powered text processing with creative flair to macOS.*"
         return enhanced_notes
-    else:
-        # Provide a default template if no notes were provided
+    
+    def _get_default_notes(self, codename: str) -> str:
+        """Get default template notes"""
         return f"""## 🎭 {codename}
 
 *{codename}* brings enhanced AI-powered text processing to macOS with improved performance and reliability.
@@ -77,599 +177,455 @@ def get_release_notes():
 
 *This release is codenamed **{codename}** - continuing Potter's tradition of elegant, powerful text processing.*"""
 
-def build_app():
-    """Build the app using the build script with proper signing for release"""
-    print("🔨 Building signed Potter.app for release...")
-    
-    try:
-        # Use make build which already has proper code signing configured
-        result = subprocess.run([
-            'make', 'build'
-        ], capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print("✅ Signed build completed successfully")
-            return True
-        else:
-            print(f"❌ Build failed with return code {result.returncode}")
-            if result.stdout:
-                print(f"STDOUT: {result.stdout}")
-            if result.stderr:
-                print(f"STDERR: {result.stderr}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Build error: {e}")
-        return False
 
-def calculate_file_signature(file_path):
-    """Calculate EdDSA signature using Sparkle's generate_appcast tool"""
-    # Use Sparkle's generate_appcast tool to get proper EdDSA signature
-    sparkle_tool = "swift-potter/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+class AppBuilder:
+    """Handles app building operations"""
     
-    if not os.path.exists(sparkle_tool):
-        raise FileNotFoundError(f"❌ Sparkle generate_appcast tool not found at {sparkle_tool}")
+    def __init__(self, config: ReleaseConfig):
+        self.config = config
     
-    # Create temporary directory with properly named DMG
-    import tempfile
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Copy DMG to temp directory with version in filename (required by Sparkle)
-        import shutil
-        from pathlib import Path
+    def build_app(self) -> bool:
+        """Build the app using the build script with proper signing"""
+        print("🔨 Building signed Potter.app for release...")
         
-        # Extract version from filename or use default
-        original_name = Path(file_path).stem
-        version_match = re.search(r'(\d+\.\d+(?:\.\d+)?)', original_name)
-        if version_match:
-            version_str = version_match.group(1)
-        else:
-            raise ValueError(f"❌ Could not extract version from DMG filename: {original_name}")
-        
-        # Sparkle expects files like AppName-Version.dmg
-        temp_dmg = os.path.join(temp_dir, f"Potter-{version_str}.dmg")
-        shutil.copy2(file_path, temp_dmg)
-        
-        # Run generate_appcast on the temp directory
-        result = subprocess.run([sparkle_tool, temp_dir], 
-                               capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            error_msg = f"❌ generate_appcast failed with exit code {result.returncode}"
-            if result.stdout:
-                error_msg += f"\nSTDOUT: {result.stdout}"
-            if result.stderr:
-                error_msg += f"\nSTDERR: {result.stderr}"
-            
-            # Additional debugging info
-            error_msg += f"\nTrying to process DMG: {file_path}"
-            error_msg += f"\nTemp directory: {temp_dir}"
-            error_msg += f"\nTemp DMG created: {temp_dmg}"
-            error_msg += f"\nTemp DMG exists: {os.path.exists(temp_dmg)}"
-            if os.path.exists(temp_dmg):
-                error_msg += f"\nTemp DMG size: {os.path.getsize(temp_dmg)} bytes"
-            
-            print(error_msg)
-            raise subprocess.CalledProcessError(result.returncode, [sparkle_tool, temp_dir], error_msg)
-        
-        # Parse the generated appcast to extract signature
-        temp_appcast = os.path.join(temp_dir, "appcast.xml")
-        if not os.path.exists(temp_appcast):
-            raise FileNotFoundError(f"❌ generate_appcast did not create appcast.xml in {temp_dir}")
-            
-        tree = ET.parse(temp_appcast)
-        root = tree.getroot()
-        
-        # Find the edSignature attribute
-        for enclosure in root.findall(".//enclosure"):
-            ed_sig = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature")
-            if ed_sig:
-                print(f"✅ Generated EdDSA signature: {ed_sig[:20]}...")
-                return ed_sig
-        
-        raise ValueError("❌ No EdDSA signature found in generated appcast")
-
-def get_file_size(file_path):
-    """Get file size in bytes"""
-    return os.path.getsize(file_path)
-
-def create_appcast_entry(version, dmg_path, release_notes, download_url):
-    """Create appcast entry for this version"""
-    file_size = get_file_size(dmg_path)
-    signature = calculate_file_signature(dmg_path)
-    pub_date = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
-    
-    return {
-        "version": version,
-        "download_url": download_url,
-        "file_size": file_size,
-        "signature": signature,
-        "pub_date": pub_date,
-        "release_notes": release_notes
-    }
-
-def update_appcast(version, dmg_path, release_notes, actual_dmg_name):
-    """Update or create appcast.xml file"""
-    print("📡 Updating appcast.xml...")
-    
-    # Ensure releases directory exists
-    os.makedirs(RELEASES_DIR, exist_ok=True)
-    
-    appcast_path = f"{RELEASES_DIR}/appcast.xml"
-    
-    # Use the actual DMG filename passed in
-    download_url = f"{GITHUB_REPO_URL}/releases/download/v{version}/{actual_dmg_name}"
-    print(f"🎭 Using actual DMG filename for download URL: {actual_dmg_name}")
-    
-    # Create new entry
-    entry = create_appcast_entry(version, dmg_path, release_notes, download_url)
-    
-    # Load existing appcast or create new one
-    if os.path.exists(appcast_path):
-        tree = ET.parse(appcast_path)
-        root = tree.getroot()
-        channel = root.find('channel')
-    else:
-        # Create new appcast
-        root = ET.Element('rss', version='2.0', attrib={
-            'xmlns:sparkle': 'http://www.andymatuschak.org/xml-namespaces/sparkle',
-            'xmlns:dc': 'http://purl.org/dc/elements/1.1/'
-        })
-        
-        channel = ET.SubElement(root, 'channel')
-        ET.SubElement(channel, 'title').text = f"{APP_NAME} Updates"
-        ET.SubElement(channel, 'description').text = f"Updates for {APP_NAME}"
-        ET.SubElement(channel, 'language').text = "en"
-        ET.SubElement(channel, 'link').text = GITHUB_REPO_URL
-        
-        tree = ET.ElementTree(root)
-    
-    # Add new item
-    item = ET.SubElement(channel, 'item')
-    ET.SubElement(item, 'title').text = f"{APP_NAME} {version}"
-    ET.SubElement(item, 'description').text = f"<![CDATA[{release_notes}]]>"
-    ET.SubElement(item, 'pubDate').text = entry['pub_date']
-    
-    enclosure = ET.SubElement(item, 'enclosure')
-    enclosure.set('url', entry['download_url'])
-    enclosure.set('length', str(entry['file_size']))
-    enclosure.set('type', 'application/octet-stream')
-    enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}version', version)
-    enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString', version)
-    enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature', entry['signature'])
-    
-    # Write appcast
-    ET.indent(tree, space="  ", level=0)
-    tree.write(appcast_path, encoding='utf-8', xml_declaration=True)
-    
-    print(f"✅ Updated appcast: {appcast_path}")
-    return appcast_path
-
-def copy_appcast_to_potter_repo(version):
-    """Copy appcast to ../potter repo and commit"""
-    print("📡 Copying appcast to potter repo...")
-    
-    potter_dir = "../potter"
-    if not os.path.exists(potter_dir):
-        print(f"❌ Potter repo not found at {potter_dir}")
-        return False
-    
-    try:
-        # Copy appcast file
-        local_appcast = f"{RELEASES_DIR}/appcast.xml"
-        potter_releases_dir = f"{potter_dir}/releases"
-        potter_appcast = f"{potter_releases_dir}/appcast.xml"
-        
-        # Ensure potter releases directory exists
-        os.makedirs(potter_releases_dir, exist_ok=True)
-        
-        # Copy file
-        import shutil
-        shutil.copy2(local_appcast, potter_appcast)
-        print(f"✅ Copied appcast to {potter_appcast}")
-        
-        # Change to potter directory
-        original_cwd = os.getcwd()
-        os.chdir(potter_dir)
-        
-        # Add appcast file
-        subprocess.run(['git', 'add', 'releases/appcast.xml'], check=True)
-        
-        # Commit changes
-        commit_msg = f"Update appcast for Potter {version}"
-        subprocess.run(['git', 'commit', '-m', commit_msg], check=True)
-        
-        # Push changes
-        subprocess.run(['git', 'push'], check=True)
-        
-        print(f"✅ Appcast changes pushed to potter repo")
-        return True
-        
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git operation failed: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Copy operation failed: {e}")
-        return False
-    finally:
-        # Return to original directory
-        os.chdir(original_cwd)
-
-def create_github_release(version, dmg_path, release_notes):
-    """Create GitHub release using gh CLI in the potter repo"""
-    print(f"🚀 Creating GitHub release v{version}...")
-    
-    potter_dir = "../potter"
-    if not os.path.exists(potter_dir):
-        print(f"❌ Potter repo not found at {potter_dir}")
-        return False
-    
-    try:
-        # Check if gh CLI is available
-        subprocess.run(['gh', '--version'], capture_output=True, check=True)
-        
-        # Get enhanced release title with codename
         try:
-            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-            from codename_utils import get_enhanced_release_title
-            release_title = get_enhanced_release_title(version)
-            print(f"🎭 Using enhanced release title: {release_title}")
-        except Exception as e:
-            print(f"⚠️  Could not get codename for release title, using standard naming: {e}")
-            release_title = f'{APP_NAME} {version}'
-        
-        # Change to potter directory to create release there
-        original_cwd = os.getcwd()
-        os.chdir(potter_dir)
-        
-        # Create absolute path to DMG from potter repo perspective  
-        dmg_absolute_path = os.path.abspath(os.path.join(original_cwd, dmg_path))
-        
-        # Create tag first
-        print(f"🏷️  Creating tag v{version} in potter repo...")
-        subprocess.run(['git', 'tag', f'v{version}'], check=False)  # Don't fail if tag exists
-        subprocess.run(['git', 'push', 'origin', f'v{version}'], check=False)  # Don't fail if already pushed
-        
-        # Create release
-        cmd = [
-            'gh', 'release', 'create', f'v{version}',
-            dmg_absolute_path,
-            '--title', release_title,
-            '--notes', release_notes
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        # Return to original directory
-        os.chdir(original_cwd)
-        
-        if result.returncode == 0:
-            print(f"✅ GitHub release created: {GITHUB_REPO_URL}/releases/tag/v{version}")
-            return True
-        else:
-            stderr = result.stderr.strip()
-            if "already exists" in stderr:
-                print(f"⚠️  GitHub release v{version} already exists - skipping creation")
-                print(f"🔗 Existing release: {GITHUB_REPO_URL}/releases/tag/v{version}")
+            result = subprocess.run(['make', 'build'], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print("✅ Signed build completed successfully")
                 return True
             else:
-                print(f"❌ GitHub release failed: {stderr}")
+                print(f"❌ Build failed with return code {result.returncode}")
+                if result.stdout:
+                    print(f"STDOUT: {result.stdout}")
+                if result.stderr:
+                    print(f"STDERR: {result.stderr}")
                 return False
-            
-    except subprocess.CalledProcessError:
-        print("❌ GitHub CLI (gh) not found. Please install it to create releases automatically.")
-        print(f"💡 Manual steps:")
-        print(f"   1. Go to {GITHUB_REPO_URL}/releases/new")
-        print(f"   2. Tag: v{version}")
-        print(f"   3. Upload: {dmg_path}")
-        print(f"   4. Release notes: {release_notes}")
-        return False
-    except Exception as e:
-        print(f"❌ GitHub release error: {e}")
-        return False
+                
+        except Exception as e:
+            print(f"❌ Build error: {e}")
+            return False
 
-def commit_version_changes(version):
-    """Commit version changes to git"""
-    print("📝 Committing version changes...")
-    
-    try:
-        # Add changed files (only local files, not appcast which is in ../potter)
-        subprocess.run(['git', 'add', 
-                       'scripts/build_app.py',
-                       'swift-potter/Sources/Resources/Info.plist'],
-                      check=True)
-        
-        # Commit
-        commit_message = f"Release {version}"
-        
-        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-        
-        print("✅ Version changes committed")
-        return True
-        
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git commit failed: {e}")
-        return False
 
-def prompt_git_push():
-    """Prompt user to push commits to remote repositories (default: N)"""
-    print("\n" + "=" * 60)
-    print("🚀 PUSH TO REMOTE REPOSITORIES")
-    print("=" * 60)
-    print("This will push commits on master to remote for:")
-    print("  • Potter (swift-potter repo)")
-    print("  • Your blog (graydot.github.io repo)")
-    print()
+class AppcastManager:
+    """Handles appcast generation and updates"""
     
-    try:
-        response = input("Push commits to remote? [y/N]: ").strip().lower()
-        if response in ['y', 'yes']:
-            print("📤 Pushing commits to remote repositories...")
+    def __init__(self, config: ReleaseConfig):
+        self.config = config
+    
+    def calculate_file_signature(self, file_path: str) -> str:
+        """Calculate EdDSA signature using Sparkle's generate_appcast tool"""
+        if not os.path.exists(self.config.sparkle_tool):
+            raise FileNotFoundError(f"❌ Sparkle generate_appcast tool not found at {self.config.sparkle_tool}")
+        
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Copy DMG to temp directory with version in filename
+            import shutil
             
-            # Push potter repo (current directory)
-            try:
-                print("📤 Pushing Potter repo...")
-                subprocess.run(['git', 'push'], check=True, cwd='.')
-                subprocess.run(['git', 'push', '--tags'], check=True, cwd='.')
-                print("✅ Potter repo pushed successfully")
-            except subprocess.CalledProcessError as e:
-                print(f"❌ Failed to push Potter repo: {e}")
-                return False
+            original_name = Path(file_path).stem
+            version_match = re.search(r'(\d+\.\d+(?:\.\d+)?)', original_name)
+            if not version_match:
+                raise ValueError(f"❌ Could not extract version from DMG filename: {original_name}")
             
-            return True
+            version_str = version_match.group(1)
+            temp_dmg = os.path.join(temp_dir, f"Potter-{version_str}.dmg")
+            shutil.copy2(file_path, temp_dmg)
+            
+            # Run generate_appcast
+            result = subprocess.run([self.config.sparkle_tool, temp_dir], 
+                                   capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                error_msg = f"❌ generate_appcast failed with exit code {result.returncode}"
+                if result.stdout:
+                    error_msg += f"\nSTDOUT: {result.stdout}"
+                if result.stderr:
+                    error_msg += f"\nSTDERR: {result.stderr}"
+                raise subprocess.CalledProcessError(result.returncode, [self.config.sparkle_tool, temp_dir], error_msg)
+            
+            # Parse generated appcast to extract signature
+            temp_appcast = os.path.join(temp_dir, "appcast.xml")
+            if not os.path.exists(temp_appcast):
+                raise FileNotFoundError(f"❌ generate_appcast did not create appcast.xml in {temp_dir}")
+                
+            tree = ET.parse(temp_appcast)
+            root = tree.getroot()
+            
+            for enclosure in root.findall(".//enclosure"):
+                ed_sig = enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature")
+                if ed_sig:
+                    print(f"✅ Generated EdDSA signature: {ed_sig[:20]}...")
+                    return ed_sig
+            
+            raise ValueError("❌ No EdDSA signature found in generated appcast")
+    
+    def update_appcast(self, version: str, dmg_path: str, release_notes: str, dmg_name: str) -> str:
+        """Update or create appcast.xml file"""
+        print("📡 Updating appcast.xml...")
+        
+        os.makedirs(self.config.releases_dir, exist_ok=True)
+        appcast_path = f"{self.config.releases_dir}/appcast.xml"
+        
+        download_url = f"{self.config.github_repo_url}/releases/download/v{version}/{dmg_name}"
+        print(f"🎭 Using DMG filename for download URL: {dmg_name}")
+        
+        # Create appcast entry
+        file_size = os.path.getsize(dmg_path)
+        signature = self.calculate_file_signature(dmg_path)
+        pub_date = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+        
+        # Load existing appcast or create new one
+        if os.path.exists(appcast_path):
+            tree = ET.parse(appcast_path)
+            root = tree.getroot()
+            channel = root.find('channel')
         else:
-            print("⏭️  Skipping push to remote (user chose N)")
-            return False
+            root = ET.Element('rss', version='2.0', attrib={
+                'xmlns:sparkle': 'http://www.andymatuschak.org/xml-namespaces/sparkle',
+                'xmlns:dc': 'http://purl.org/dc/elements/1.1/'
+            })
             
-    except (EOFError, KeyboardInterrupt):
-        print("\n⏭️  Skipping push to remote (interrupted)")
-        return False
+            channel = ET.SubElement(root, 'channel')
+            ET.SubElement(channel, 'title').text = f"{self.config.app_name} Updates"
+            ET.SubElement(channel, 'description').text = f"Updates for {self.config.app_name}"
+            ET.SubElement(channel, 'language').text = "en"
+            ET.SubElement(channel, 'link').text = self.config.github_repo_url
+            
+            tree = ET.ElementTree(root)
+        
+        # Add new item
+        item = ET.SubElement(channel, 'item')
+        ET.SubElement(item, 'title').text = f"{self.config.app_name} {version}"
+        ET.SubElement(item, 'description').text = f"<![CDATA[{release_notes}]]>"
+        ET.SubElement(item, 'pubDate').text = pub_date
+        
+        enclosure = ET.SubElement(item, 'enclosure')
+        enclosure.set('url', download_url)
+        enclosure.set('length', str(file_size))
+        enclosure.set('type', 'application/octet-stream')
+        enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}version', version)
+        enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString', version)
+        enclosure.set('{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature', signature)
+        
+        # Write appcast
+        ET.indent(tree, space="  ", level=0)
+        tree.write(appcast_path, encoding='utf-8', xml_declaration=True)
+        
+        print(f"✅ Updated appcast: {appcast_path}")
+        return appcast_path
 
-def update_potter_webpage(version):
-    """Update the Potter webpage download link with the new version"""
-    print("\n📱 Updating Potter webpage...")
+
+class GitManager:
+    """Handles git operations"""
     
-    webpage_path = os.path.expanduser("~/Workspace/graydot.github.io/products/potter.html")
-    blog_repo_path = os.path.expanduser("~/Workspace/graydot.github.io")
+    def __init__(self, config: ReleaseConfig):
+        self.config = config
     
-    # Check if webpage exists
-    if not os.path.exists(webpage_path):
-        print(f"⚠️  Potter webpage not found at {webpage_path}")
-        return False
-    
-    # Check if blog repo exists
-    if not os.path.exists(blog_repo_path):
-        print(f"⚠️  Blog repo not found at {blog_repo_path}")
-        return False
-    
-    try:
-        # Read current webpage content
-        with open(webpage_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+    def commit_appcast_changes(self, version: str) -> bool:
+        """Commit appcast changes"""
+        print("📡 Committing appcast changes...")
         
-        # Update the download link to point to the latest release
-        # Target the anchor with id="potter-download-link"
-        
-        # Get the enhanced DMG name for the download link
         try:
-            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-            from codename_utils import get_enhanced_dmg_name
-            dmg_name = get_enhanced_dmg_name(version)
-        except Exception:
-            dmg_name = f"Potter-{version}.dmg"
+            subprocess.run(['git', 'add', 'releases/appcast.xml'], check=True)
+            commit_msg = f"Update appcast for Potter {version}"
+            subprocess.run(['git', 'commit', '-m', commit_msg], check=True)
+            print(f"✅ Appcast changes committed")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Git operation failed: {e}")
+            return False
+    
+    def commit_version_changes(self, version: str) -> bool:
+        """Commit version changes to git"""
+        print("📝 Committing version changes...")
         
-        download_url = f"https://github.com/graydot/potter/releases/latest/download/{dmg_name}"
+        try:
+            subprocess.run(['git', 'add', 
+                           'scripts/build_app.py',
+                           'swift-potter/Sources/Resources/Info.plist'],
+                          check=True)
+            
+            commit_message = f"Release {version}"
+            subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+            print("✅ Version changes committed")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Git commit failed: {e}")
+            return False
+    
+    def prompt_git_push(self) -> bool:
+        """Prompt user to push commits to remote"""
+        print("\n" + "=" * 60)
+        print("🚀 PUSH TO REMOTE REPOSITORIES")
+        print("=" * 60)
+        print("This will push commits on master to remote")
+        print()
         
-        # Replace the href attribute in the element with id="potter-download-link"
-        # Handle different attribute orders with two patterns
+        try:
+            response = input("Push commits to remote? [y/N]: ").strip().lower()
+            if response in ['y', 'yes']:
+                print("📤 Pushing commits to remote...")
+                
+                try:
+                    subprocess.run(['git', 'push'], check=True)
+                    subprocess.run(['git', 'push', '--tags'], check=True)
+                    print("✅ Commits pushed successfully")
+                    return True
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Failed to push: {e}")
+                    return False
+            else:
+                print("⏭️  Skipping push to remote (user chose N)")
+                return False
+        except (EOFError, KeyboardInterrupt):
+            print("\n⏭️  Skipping push to remote (interrupted)")
+            return False
+
+
+class GitHubManager:
+    """Handles GitHub release operations"""
+    
+    def __init__(self, config: ReleaseConfig):
+        self.config = config
+        self.codename_manager = CodenameManager()
+    
+    def create_github_release(self, version: str, dmg_path: str, release_notes: str) -> bool:
+        """Create GitHub release using gh CLI"""
+        print(f"🚀 Creating GitHub release v{version}...")
         
-        # Pattern 1: href before id (most common)
-        pattern1 = r'(<a[^>]*href=")[^"]*("[^>]*id="potter-download-link")'
-        replacement1 = f'\\1{download_url}\\2'
+        try:
+            subprocess.run(['gh', '--version'], capture_output=True, check=True)
+            
+            release_title = self.codename_manager.get_enhanced_release_title(version)
+            print(f"🎭 Using enhanced release title: {release_title}")
+            
+            dmg_absolute_path = os.path.abspath(dmg_path)
+            
+            # Create tag first
+            print(f"🏷️  Creating tag v{version}...")
+            subprocess.run(['git', 'tag', f'v{version}'], check=False)
+            subprocess.run(['git', 'push', 'origin', f'v{version}'], check=False)
+            
+            # Create release
+            cmd = [
+                'gh', 'release', 'create', f'v{version}',
+                dmg_absolute_path,
+                '--title', release_title,
+                '--notes', release_notes
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ GitHub release created: {self.config.github_repo_url}/releases/tag/v{version}")
+                return True
+            else:
+                stderr = result.stderr.strip()
+                if "already exists" in stderr:
+                    print(f"⚠️  GitHub release v{version} already exists - skipping creation")
+                    print(f"🔗 Existing release: {self.config.github_repo_url}/releases/tag/v{version}")
+                    return True
+                else:
+                    print(f"❌ GitHub release failed: {stderr}")
+                    return False
+                    
+        except subprocess.CalledProcessError:
+            print("❌ GitHub CLI (gh) not found. Please install it to create releases automatically.")
+            print(f"💡 Manual steps:")
+            print(f"   1. Go to {self.config.github_repo_url}/releases/new")
+            print(f"   2. Tag: v{version}")
+            print(f"   3. Upload: {dmg_path}")
+            print(f"   4. Release notes: {release_notes}")
+            return False
+        except Exception as e:
+            print(f"❌ GitHub release error: {e}")
+            return False
+
+
+class WebsiteUpdater:
+    """Handles Potter webpage updates"""
+    
+    def __init__(self, config: ReleaseConfig):
+        self.config = config
+        self.codename_manager = CodenameManager()
+    
+    def update_potter_webpage(self, version: str) -> bool:
+        """Update the Potter webpage download link"""
+        print("\n📱 Updating Potter webpage...")
         
-        # Pattern 2: id before href
-        pattern2 = r'(<a[^>]*id="potter-download-link"[^>]*href=")[^"]*(")'
-        replacement2 = f'\\1{download_url}\\2'
+        webpage_path = os.path.expanduser("~/Workspace/graydot.github.io/products/potter.html")
+        blog_repo_path = os.path.expanduser("~/Workspace/graydot.github.io")
         
-        # Try both patterns
-        updated_content = re.sub(pattern1, replacement1, content)
-        if updated_content == content:
-            updated_content = re.sub(pattern2, replacement2, content)
-        
-        if updated_content == content:
-            print("⚠️  No potter-download-link found to update in Potter webpage")
+        if not os.path.exists(webpage_path):
+            print(f"⚠️  Potter webpage not found at {webpage_path}")
             return False
         
-        # Write updated content
-        with open(webpage_path, 'w', encoding='utf-8') as f:
-            f.write(updated_content)
+        if not os.path.exists(blog_repo_path):
+            print(f"⚠️  Blog repo not found at {blog_repo_path}")
+            return False
         
-        print(f"✅ Updated Potter webpage download link to {dmg_name}")
-        
-        # Commit and push the blog repo
+        try:
+            with open(webpage_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            dmg_name = self.codename_manager.get_enhanced_dmg_name(version)
+            download_url = f"https://github.com/graydot/potter/releases/latest/download/{dmg_name}"
+            
+            # Update download link patterns
+            pattern1 = r'(<a[^>]*href=")[^"]*("[^>]*id="potter-download-link")'
+            pattern2 = r'(<a[^>]*id="potter-download-link"[^>]*href=")[^"]*(")'
+            
+            updated_content = re.sub(pattern1, f'\\1{download_url}\\2', content)
+            if updated_content == content:
+                updated_content = re.sub(pattern2, f'\\1{download_url}\\2', content)
+            
+            if updated_content == content:
+                print("⚠️  No potter-download-link found to update")
+                return False
+            
+            with open(webpage_path, 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+            
+            print(f"✅ Updated Potter webpage download link to {dmg_name}")
+            
+            # Commit and push blog repo
+            return self._commit_blog_changes(blog_repo_path, version)
+            
+        except Exception as e:
+            print(f"❌ Failed to update Potter webpage: {e}")
+            return False
+    
+    def _commit_blog_changes(self, blog_repo_path: str, version: str) -> bool:
+        """Commit and push blog repo changes"""
         try:
             original_cwd = os.getcwd()
             os.chdir(blog_repo_path)
             
-            # Add the changed file
             subprocess.run(['git', 'add', 'products/potter.html'], check=True)
-            
-            # Commit changes
             commit_msg = f"Update Potter download link to v{version}"
             subprocess.run(['git', 'commit', '-m', commit_msg], check=True)
-            
-            # Push changes
             subprocess.run(['git', 'push'], check=True)
             
             print("✅ Potter webpage changes pushed to blog repo")
             return True
-            
         except subprocess.CalledProcessError as e:
             print(f"❌ Failed to commit/push blog changes: {e}")
             return False
         finally:
             os.chdir(original_cwd)
-        
-    except Exception as e:
-        print(f"❌ Failed to update Potter webpage: {e}")
-        return False
 
-def main():
-    parser = argparse.ArgumentParser(description='Potter Release Manager')
-    parser.add_argument('--bump', choices=['major', 'minor', 'patch'], 
-                       default='patch', help='Version bump type')
-    parser.add_argument('--version', help='Specific version to release')
-    parser.add_argument('--notes', help='Release notes (or will prompt)')
-    parser.add_argument('--skip-build', action='store_true', 
-                       help='Skip building (use existing build)')
-    parser.add_argument('--skip-github', action='store_true', 
-                       help='Skip GitHub release creation')
+
+class ReleaseManager:
+    """Main release manager orchestrating the entire process"""
     
-    args = parser.parse_args()
+    def __init__(self):
+        self.config = ReleaseConfig()
+        self.notes_manager = ReleaseNotesManager(self.config)
+        self.app_builder = AppBuilder(self.config)
+        self.appcast_manager = AppcastManager(self.config)
+        self.git_manager = GitManager(self.config)
+        self.github_manager = GitHubManager(self.config)
+        self.website_updater = WebsiteUpdater(self.config)
+        self.codename_manager = CodenameManager()
     
-    print("🎭 Potter Release Manager")
-    print("=" * 50)
-    
-    # Get current version from authoritative source (Info.plist)
-    try:
-        current_version = get_current_version()
-        # Get current version's codename
+    def run_release(self, args) -> bool:
+        """Run the complete release process"""
         try:
-            from codename_utils import get_codename_for_version
-            current_codename = get_codename_for_version(current_version)
-            print(f"📋 Current version: {current_version} - {current_codename}")
-        except Exception:
-            print(f"📋 Current version: {current_version}")
-    except Exception as e:
-        print(f"❌ Could not read current version: {e}")
-        sys.exit(1)
-    
-    # Determine new version
-    if args.version:
-        new_version = args.version
-        # Validate format
-        if not re.match(r'^\d+\.\d+\.\d+$', new_version):
-            print(f"❌ Invalid version format: {new_version}. Must be X.Y.Z")
-            sys.exit(1)
-    else:
-        # Use bump type to determine version automatically
-        try:
-            suggested_version = bump_version(current_version, args.bump)
-            print(f"💡 Suggested version ({args.bump} bump): {suggested_version}")
+            # Get version information
+            current_version = get_current_version()
+            new_version = self._determine_new_version(args, current_version)
             
-            # If running non-interactively (e.g., from make), use suggested version
-            try:
-                user_input = input(f"Enter version (press Enter for {suggested_version}): ").strip()
-                if user_input:
-                    new_version = user_input
-                    # Validate format
-                    if not re.match(r'^\d+\.\d+\.\d+$', new_version):
-                        print(f"❌ Invalid version format: {new_version}. Must be X.Y.Z")
-                        sys.exit(1)
-                else:
-                    new_version = suggested_version
-            except EOFError:
-                # Non-interactive mode, use suggested version
-                new_version = suggested_version
-                print(f"Non-interactive mode: using {new_version}")
+            print(f"📋 Current version: {current_version}")
+            print(f"🆕 New version: {new_version}")
+            
+            # Get release notes
+            release_notes = self._get_release_notes(args, new_version)
+            
+            # Update version
+            set_version(new_version)
+            print(f"✅ Version updated to {new_version}")
+            
+            # Build and get DMG
+            dmg_path, dmg_name = self._build_and_get_dmg(new_version)
+            
+            # Update appcast
+            appcast_path = self.appcast_manager.update_appcast(new_version, dmg_path, release_notes, dmg_name)
+            
+            # Commit changes
+            self.git_manager.commit_appcast_changes(new_version)
+            
+            # Create GitHub release
+            self.github_manager.create_github_release(new_version, dmg_path, release_notes)
+            
+            # Commit version changes
+            self.git_manager.commit_version_changes(new_version)
+            
+            # Prompt to push
+            if not self.git_manager.prompt_git_push():
+                self._handle_no_push(new_version)
+                return False
+            
+            # Update website
+            self.website_updater.update_potter_webpage(new_version)
+            
+            self._print_success_summary(new_version, dmg_path, appcast_path)
+            return True
+            
         except Exception as e:
-            print(f"❌ Could not bump version: {e}")
-            sys.exit(1)
+            print(f"❌ Release failed: {e}")
+            return False
     
-    # Get new version's codename
-    try:
-        from codename_utils import get_codename_for_version
-        new_codename = get_codename_for_version(new_version)
-        print(f"🆕 New version: {new_version} - {new_codename}")
-    except Exception:
-        print(f"🆕 New version: {new_version}")
-    
-    # Get release notes
-    if args.notes:
-        release_notes = args.notes
-    else:
-        release_notes = get_release_notes()
-    
-    if not release_notes:
-        print("❌ Release notes are required")
-        sys.exit(1)
-    
-    # Update version in authoritative source
-    try:
-        set_version(new_version)
-        print(f"✅ Version updated to {new_version}")
-    except Exception as e:
-        print(f"❌ Could not update version: {e}")
-        sys.exit(1)
-    
-    # Determine expected DMG name upfront
-    try:
-        from codename_utils import get_enhanced_dmg_name
-        expected_dmg_name = get_enhanced_dmg_name(new_version)
-        print(f"🎭 Expected DMG name: {expected_dmg_name}")
-    except Exception as e:
-        print(f"⚠️  Could not get enhanced DMG name, using standard naming: {e}")
-        expected_dmg_name = f"{APP_NAME}-{new_version}.dmg"
-    
-    expected_dmg_path = f"dist/{expected_dmg_name}"
-    
-    # Build app
-    if not args.skip_build:
-        if not build_app():
-            print("❌ Build failed, aborting release")
-            sys.exit(1)
+    def _determine_new_version(self, args, current_version: str) -> str:
+        """Determine the new version number"""
+        if args.version:
+            if not re.match(r'^\d+\.\d+\.\d+$', args.version):
+                raise ValueError(f"Invalid version format: {args.version}. Must be X.Y.Z")
+            return args.version
         
-        # Delay to ensure DMG file is fully written and not locked
-        import time
-        time.sleep(3)
-        print("⏳ Waiting for DMG file to be ready...")
+        suggested_version = bump_version(current_version, args.bump)
+        print(f"💡 Suggested version ({args.bump} bump): {suggested_version}")
         
-        # Verify the expected DMG was created
-        if not os.path.exists(expected_dmg_path):
-            print(f"❌ Expected DMG not found: {expected_dmg_path}")
-            sys.exit(1)
-        
-        dmg_path = expected_dmg_path
-        actual_dmg_name = expected_dmg_name
-    else:
-        # Skip build - try to find existing DMG
-        if os.path.exists(expected_dmg_path):
-            dmg_path = expected_dmg_path
-            actual_dmg_name = expected_dmg_name
-            print(f"✅ Using existing DMG: {dmg_path}")
-        else:
-            # Try to find any DMG in dist directory
-            import glob
-            dmg_files = glob.glob("dist/*.dmg")
-            if dmg_files:
-                dmg_path = sorted(dmg_files)[-1]  # Use the most recent
-                actual_dmg_name = os.path.basename(dmg_path)
-                print(f"🔍 Found existing DMG: {dmg_path}")
-                print(f"⚠️  Note: Using {actual_dmg_name} instead of expected {expected_dmg_name}")
+        try:
+            user_input = input(f"Enter version (press Enter for {suggested_version}): ").strip()
+            if user_input:
+                if not re.match(r'^\d+\.\d+\.\d+$', user_input):
+                    raise ValueError(f"Invalid version format: {user_input}. Must be X.Y.Z")
+                return user_input
             else:
-                print(f"❌ No DMG file found in dist/ directory")
-                print(f"   Expected: {expected_dmg_path}")
-                sys.exit(1)
+                return suggested_version
+        except EOFError:
+            print(f"Non-interactive mode: using {suggested_version}")
+            return suggested_version
     
-    print(f"📦 Using DMG: {dmg_path}")
+    def _get_release_notes(self, args, version: str) -> str:
+        """Get release notes"""
+        use_ai = not args.no_ai
+        release_notes = self.notes_manager.get_release_notes(version, use_ai)
+        
+        if not release_notes:
+            raise ValueError("Release notes are required")
+        
+        return release_notes
     
-    # Update appcast with actual DMG name
-    appcast_path = update_appcast(new_version, dmg_path, release_notes, actual_dmg_name)
+    def _build_and_get_dmg(self, version: str) -> tuple:
+        """Build app and return DMG path and name"""
+        expected_dmg_name = self.codename_manager.get_enhanced_dmg_name(version)
+        expected_dmg_path = f"dist/{expected_dmg_name}"
+        
+        if not self.app_builder.build_app():
+            raise RuntimeError("Build failed")
+        
+        import time
+        time.sleep(3)  # Wait for DMG to be ready
+        
+        if not os.path.exists(expected_dmg_path):
+            raise RuntimeError(f"Expected DMG not found: {expected_dmg_path}")
+        
+        return expected_dmg_path, expected_dmg_name
     
-    # Copy appcast to potter repo and commit
-    copy_appcast_to_potter_repo(new_version)
-    
-    # Create GitHub release
-    if not args.skip_github:
-        create_github_release(new_version, dmg_path, release_notes)
-    
-    # Commit changes
-    commit_version_changes(new_version)
-    
-    # Prompt to push to remote
-    push_to_remote = prompt_git_push()
-    
-    # If user chose not to push, abort the release
-    if not push_to_remote:
+    def _handle_no_push(self, version: str):
+        """Handle case where user chose not to push"""
         print("\n❌ Release process aborted!")
         print("=" * 50)
         print("🚨 Release was not completed because changes were not pushed to remote.")
@@ -678,23 +634,41 @@ def main():
         print("2. Push blog repo changes (if any)")
         print("3. Verify the GitHub release was created")
         print("4. Update Potter webpage download link manually")
-        sys.exit(1)
     
-    # Update Potter webpage since we pushed to remote
-    update_potter_webpage(new_version)
+    def _print_success_summary(self, version: str, dmg_path: str, appcast_path: str):
+        """Print success summary"""
+        print("\n🎉 Release process completed!")
+        print("=" * 50)
+        print(f"📋 Version: {version}")
+        print(f"📦 DMG: {dmg_path}")
+        print(f"📡 Appcast: {appcast_path}")
+        print(f"🔗 Releases: {self.config.github_repo_url}/releases")
+        print()
+        print("📋 Next steps:")
+        print("1. Test the DMG installation")
+        print("2. ✅ Repositories pushed to remote")
+        print("3. ✅ Potter webpage updated with new download link")
+        print("4. Verify auto-update works with new appcast")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Potter Release Manager')
+    parser.add_argument('--bump', choices=['major', 'minor', 'patch'], 
+                       default='patch', help='Version bump type')
+    parser.add_argument('--version', help='Specific version to release')
+    parser.add_argument('--no-ai', action='store_true',
+                       help='Skip AI-generated release notes')
     
-    print("\n🎉 Release process completed!")
+    args = parser.parse_args()
+    
+    print("🎭 Potter Release Manager")
     print("=" * 50)
-    print(f"📋 Version: {new_version}")
-    print(f"📦 DMG: {dmg_path}")
-    print(f"📡 Appcast: {appcast_path}")
-    print(f"🔗 Releases: {GITHUB_REPO_URL}/releases")
-    print()
-    print("📋 Next steps:")
-    print("1. Test the DMG installation")
-    print("2. ✅ Repositories pushed to remote")
-    print("3. ✅ Potter webpage updated with new download link")
-    print("4. Verify auto-update works with new appcast")
+    
+    release_manager = ReleaseManager()
+    success = release_manager.run_release(args)
+    
+    sys.exit(0 if success else 1)
+
 
 if __name__ == "__main__":
     main()

@@ -3,6 +3,7 @@ worktrees
 .env
 .env.local
 .env.*.local
+scripts/.env
 
 # Log files
 *.log
