@@ -705,9 +705,7 @@ def create_dmg_professional(app_path):
         # Find background image
         background_path = None
         background_candidates = [
-            "assets/dmg_background.png",
-            "assets/potter_dmg_background.png",
-            "dmg_background.png"
+            "assets/dmg_background.png"
         ]
         
         for bg_path in background_candidates:

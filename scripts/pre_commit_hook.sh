@@ -31,7 +31,7 @@ if [[ -f "swift-potter/Package.swift" ]]; then
     echo ""
     
     # Use make test for consistency with developer workflow
-    if timeout 180 make test > /tmp/swift_test_output.log 2>&1; then
+    if make test > /tmp/swift_test_output.log 2>&1; then
         echo "$(green '✅ All Swift tests passed!')"
         
         # Show test summary
