@@ -114,9 +114,11 @@ class PermissionManagerTests: XCTestCase {
         // This is mainly testing that the properties are correctly marked as @Published
         
         let expectation = expectation(description: "Permission status change observed")
+        var fulfillCount = 0
         
         let cancellable = permissionManager.$accessibilityStatus.sink { newValue in
-            if newValue == .denied {
+            if newValue == .denied && fulfillCount == 0 {
+                fulfillCount += 1
                 expectation.fulfill()
             }
         }

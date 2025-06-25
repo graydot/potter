@@ -177,6 +177,13 @@ class SettingsWindow: NSWindow {
             super.keyDown(with: event)
         }
     }
+    
+    override func close() {
+        super.close()
+        
+        // Switch back to accessory app when window closes
+        NSApp.setActivationPolicy(.accessory)
+    }
 }
 
 class ModernSettingsWindowController: NSWindowController {
@@ -213,9 +220,19 @@ class ModernSettingsWindowController: NSWindowController {
     }
     
     override func showWindow(_ sender: Any?) {
+        // Switch to regular app so it appears in Alt+Tab
+        NSApp.setActivationPolicy(.regular)
+        
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    override func close() {
+        super.close()
+        
+        // Switch back to accessory app (menu bar only)
+        NSApp.setActivationPolicy(.accessory)
     }
 }
 

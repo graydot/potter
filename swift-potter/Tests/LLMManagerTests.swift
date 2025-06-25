@@ -11,14 +11,19 @@ class LLMManagerTests: TestBase {
         
         // TestBase already handles forceUserDefaultsForTesting = true
         
-        llmManager = LLMManager()
-        
-        // Clear any existing settings
+        // Clear any existing settings first
         for provider in LLMProvider.allCases {
             UserDefaults.standard.removeObject(forKey: "api_key_\(provider.rawValue)")
         }
         UserDefaults.standard.removeObject(forKey: "llm_provider")
         UserDefaults.standard.removeObject(forKey: "selected_model")
+        
+        // Clear keychain storage for all providers
+        for provider in LLMProvider.allCases {
+            _ = StorageAdapter.shared.removeAPIKey(for: provider)
+        }
+        
+        llmManager = LLMManager()
     }
     
     override func tearDown() async throws {
