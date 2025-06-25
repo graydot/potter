@@ -269,8 +269,10 @@ class AdvancedFeaturesTests: TestBase {
         // Build ID should follow expected format
         XCTAssertFalse(buildInfo.buildId.isEmpty)
         // Build ID is now the same as build name, so test for build name format
-        XCTAssertTrue(buildInfo.buildId.contains("Potter"))
         XCTAssertTrue(buildInfo.buildId.contains("#"))
+        // Should have at least 3 parts: adjective, noun, #number
+        let parts = buildInfo.buildId.split(separator: " ")
+        XCTAssertGreaterThanOrEqual(parts.count, 3)
         
         // Version should be valid
         XCTAssertFalse(buildInfo.version.isEmpty)
@@ -303,10 +305,13 @@ class AdvancedFeaturesTests: TestBase {
         XCTAssertEqual(buildInfo1.buildId, buildInfo2.buildId, "Build IDs should be consistent (deterministic build names)")
         
         // Both should follow the build name format
-        XCTAssertTrue(buildInfo1.buildId.contains("Potter"))
         XCTAssertTrue(buildInfo1.buildId.contains("#"))
-        XCTAssertTrue(buildInfo2.buildId.contains("Potter"))
         XCTAssertTrue(buildInfo2.buildId.contains("#"))
+        // Should have at least 3 parts: adjective, noun, #number
+        let parts1 = buildInfo1.buildId.split(separator: " ")
+        let parts2 = buildInfo2.buildId.split(separator: " ")
+        XCTAssertGreaterThanOrEqual(parts1.count, 3)
+        XCTAssertGreaterThanOrEqual(parts2.count, 3)
         
         // Other properties should be the same for current build
         XCTAssertEqual(buildInfo1.version, buildInfo2.version)
@@ -322,8 +327,11 @@ class AdvancedFeaturesTests: TestBase {
         XCTAssertEqual(buildInfo.version, expectedVersion)
         
         // Build ID should contain build name format
-        XCTAssertTrue(buildInfo.buildId.contains("Potter"))
-        XCTAssertTrue(buildInfo.buildId.contains("#"))
+        // Should contain a # followed by numbers (build number format)
+        XCTAssertTrue(buildInfo.buildId.contains("#"), "buildId '\(buildInfo.buildId)' should contain '#'")
+        // Should have at least 3 parts: adjective, noun, #number
+        let parts = buildInfo.buildId.split(separator: " ")
+        XCTAssertGreaterThanOrEqual(parts.count, 3, "buildId should have at least 3 parts (adjective noun #number)")
     }
     
     func testDiagnosticInformationFormat() {
@@ -355,8 +363,10 @@ class AdvancedFeaturesTests: TestBase {
         
         // Build IDs should be the same since they're deterministic build names
         XCTAssertEqual(originalBuildInfo.buildId, secondBuildInfo.buildId)
-        XCTAssertTrue(originalBuildInfo.buildId.contains("Potter"))
         XCTAssertTrue(originalBuildInfo.buildId.contains("#"))
+        // Should have at least 3 parts: adjective, noun, #number
+        let parts = originalBuildInfo.buildId.split(separator: " ")
+        XCTAssertGreaterThanOrEqual(parts.count, 3)
     }
     
     func testProcessManagerDiagnostics() {

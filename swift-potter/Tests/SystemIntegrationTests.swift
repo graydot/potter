@@ -123,8 +123,11 @@ class SystemIntegrationTests: TestBase {
         
         XCTAssertFalse(buildInfo.buildId.isEmpty)
         // Build ID is now the same as build name, so test for build name format
-        XCTAssertTrue(buildInfo.buildId.contains("Potter"))
-        XCTAssertTrue(buildInfo.buildId.contains("#"))
+        // Should contain a # followed by numbers (build number format)
+        XCTAssertTrue(buildInfo.buildId.contains("#"), "buildId '\(buildInfo.buildId)' should contain '#'")
+        // Should have at least 3 parts: adjective, noun, #number
+        let parts = buildInfo.buildId.split(separator: " ")
+        XCTAssertGreaterThanOrEqual(parts.count, 3, "buildId should have at least 3 parts (adjective noun #number)")
         
         // Version should come from Info.plist, not be hardcoded
         let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
