@@ -390,6 +390,129 @@ def commit_version_changes(version):
         print(f"❌ Git commit failed: {e}")
         return False
 
+def prompt_git_push():
+    """Prompt user to push commits to remote repositories (default: N)"""
+    print("\n" + "=" * 60)
+    print("🚀 PUSH TO REMOTE REPOSITORIES")
+    print("=" * 60)
+    print("This will push commits on master to remote for:")
+    print("  • Potter (swift-potter repo)")
+    print("  • Your blog (graydot.github.io repo)")
+    print()
+    
+    try:
+        response = input("Push commits to remote? [y/N]: ").strip().lower()
+        if response in ['y', 'yes']:
+            print("📤 Pushing commits to remote repositories...")
+            
+            # Push potter repo (current directory)
+            try:
+                print("📤 Pushing Potter repo...")
+                subprocess.run(['git', 'push'], check=True, cwd='.')
+                subprocess.run(['git', 'push', '--tags'], check=True, cwd='.')
+                print("✅ Potter repo pushed successfully")
+            except subprocess.CalledProcessError as e:
+                print(f"❌ Failed to push Potter repo: {e}")
+                return False
+            
+            return True
+        else:
+            print("⏭️  Skipping push to remote (user chose N)")
+            return False
+            
+    except (EOFError, KeyboardInterrupt):
+        print("\n⏭️  Skipping push to remote (interrupted)")
+        return False
+
+def update_potter_webpage(version):
+    """Update the Potter webpage download link with the new version"""
+    print("\n📱 Updating Potter webpage...")
+    
+    webpage_path = os.path.expanduser("~/Workspace/graydot.github.io/products/potter.html")
+    blog_repo_path = os.path.expanduser("~/Workspace/graydot.github.io")
+    
+    # Check if webpage exists
+    if not os.path.exists(webpage_path):
+        print(f"⚠️  Potter webpage not found at {webpage_path}")
+        return False
+    
+    # Check if blog repo exists
+    if not os.path.exists(blog_repo_path):
+        print(f"⚠️  Blog repo not found at {blog_repo_path}")
+        return False
+    
+    try:
+        # Read current webpage content
+        with open(webpage_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Update the download link to point to the latest release
+        # Target the anchor with id="potter-download-link"
+        
+        # Get the enhanced DMG name for the download link
+        try:
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from codename_utils import get_enhanced_dmg_name
+            dmg_name = get_enhanced_dmg_name(version)
+        except Exception:
+            dmg_name = f"Potter-{version}.dmg"
+        
+        download_url = f"https://github.com/graydot/potter/releases/latest/download/{dmg_name}"
+        
+        # Replace the href attribute in the element with id="potter-download-link"
+        # Handle different attribute orders with two patterns
+        
+        # Pattern 1: href before id (most common)
+        pattern1 = r'(<a[^>]*href=")[^"]*("[^>]*id="potter-download-link")'
+        replacement1 = f'\\1{download_url}\\2'
+        
+        # Pattern 2: id before href
+        pattern2 = r'(<a[^>]*id="potter-download-link"[^>]*href=")[^"]*(")'
+        replacement2 = f'\\1{download_url}\\2'
+        
+        # Try both patterns
+        updated_content = re.sub(pattern1, replacement1, content)
+        if updated_content == content:
+            updated_content = re.sub(pattern2, replacement2, content)
+        
+        if updated_content == content:
+            print("⚠️  No potter-download-link found to update in Potter webpage")
+            return False
+        
+        # Write updated content
+        with open(webpage_path, 'w', encoding='utf-8') as f:
+            f.write(updated_content)
+        
+        print(f"✅ Updated Potter webpage download link to {dmg_name}")
+        
+        # Commit and push the blog repo
+        try:
+            original_cwd = os.getcwd()
+            os.chdir(blog_repo_path)
+            
+            # Add the changed file
+            subprocess.run(['git', 'add', 'products/potter.html'], check=True)
+            
+            # Commit changes
+            commit_msg = f"Update Potter download link to v{version}"
+            subprocess.run(['git', 'commit', '-m', commit_msg], check=True)
+            
+            # Push changes
+            subprocess.run(['git', 'push'], check=True)
+            
+            print("✅ Potter webpage changes pushed to blog repo")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to commit/push blog changes: {e}")
+            return False
+        finally:
+            os.chdir(original_cwd)
+        
+    except Exception as e:
+        print(f"❌ Failed to update Potter webpage: {e}")
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description='Potter Release Manager')
     parser.add_argument('--bump', choices=['major', 'minor', 'patch'], 
@@ -542,6 +665,13 @@ def main():
     # Commit changes
     commit_version_changes(new_version)
     
+    # Prompt to push to remote
+    push_to_remote = prompt_git_push()
+    
+    # Update Potter webpage if we pushed to remote
+    if push_to_remote:
+        update_potter_webpage(new_version)
+    
     print("\n🎉 Release process completed!")
     print("=" * 50)
     print(f"📋 Version: {new_version}")
@@ -551,9 +681,14 @@ def main():
     print()
     print("📋 Next steps:")
     print("1. Test the DMG installation")
-    print("2. Push changes to GitHub: git push && git push --tags")
-    print("3. Verify auto-update works with new appcast")
-    print("4. Update any external download links")
+    if push_to_remote:
+        print("2. ✅ Repositories pushed to remote")
+        print("3. ✅ Potter webpage updated with new download link")
+        print("4. Verify auto-update works with new appcast")
+    else:
+        print("2. Push changes to GitHub: git push && git push --tags")
+        print("3. Verify auto-update works with new appcast")
+        print("4. Manually update Potter webpage download link")
 
 if __name__ == "__main__":
     main()
