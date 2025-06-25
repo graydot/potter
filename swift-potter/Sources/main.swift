@@ -49,7 +49,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         setupMenuBar()
         setupCore()
         setupAutoUpdater()
-        requestAccessibilityPermissions()
         checkAndShowSettingsIfNeeded()
         startMenuUpdateTimer()
     }
@@ -413,12 +412,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // Add divider between process text and permissions
-        menu.addItem(NSMenuItem.separator())
-        
-        // Permission status items
-        addPermissionMenuItems(to: menu)
-        
         menu.addItem(NSMenuItem.separator())
         
         // Dynamic Prompts at first level (no submenu)
@@ -444,32 +437,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         updateMenu()
     }
     
-    @MainActor
-    private func addPermissionMenuItems(to menu: NSMenu) {
-        let permissionManager = PermissionManager.shared
-        permissionManager.checkAllPermissions()
-        
-        for permission in PermissionType.allCases {
-            let status = permissionManager.getPermissionStatus(for: permission)
-            let statusIcon = getStatusIcon(for: status)
-            let title = "\(statusIcon) \(permission.displayName): \(status.displayText)"
-            
-            let item = NSMenuItem(title: title, action: #selector(openPermissionSettings(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = permission
-            
-            menu.addItem(item)
-        }
-    }
-    
-    private func getStatusIcon(for status: PermissionStatus) -> String {
-        switch status {
-        case .granted: return "🟢" // green circle
-        case .denied: return "🔴" // red circle  
-        case .notDetermined: return "🟡" // yellow circle
-        case .unknown: return "⚪" // white circle
-        }
-    }
     
     private func setupCore() {
         potterCore = PotterCore()
@@ -539,17 +506,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         }
     }
     
-    private func requestAccessibilityPermissions() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true]
-        let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
-        
-        if !trusted {
-            showAlert(
-                title: "Accessibility Permission Required",
-                message: "Potter needs accessibility permissions to capture global hotkeys. Please grant permission in System Settings."
-            )
-        }
-    }
     
     @objc func processText() {
         PotterLogger.shared.info("hotkey", "🎯 Global hotkey triggered (⌘⇧9)")
@@ -594,14 +550,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         ModernSettingsWindowController.shared.showWindow(nil)
     }
     
-    @objc func openPermissionSettings(_ sender: NSMenuItem) {
-        guard let permission = sender.representedObject as? PermissionType else { return }
-        
-        Task { @MainActor in
-            let permissionManager = PermissionManager.shared
-            permissionManager.openSystemSettings(for: permission)
-        }
-    }
     
     
     @objc func clearError() {

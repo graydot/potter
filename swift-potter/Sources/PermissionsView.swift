@@ -1,159 +1,21 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Permissions Configuration View
-struct PermissionsView: View {
-    @StateObject private var permissionManager = PermissionManager.shared
-    @State private var showingResetConfirmation = false
-    @State private var isResettingPermissions = false
-    
+// MARK: - Hotkey Configuration View  
+struct HotkeyView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Accessibility Section
-            accessibilitySection
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            // Reset Permissions Section
-            resetPermissionsSection
-        }
-        .onAppear {
-            permissionManager.checkAllPermissions()
-        }
-        .confirmationDialog(
-            "Reset All Permissions",
-            isPresented: $showingResetConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Reset", role: .destructive) {
-                resetPermissions()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will remove ALL permissions for Potter from System Settings. You will need to re-grant permissions and restart the app.")
+            // Hotkey Section
+            hotkeySection
         }
     }
     
-    // MARK: - Permission Row
-    private func permissionRow(for permission: PermissionType) -> some View {
-        let status = permissionManager.getPermissionStatus(for: permission)
-        
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // Permission Icon and Name
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(permission.displayName)
-                                .fontWeight(.medium)
-                            
-                            if permission.isRequired {
-                                Text("(Required)")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                                    .fontWeight(.medium)
-                            }
-                        }
-                        
-                        Text(permission.description)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Status and Action
-                HStack(spacing: 12) {
-                    // Status Text
-                    Text(status.displayText)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(Color(status.color))
-                    
-                    // Loading Spinner
-                    if permissionManager.isCheckingPermissions {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .frame(width: 16, height: 16)
-                    }
-                    
-                    // Action Button
-                    Button(actionButtonText(for: permission, status: status)) {
-                        handlePermissionAction(for: permission, status: status)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(status.color).opacity(0.3), lineWidth: 1)
-            )
-        }
-    }
     
-    // MARK: - Reset Permissions Section
-    private var resetPermissionsSection: some View {
+    
+    // MARK: - Hotkey Section
+    private var hotkeySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Reset Permissions")
-                .font(.headline)
-                .fontWeight(.semibold)
-            
-            Text("Remove all permissions for Potter from System Settings. This will require re-granting permissions and restarting the app.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            
-            HStack {
-                Button("Reset All Permissions") {
-                    showingResetConfirmation = true
-                }
-                .buttonStyle(.bordered)
-                .disabled(isResettingPermissions)
-                
-                if isResettingPermissions {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                        .frame(width: 20, height: 20)
-                    
-                    Text("Resetting...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-            }
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.orange.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    // MARK: - Combined Accessibility + Hotkey Section
-    private var accessibilitySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Accessibility permission
-            accessibilityPermissionContent
-            
-            // Divider between permission and hotkey
-            Divider()
-                .opacity(0.5)
-            
-            // Hotkey Configuration (below accessibility)
+            // Hotkey Configuration
             if #available(macOS 14.0, *) {
                 HotkeyConfigurationView()
             } else {
@@ -184,117 +46,11 @@ struct PermissionsView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
         )
     }
     
-    // MARK: - Accessibility Permission Content (without background)
-    private var accessibilityPermissionContent: some View {
-        let status = permissionManager.getPermissionStatus(for: .accessibility)
-        
-        return HStack {
-            // Permission Icon and Name
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(PermissionType.accessibility.displayName)
-                            .fontWeight(.medium)
-                        
-                        if PermissionType.accessibility.isRequired {
-                            Text("(Required)")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                                .fontWeight(.medium)
-                        }
-                    }
-                    
-                    Text(PermissionType.accessibility.description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    // Help text when accessibility is not granted
-                    if status == .denied {
-                        Text("You can still use this app without accessibility permissions by clicking menu bar items to process text")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                            .padding(.top, 4)
-                    }
-                }
-            }
-            
-            Spacer()
-            
-            // Status and Action
-            HStack(spacing: 12) {
-                // Status Text
-                Text(status.displayText)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(Color(status.color))
-                
-                // Loading Spinner
-                if permissionManager.isCheckingPermissions {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 16, height: 16)
-                }
-                
-                // Action Button
-                Button(actionButtonText(for: .accessibility, status: status)) {
-                    handlePermissionAction(for: .accessibility, status: status)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-    }
     
-    
-    // MARK: - Helper Methods
-    private func actionButtonText(for permission: PermissionType, status: PermissionStatus) -> String {
-        switch status {
-        case .granted:
-            return "Open Settings"
-        case .denied, .notDetermined, .unknown:
-            return "Open Settings"
-        }
-    }
-    
-    private func handlePermissionAction(for permission: PermissionType, status: PermissionStatus) {
-        switch permission {
-        case .accessibility:
-            if status == .granted {
-                permissionManager.openSystemSettings(for: .accessibility)
-            } else {
-                permissionManager.requestAccessibilityPermission()
-            }
-            
-        }
-    }
-    
-    private func resetPermissions() {
-        isResettingPermissions = true
-        
-        Task {
-            let success = await permissionManager.resetAllPermissions()
-            
-            await MainActor.run {
-                isResettingPermissions = false
-                
-                if success {
-                    // Prompt for restart after successful reset
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        permissionManager.promptForRestart()
-                    }
-                } else {
-                    let alert = NSAlert()
-                    alert.messageText = "Reset Failed"
-                    alert.informativeText = "Failed to reset permissions. You may need to manually remove Potter from System Settings."
-                    alert.addButton(withTitle: "OK")
-                    alert.runModal()
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Permission Status Summary
@@ -324,9 +80,9 @@ struct PermissionStatusSummary: View {
 }
 
 // MARK: - Preview
-struct PermissionsView_Previews: PreviewProvider {
+struct HotkeyView_Previews: PreviewProvider {
     static var previews: some View {
-        PermissionsView()
+        HotkeyView()
             .frame(width: 600, height: 400)
             .padding()
     }

@@ -234,11 +234,6 @@ struct ModernSettingsView: View {
     @State private var showingDeleteConfirmation = false
     @State private var currentPromptDialog: PromptEditDialogController? = nil  // Keep strong reference
     
-    // Delete all data management
-    @State private var showingDeleteAllDataConfirmation = false
-    @State private var deleteCountdown = 5
-    @State private var deleteCountdownTimer: Timer?
-    @State private var isDeleteButtonEnabled = false
     
     let sections = [
         ("General", "gear"),
@@ -376,9 +371,9 @@ struct ModernSettingsView: View {
                 LLMProviderView()
                     .padding(.bottom, 10)
                 
-                // Permissions Section
-                GroupBox("Permissions") {
-                    PermissionsView()
+                // Hotkey Configuration Section
+                GroupBox("Global Hotkey") {
+                    HotkeyView()
                         .padding(.vertical, 8)
                 }
                 .padding(.bottom, 10)
@@ -528,31 +523,6 @@ struct ModernSettingsView: View {
                 Text("Are you sure you want to delete the prompt '\(prompts[index].name)'? This action cannot be undone.")
             }
         }
-        .alert("Delete All Potter Data", isPresented: $showingDeleteAllDataConfirmation) {
-            Button("Cancel", role: .cancel) {
-                stopDeleteCountdown()
-            }
-            Button(isDeleteButtonEnabled ? "Delete Everything" : "Wait (\(deleteCountdown)s)", role: .destructive) {
-                if isDeleteButtonEnabled {
-                    deleteAllData()
-                }
-            }
-            .disabled(!isDeleteButtonEnabled)
-        } message: {
-            Text("This will permanently delete all Potter data including prompts, API keys, and settings. This action cannot be undone.")
-        }
-        .onAppear {
-            if showingDeleteAllDataConfirmation {
-                startDeleteCountdown()
-            }
-        }
-        .onChange(of: showingDeleteAllDataConfirmation) { isShowing in
-            if isShowing {
-                startDeleteCountdown()
-            } else {
-                stopDeleteCountdown()
-            }
-        }
     }
     
     private var advancedSection: some View {
@@ -688,6 +658,8 @@ struct ModernSettingsView: View {
                     .padding()
                 }
                 
+                Spacer()
+                
                 // Right side - Data Management
                 GroupBox("Data Management") {
                     VStack(alignment: .leading, spacing: 12) {
@@ -713,7 +685,7 @@ struct ModernSettingsView: View {
                         }
                         
                         Button("Delete All Data") {
-                            showingDeleteAllDataConfirmation = true
+                            showDeleteAllDataDialog()
                         }
                         .buttonStyle(.bordered)
                         .foregroundColor(.red)
@@ -1065,6 +1037,112 @@ struct ModernSettingsView: View {
         }
     }
     
+    private func showDeleteAllDataDialog() {
+        let alert = NSAlert()
+        alert.messageText = "Delete All Potter Data"
+        alert.informativeText = "This will permanently delete all Potter data including prompts, API keys, and settings. This action cannot be undone."
+        alert.alertStyle = .critical
+        
+        alert.addButton(withTitle: "Cancel")
+        let deleteButton = alert.addButton(withTitle: "Wait (5s)")
+        deleteButton.isEnabled = false
+        
+        // Make delete button red
+        deleteButton.contentTintColor = .systemRed
+        
+        class CountdownHandler {
+            var countdown = 5
+            var timer: Timer?
+            weak var button: NSButton?
+            
+            func start() {
+                timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+                    guard let self = self else {
+                        timer.invalidate()
+                        return
+                    }
+                    
+                    self.countdown -= 1
+                    
+                    if self.countdown > 0 {
+                        self.button?.title = "Wait (\(self.countdown)s)"
+                    } else {
+                        self.button?.title = "Delete All"
+                        self.button?.isEnabled = true
+                        timer.invalidate()
+                        self.timer = nil
+                    }
+                }
+                
+                if let timer = timer {
+                    RunLoop.main.add(timer, forMode: .common)
+                }
+            }
+            
+            func stop() {
+                timer?.invalidate()
+                timer = nil
+            }
+        }
+        
+        let handler = CountdownHandler()
+        handler.button = deleteButton
+        handler.start()
+        
+        let response = alert.runModal()
+        handler.stop()
+        
+        if response == .alertSecondButtonReturn && deleteButton.isEnabled {
+            initializeFreshState()
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                ModernSettingsWindowController.shared.close()
+                
+                let alert = NSAlert()
+                alert.messageText = "Data Deleted"
+                alert.informativeText = "All Potter data has been deleted. The app has been reset to its initial state."
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+        }
+    }
+    
+    // MARK: - Fresh Initialization Logic
+    private func initializeFreshState() {
+        // 1. Reset prompts to defaults
+        PromptManager.shared.clearCache()
+        let promptsFileURL = getPromptsFileURL()
+        try? FileManager.default.removeItem(at: promptsFileURL)
+        let defaultPrompts = PromptManager.shared.loadPrompts()
+        prompts = defaultPrompts
+        
+        // 2. Clear UserDefaults
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.graydot.potter"
+        UserDefaults.standard.removePersistentDomain(forName: bundleId)
+        UserDefaults.standard.synchronize()
+        
+        // 3. Clear API keys
+        switch StorageAdapter.shared.clearAllAPIKeys() {
+        case .success:
+            break
+        case .failure(let error):
+            PotterLogger.shared.error("settings", "❌ Failed to clear API keys: \(error.localizedDescription)")
+        }
+        
+        // 4. Reset settings to defaults
+        settings.resetToDefaults()
+        
+        // 5. Reset hotkey to default
+        UserDefaults.standard.set(HotkeyConstants.defaultHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        
+        // 6. Update global hotkey system
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            Task { @MainActor in
+                appDelegate.potterCore?.updateHotkey(HotkeyConstants.defaultHotkey)
+            }
+        }
+    }
+    
     // MARK: - Delete All Data Functions
     private func getPromptsFileURL() -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -1078,71 +1156,6 @@ struct ModernSettingsView: View {
         NSWorkspace.shared.open(parentDir)
     }
     
-    private func startDeleteCountdown() {
-        deleteCountdown = 5
-        isDeleteButtonEnabled = false
-        
-        deleteCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            deleteCountdown -= 1
-            
-            if deleteCountdown <= 0 {
-                isDeleteButtonEnabled = true
-                timer.invalidate()
-                deleteCountdownTimer = nil
-            }
-        }
-    }
-    
-    private func stopDeleteCountdown() {
-        deleteCountdownTimer?.invalidate()
-        deleteCountdownTimer = nil
-        deleteCountdown = 5
-        isDeleteButtonEnabled = false
-    }
-    
-    private func deleteAllData() {
-        PotterLogger.shared.warning("settings", "🗑️ Delete all data requested - wiping user data")
-        
-        // 1. Reset prompts to defaults
-        PromptManager.shared.clearCache()
-        let promptManager = PromptManager.shared
-        // Delete the existing prompts file to force recreation with defaults
-        let promptsFileURL = getPromptsFileURL()
-        try? FileManager.default.removeItem(at: promptsFileURL)
-        // Load defaults (this will recreate the file)
-        let defaultPrompts = promptManager.loadPrompts()
-        prompts = defaultPrompts
-        
-        // 2. Clear UserDefaults
-        let bundleId = Bundle.main.bundleIdentifier ?? "com.graydot.potter"
-        UserDefaults.standard.removePersistentDomain(forName: bundleId)
-        UserDefaults.standard.synchronize()
-        
-        // 3. Clear keychain data
-        switch StorageAdapter.shared.clearAllAPIKeys() {
-        case .success:
-            PotterLogger.shared.info("settings", "✅ API keys cleared successfully")
-        case .failure(let error):
-            PotterLogger.shared.error("settings", "❌ Failed to clear API keys: \(error.localizedDescription)")
-        }
-        
-        // 4. Reset settings to defaults
-        settings.resetToDefaults()
-        
-        // 5. Close settings window and show success
-        PotterLogger.shared.info("settings", "✅ All Potter data deleted successfully")
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            ModernSettingsWindowController.shared.close()
-            
-            // Show confirmation alert
-            let alert = NSAlert()
-            alert.messageText = "Data Deleted"
-            alert.informativeText = "All Potter data has been deleted. The app has been reset to its initial state."
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-    }
     
     // API key management is now handled by LLMProviderView
 }
@@ -1156,11 +1169,6 @@ struct HotkeyConfigurationView: View {
     @State private var previousHotkey = HotkeyConstants.defaultHotkey // Store previous combo for ESC
     @State private var warningMessage = ""
     @FocusState private var isKeyCaptureFocused: Bool
-    @StateObject private var permissionManager = PermissionManager.shared
-    
-    private var isAccessibilityGranted: Bool {
-        permissionManager.accessibilityStatus == .granted
-    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1185,11 +1193,9 @@ struct HotkeyConfigurationView: View {
                     } else {
                         // Show current hotkey
                         ForEach(currentHotkey.indices, id: \.self) { index in
-                            hotkeyPill(currentHotkey[index], isActive: false, isDisabled: !isAccessibilityGranted)
+                            hotkeyPill(currentHotkey[index], isActive: false)
                                 .onTapGesture {
-                                    if isAccessibilityGranted {
-                                        startHotkeyCapture()
-                                    }
+                                    startHotkeyCapture()
                                 }
                         }
                     }
@@ -1203,14 +1209,6 @@ struct HotkeyConfigurationView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isCapturingHotkey)
-            }
-            
-            // Accessibility warning when permissions not granted
-            if !isAccessibilityGranted {
-                Text("Accessibility permission required to use global hotkeys")
-                    .foregroundColor(.orange)
-                    .font(.caption)
-                    .fontWeight(.medium)
             }
             
             // Warning message
