@@ -102,6 +102,14 @@ class PromptManager {
             let data = try Data(contentsOf: promptsFileURL)
             let prompts = try JSONDecoder().decode([PromptItem].self, from: data)
             
+            // Check if loaded prompts array is empty and restore defaults
+            if prompts.isEmpty {
+                PotterLogger.shared.warning("prompts", "📄 Loaded prompts array is empty - recreating with defaults")
+                let defaults = defaultPrompts()
+                savePrompts(defaults)
+                return defaults
+            }
+            
             // Update cache
             promptsCache = prompts
             if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path) {
@@ -226,6 +234,12 @@ struct ModernSettingsView: View {
     @State private var showingDeleteConfirmation = false
     @State private var currentPromptDialog: PromptEditDialogController? = nil  // Keep strong reference
     
+    // Delete all data management
+    @State private var showingDeleteAllDataConfirmation = false
+    @State private var deleteCountdown = 5
+    @State private var deleteCountdownTimer: Timer?
+    @State private var isDeleteButtonEnabled = false
+    
     let sections = [
         ("General", "gear"),
         ("Prompts", "bubble.left.and.bubble.right"),
@@ -257,12 +271,14 @@ struct ModernSettingsView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
-                .padding(.horizontal, 20)
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
                 .padding(.top, 20)
                 .padding(.bottom, 10)
             
             Divider()
-                .padding(.horizontal, 20)
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
                 .padding(.bottom, 10)
             
             // Section buttons
@@ -282,7 +298,8 @@ struct ModernSettingsView: View {
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 8)
                         .padding(.vertical, 12)
                         .background(
                             selectedSection == index ?
@@ -293,7 +310,7 @@ struct ModernSettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 4)
                 }
             }
             .padding(.top, 5)
@@ -303,7 +320,8 @@ struct ModernSettingsView: View {
             // Footer
             VStack(alignment: .leading, spacing: 8) {
                 Divider()
-                    .padding(.horizontal, 20)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 8)
                 
                 HStack {
                     Button("Cancel") {
@@ -318,7 +336,8 @@ struct ModernSettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
-                .padding(.horizontal, 20)
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
                 .padding(.bottom, 20)
             }
         }
@@ -487,7 +506,7 @@ struct ModernSettingsView: View {
                     deleteSelectedPrompt()
                 }
                 .buttonStyle(.bordered)
-                .disabled(selectedPromptIndex == nil)
+                .disabled(selectedPromptIndex == nil || prompts.count <= 1)
                 
                 Spacer()
                 
@@ -507,6 +526,31 @@ struct ModernSettingsView: View {
         } message: {
             if let index = selectedPromptIndex, index < prompts.count {
                 Text("Are you sure you want to delete the prompt '\(prompts[index].name)'? This action cannot be undone.")
+            }
+        }
+        .alert("Delete All Potter Data", isPresented: $showingDeleteAllDataConfirmation) {
+            Button("Cancel", role: .cancel) {
+                stopDeleteCountdown()
+            }
+            Button(isDeleteButtonEnabled ? "Delete Everything" : "Wait (\(deleteCountdown)s)", role: .destructive) {
+                if isDeleteButtonEnabled {
+                    deleteAllData()
+                }
+            }
+            .disabled(!isDeleteButtonEnabled)
+        } message: {
+            Text("This will permanently delete all Potter data including prompts, API keys, and settings. This action cannot be undone.")
+        }
+        .onAppear {
+            if showingDeleteAllDataConfirmation {
+                startDeleteCountdown()
+            }
+        }
+        .onChange(of: showingDeleteAllDataConfirmation) { isShowing in
+            if isShowing {
+                startDeleteCountdown()
+            } else {
+                stopDeleteCountdown()
             }
         }
     }
@@ -550,56 +594,133 @@ struct ModernSettingsView: View {
                 .padding()
             }
             
-            // About Section
-            GroupBox("About") {
+            // Privacy Warning Section
+            GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 4) {
-                        Text("Developed by")
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.title2)
                         
-                        Button("graydot") {
-                            if let url = URL(string: "https://graydot.ai") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.blue)
-                        .underline()
-                        
-                        Text("with")
-                            .foregroundColor(.secondary)
-                        
-                        Text("♥")
-                            .foregroundColor(.red)
+                        Text("Privacy Warning")
+                            .font(.headline)
+                            .fontWeight(.semibold)
                     }
                     
-                    HStack {
-                        Text("Product link for Potter:")
-                            .foregroundColor(.secondary)
-                        
-                        Button(action: {
-                            if let url = URL(string: "https://graydot.ai/products/potter/") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                if let appIcon = NSImage(named: "AppIcon") {
-                                    Image(nsImage: appIcon)
-                                        .resizable()
-                                        .frame(width: 16, height: 16)
-                                } else {
-                                    Image(systemName: "wand.and.stars")
-                                        .frame(width: 16, height: 16)
-                                }
-                                Text("potter")
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.blue)
-                        .underline()
-                    }
+                    Text("This app processes your text using external AI services (OpenAI, Anthropic, Google). Potter and the app author do not store your text or keystrokes, but the AI providers will have access to any text you process. Avoid using this app with sensitive, confidential, or private information.")
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding()
+            }
+            
+            // About Section
+            HStack(alignment: .top, spacing: 20) {
+                // Left side - About info
+                GroupBox("About") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 4) {
+                            Text("Developed by")
+                                .foregroundColor(.secondary)
+                            
+                            Button("graydot") {
+                                if let url = URL(string: "https://graydot.ai") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                            .underline()
+                            
+                            Text("with")
+                                .foregroundColor(.secondary)
+                            
+                            Text("♥")
+                                .foregroundColor(.red)
+                        }
+                        
+                        HStack {
+                            Text("Product link for Potter:")
+                                .foregroundColor(.secondary)
+                            
+                            Button(action: {
+                                if let url = URL(string: "https://graydot.ai/products/potter/") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    if let appIcon = NSImage(named: "AppIcon") {
+                                        Image(nsImage: appIcon)
+                                            .resizable()
+                                            .frame(width: 16, height: 16)
+                                    } else {
+                                        Image(systemName: "wand.and.stars")
+                                            .frame(width: 16, height: 16)
+                                    }
+                                    Text("potter")
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                            .underline()
+                        }
+                        
+                        HStack {
+                            Text("Source code:")
+                                .foregroundColor(.secondary)
+                            
+                            Button(action: {
+                                if let url = URL(string: "https://github.com/graydot/potter") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                        .frame(width: 16, height: 16)
+                                    Text("GitHub")
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                            .underline()
+                        }
+                    }
+                    .padding()
+                }
+                
+                // Right side - Data Management
+                GroupBox("Data Management") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Remove all Potter data and return to pristine state.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        HStack {
+                            Button(action: openPromptsFolder) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "folder")
+                                        .frame(width: 14, height: 14)
+                                    Text("Show prompts folder")
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                            .underline()
+                            .font(.caption)
+                            
+                            Spacer()
+                        }
+                        
+                        Button("Delete All Data") {
+                            showingDeleteAllDataConfirmation = true
+                        }
+                        .buttonStyle(.bordered)
+                        .foregroundColor(.red)
+                    }
+                    .padding()
+                }
+                .frame(maxWidth: 200)
             }
             
             Spacer()
@@ -816,7 +937,7 @@ struct ModernSettingsView: View {
                 Spacer()
                 
                 Button("Open Releases Page") {
-                    if let url = URL(string: "https://github.com/jebasingh/potter/releases") {
+                    if let url = URL(string: "https://github.com/graydot/potter/releases") {
                         NSWorkspace.shared.open(url)
                     }
                 }
@@ -873,6 +994,17 @@ struct ModernSettingsView: View {
     
     private func deleteSelectedPrompt() {
         guard selectedPromptIndex != nil else { return }
+        
+        // Prevent deleting the last prompt
+        if prompts.count <= 1 {
+            let alert = NSAlert()
+            alert.messageText = "Cannot Delete Last Prompt"
+            alert.informativeText = "At least one prompt is required. You cannot delete the last remaining prompt."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+        
         showingDeleteConfirmation = true
     }
     
@@ -882,24 +1014,135 @@ struct ModernSettingsView: View {
         selectedPromptIndex = nil
         PromptManager.shared.savePrompts(prompts)
         PotterLogger.shared.info("settings", "🗑️ Deleted prompt at index \(index)")
+        notifyMenuUpdate()
     }
     
     private func savePrompt(name: String, prompt: String) {
-        if let index = selectedPromptIndex {
-            // Update existing prompt
-            prompts[index].name = name
-            prompts[index].prompt = prompt
-            PotterLogger.shared.info("settings", "✏️ Updated prompt: \(name)")
-        } else {
-            // Add new prompt
-            let newPrompt = PromptItem(name: name, prompt: prompt)
-            prompts.append(newPrompt)
+        let wasEditingSelectedPrompt = selectedPromptIndex.map { prompts[$0].name } == getCurrentlySelectedPromptName()
+        
+        let isEditing = selectedPromptIndex != nil
+        let targetIndex = selectedPromptIndex ?? prompts.count
+        
+        // Update or add prompt
+        guard isEditing else {
+            prompts.append(PromptItem(name: name, prompt: prompt))
             PotterLogger.shared.info("settings", "➕ Added new prompt: \(name)")
+            PromptManager.shared.savePrompts(prompts)
+            selectedPromptIndex = nil
+            notifyMenuUpdate()
+            return
         }
+        
+        prompts[targetIndex].name = name
+        prompts[targetIndex].prompt = prompt
+        PotterLogger.shared.info("settings", "✏️ Updated prompt: \(name)")
+        
+        // Persist selection through rename
+        updateGlobalSelection(from: wasEditingSelectedPrompt, to: name)
+        
         PromptManager.shared.savePrompts(prompts)
         selectedPromptIndex = nil
+        notifyMenuUpdate()
     }
     
+    private func getCurrentlySelectedPromptName() -> String? {
+        return UserDefaults.standard.string(forKey: "current_prompt")
+    }
+    
+    private func updateGlobalSelection(from wasSelected: Bool, to newName: String) {
+        guard wasSelected else { return }
+        UserDefaults.standard.set(newName, forKey: "current_prompt")
+        PotterLogger.shared.info("settings", "🔄 Updated global selection to renamed prompt: \(newName)")
+    }
+    
+    private func notifyMenuUpdate() {
+        DispatchQueue.main.async {
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                Task { @MainActor in
+                    appDelegate.updateMenu()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Delete All Data Functions
+    private func getPromptsFileURL() -> URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let potterDir = appSupport.appendingPathComponent("Potter")
+        return potterDir.appendingPathComponent("prompts.json")
+    }
+    
+    private func openPromptsFolder() {
+        let promptsFileURL = getPromptsFileURL()
+        let parentDir = promptsFileURL.deletingLastPathComponent()
+        NSWorkspace.shared.open(parentDir)
+    }
+    
+    private func startDeleteCountdown() {
+        deleteCountdown = 5
+        isDeleteButtonEnabled = false
+        
+        deleteCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            deleteCountdown -= 1
+            
+            if deleteCountdown <= 0 {
+                isDeleteButtonEnabled = true
+                timer.invalidate()
+                deleteCountdownTimer = nil
+            }
+        }
+    }
+    
+    private func stopDeleteCountdown() {
+        deleteCountdownTimer?.invalidate()
+        deleteCountdownTimer = nil
+        deleteCountdown = 5
+        isDeleteButtonEnabled = false
+    }
+    
+    private func deleteAllData() {
+        PotterLogger.shared.warning("settings", "🗑️ Delete all data requested - wiping user data")
+        
+        // 1. Reset prompts to defaults
+        PromptManager.shared.clearCache()
+        let promptManager = PromptManager.shared
+        // Delete the existing prompts file to force recreation with defaults
+        let promptsFileURL = getPromptsFileURL()
+        try? FileManager.default.removeItem(at: promptsFileURL)
+        // Load defaults (this will recreate the file)
+        let defaultPrompts = promptManager.loadPrompts()
+        prompts = defaultPrompts
+        
+        // 2. Clear UserDefaults
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.graydot.potter"
+        UserDefaults.standard.removePersistentDomain(forName: bundleId)
+        UserDefaults.standard.synchronize()
+        
+        // 3. Clear keychain data
+        switch StorageAdapter.shared.clearAllAPIKeys() {
+        case .success:
+            PotterLogger.shared.info("settings", "✅ API keys cleared successfully")
+        case .failure(let error):
+            PotterLogger.shared.error("settings", "❌ Failed to clear API keys: \(error.localizedDescription)")
+        }
+        
+        // 4. Reset settings to defaults
+        settings.resetToDefaults()
+        
+        // 5. Close settings window and show success
+        PotterLogger.shared.info("settings", "✅ All Potter data deleted successfully")
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            ModernSettingsWindowController.shared.close()
+            
+            // Show confirmation alert
+            let alert = NSAlert()
+            alert.messageText = "Data Deleted"
+            alert.informativeText = "All Potter data has been deleted. The app has been reset to its initial state."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
     
     // API key management is now handled by LLMProviderView
 }
@@ -909,8 +1152,8 @@ struct ModernSettingsView: View {
 struct HotkeyConfigurationView: View {
     @State private var isCapturingHotkey = false
     @State private var capturedKeys: [String] = []
-    @State private var currentHotkey = ["⌘", "⇧", "9"]
-    @State private var previousHotkey = ["⌘", "⇧", "9"] // Store previous combo for ESC
+    @State private var currentHotkey = HotkeyConstants.defaultHotkey
+    @State private var previousHotkey = HotkeyConstants.defaultHotkey // Store previous combo for ESC
     @State private var warningMessage = ""
     @FocusState private var isKeyCaptureFocused: Bool
     @StateObject private var permissionManager = PermissionManager.shared
@@ -997,6 +1240,17 @@ struct HotkeyConfigurationView: View {
                     return .ignored
                 }
         )
+        .onAppear {
+            loadSavedHotkey()
+        }
+    }
+    
+    private func loadSavedHotkey() {
+        if let savedHotkey = UserDefaults.standard.array(forKey: HotkeyConstants.userDefaultsKey) as? [String] {
+            currentHotkey = savedHotkey
+            previousHotkey = savedHotkey
+            PotterLogger.shared.debug("settings", "🎹 Loaded saved hotkey: \(savedHotkey.joined(separator: "+"))")
+        }
     }
     
     private func hotkeyPill(_ text: String, isActive: Bool, isDisabled: Bool = false) -> some View {
@@ -1213,6 +1467,9 @@ struct HotkeyConfigurationView: View {
         isKeyCaptureFocused = false
         warningMessage = ""
         
+        // Save to UserDefaults
+        UserDefaults.standard.set(currentHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        
         PotterLogger.shared.info("settings", "🎹 Applied new hotkey: \(currentHotkey.joined(separator: "+"))")
         
         // Update the global hotkey system (this will re-enable it with new combo)
@@ -1237,20 +1494,22 @@ struct HotkeyConfigurationView: View {
     }
     
     private func resetToDefault() {
-        currentHotkey = ["⌘", "⇧", "9"]
-        previousHotkey = ["⌘", "⇧", "9"]
+        currentHotkey = HotkeyConstants.defaultHotkey
+        previousHotkey = HotkeyConstants.defaultHotkey
         warningMessage = ""
         capturedKeys.removeAll()
+        isCapturingHotkey = false
+        isKeyCaptureFocused = false
         
-        PotterLogger.shared.info("settings", "🎹 Reset hotkey to default")
+        // Save to UserDefaults
+        UserDefaults.standard.set(currentHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        
+        PotterLogger.shared.info("settings", "🎹 Reset hotkey to default: \(currentHotkey.joined(separator: "+"))")
         
         // Update the global hotkey system
         if let potterCore = NSApplication.shared.delegate as? AppDelegate {
             potterCore.potterCore?.updateHotkey(currentHotkey)
         }
-        
-        // Start capture mode like clicking on pills does
-        startHotkeyCapture()
     }
 }
 

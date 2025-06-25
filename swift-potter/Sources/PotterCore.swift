@@ -2,6 +2,12 @@ import Foundation
 import AppKit
 import Carbon
 
+// MARK: - Hotkey Constants
+struct HotkeyConstants {
+    static let defaultHotkey: [String] = ["⌘", "⇧", "9"]
+    static let userDefaultsKey = "global_hotkey"
+}
+
 // Protocol for menu bar icon updates
 protocol IconStateDelegate: AnyObject {
     func setProcessingState()
@@ -40,7 +46,7 @@ class PotterCore {
     private var settings: PotterSettings
     private var llmManager: LLMManager?
     private var hotkeyEventHandler: EventHotKeyRef?
-    private var currentHotkeyCombo: [String] = ["⌘", "⇧", "9"] // Default hotkey
+    private var currentHotkeyCombo: [String] = HotkeyConstants.defaultHotkey
     
     // Icon state delegate
     weak var iconDelegate: IconStateDelegate?
@@ -63,7 +69,7 @@ class PotterCore {
     
     private func setupGlobalHotkey() {
         // Load saved hotkey or use default
-        if let savedHotkey = UserDefaults.standard.array(forKey: "global_hotkey") as? [String] {
+        if let savedHotkey = UserDefaults.standard.array(forKey: HotkeyConstants.userDefaultsKey) as? [String] {
             currentHotkeyCombo = savedHotkey
         }
         
@@ -213,8 +219,20 @@ class PotterCore {
         registerHotkey(newHotkey)
         
         // Save to settings
-        UserDefaults.standard.set(newHotkey, forKey: "global_hotkey")
+        UserDefaults.standard.set(newHotkey, forKey: HotkeyConstants.userDefaultsKey)
         PotterLogger.shared.info("hotkeys", "🔄 Updated hotkey to: \(newHotkey.joined(separator: "+"))")
+        
+        // Notify icon delegate to update menu with new hotkey
+        DispatchQueue.main.async {
+            if let appDelegate = NSApplication.shared.delegate as? IconStateDelegate {
+                // Force menu update through AppDelegate
+                if let mainAppDelegate = appDelegate as? AppDelegate {
+                    Task { @MainActor in
+                        mainAppDelegate.updateMenuForHotkeyChange()
+                    }
+                }
+            }
+        }
     }
     
     func disableGlobalHotkey() {

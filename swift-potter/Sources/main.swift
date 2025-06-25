@@ -23,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     var statusItem: NSStatusItem?
     var potterCore: PotterCore?
     var menuUpdateTimer: Timer?
-    var currentPromptName: String = "summarize" // Default prompt
+    var currentPromptName: String = "polish" // Default prompt
     var currentMenu: NSMenu?
     
     // Icon state management
@@ -129,9 +129,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     private func loadSavedPromptSelection() {
-        if let savedPrompt = UserDefaults.standard.string(forKey: "current_prompt") {
-            currentPromptName = savedPrompt
+        let savedPrompt = UserDefaults.standard.string(forKey: "current_prompt")
+        currentPromptName = ensureValidPromptSelection(savedPrompt)
+    }
+    
+    /// Ensures a valid prompt is selected, falling back to first available prompt if needed
+    private func ensureValidPromptSelection(_ requestedPrompt: String?) -> String {
+        let availablePrompts = PromptManager.shared.loadPrompts()
+        
+        // If no prompts available at all, something is seriously wrong
+        guard !availablePrompts.isEmpty else {
+            PotterLogger.shared.error("prompts", "❌ No prompts available - this should never happen")
+            return "polish" // Fallback to hardcoded default
         }
+        
+        // Check if requested prompt exists in available prompts
+        if let requested = requestedPrompt,
+           availablePrompts.contains(where: { $0.name == requested }) {
+            PotterLogger.shared.debug("prompts", "✅ Using saved prompt: \(requested)")
+            return requested
+        }
+        
+        // Fallback to first available prompt
+        let firstPrompt = availablePrompts[0].name
+        PotterLogger.shared.info("prompts", "🔄 Falling back to first available prompt: \(firstPrompt)")
+        
+        // Save the selection for next time
+        UserDefaults.standard.set(firstPrompt, forKey: "current_prompt")
+        
+        return firstPrompt
     }
     
     private func startMenuUpdateTimer() {
@@ -367,10 +393,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     }
     
     @MainActor
-    private func updateMenu() {
+    func updateMenu() {
         let menu = NSMenu()
         
-        let processItem = NSMenuItem(title: "Process Text (⌘⇧9)", action: #selector(processText), keyEquivalent: "")
+        // Load current hotkey from UserDefaults
+        let currentHotkey = UserDefaults.standard.array(forKey: HotkeyConstants.userDefaultsKey) as? [String] ?? HotkeyConstants.defaultHotkey
+        let hotkeyString = currentHotkey.joined(separator: "")
+        
+        let processItem = NSMenuItem(title: "Process Text (\(hotkeyString))", action: #selector(processText), keyEquivalent: "")
         processItem.target = self
         menu.addItem(processItem)
         
@@ -383,7 +413,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // Permission status items (right below Process Text or error)
+        // Add divider between process text and permissions
+        menu.addItem(NSMenuItem.separator())
+        
+        // Permission status items
         addPermissionMenuItems(to: menu)
         
         menu.addItem(NSMenuItem.separator())
@@ -392,22 +425,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         addPromptsToMenu(menu)
         
         menu.addItem(NSMenuItem.separator())
-        let settingsItem = NSMenuItem(title: "Preferences...", action: #selector(showSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: "Preferences...", action: #selector(showSettings), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
         
-        let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
-        updateItem.target = self
-        menu.addItem(updateItem)
-        
         menu.addItem(NSMenuItem.separator())
-        let quitItem = NSMenuItem(title: "Quit Potter", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Potter", action: #selector(quit), keyEquivalent: "")
         quitItem.target = self
         menu.addItem(quitItem)
         
         // Set menu normally
         statusItem?.menu = menu
         currentMenu = menu
+    }
+    
+    @MainActor
+    func updateMenuForHotkeyChange() {
+        updateMenu()
     }
     
     @MainActor
@@ -526,6 +560,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
         // Load prompts from JSON
         let prompts = PromptManager.shared.loadPrompts()
         
+        // Ensure current selection is valid before building menu
+        currentPromptName = ensureValidPromptSelection(currentPromptName)
+        
         for prompt in prompts {
             let isSelected = prompt.name == currentPromptName
             let title = isSelected ? "✓ \(prompt.name.capitalized)" : "  \(prompt.name.capitalized)"
@@ -555,11 +592,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     @objc func showSettings() {
         print("📋 Settings menu clicked!")
         ModernSettingsWindowController.shared.showWindow(nil)
-    }
-    
-    @objc func checkForUpdates() {
-        PotterLogger.shared.info("menu", "🔍 Manual update check requested from menu")
-        AutoUpdateManager.shared.checkForUpdatesManually()
     }
     
     @objc func openPermissionSettings(_ sender: NSMenuItem) {

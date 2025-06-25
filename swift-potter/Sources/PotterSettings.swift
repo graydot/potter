@@ -47,4 +47,16 @@ class PotterSettings: ObservableObject {
         // UserDefaults automatically saves when properties are set
         userDefaults.synchronize()
     }
+    
+    func resetToDefaults() {
+        // Reset all published properties to their default values
+        self.openaiAPIKey = nil
+        self.anthropicAPIKey = nil
+        self.googleAPIKey = nil
+        self.currentProvider = "openai"
+        self.currentPrompt = "formal"
+        
+        // Force synchronization
+        userDefaults.synchronize()
+    }
 }

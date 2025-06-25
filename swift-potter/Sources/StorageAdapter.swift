@@ -346,6 +346,11 @@ class StorageAdapter {
         return currentBackend.get(key: storageKey).isSuccess
     }
     
+    func clearAllAPIKeys() -> Result<Void, PotterError> {
+        PotterLogger.shared.warning("storage", "🗑️ Clearing all API keys from \(currentStorageMethod.rawValue)")
+        return currentBackend.clear()
+    }
+    
     func migrate(to newMethod: StorageMethod) -> Result<Void, PotterError> {
         guard newMethod != currentStorageMethod else {
             PotterLogger.shared.info("storage", "ℹ️ Already using \(newMethod.rawValue) storage")
