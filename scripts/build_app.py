@@ -854,7 +854,7 @@ end tell'''
                     os.remove(path)
         return None
 
-def build_app(target='local', skip_tests=False):
+def build_app(target='local', skip_tests=False, skip_notarization=False):
     """Main build function"""
     
     # Run tests first unless skipped
@@ -913,11 +913,13 @@ def build_app(target='local', skip_tests=False):
             print("✅ App successfully signed and verified")
             
             # Notarization (for local distribution)
-            if target == 'local':
+            if target == 'local' and not skip_notarization:
                 if notarize_app(app_path, config):
                     print("✅ App notarized successfully")
                 else:
                     print("⚠️  Notarization failed - app may trigger security warnings")
+            elif target == 'local' and skip_notarization:
+                print("⚠️  Skipping notarization as requested - app may trigger security warnings")
             
             # Create DMG AFTER signing to include signed app
             if target == 'local':
@@ -950,6 +952,8 @@ def main():
                        help='Build target: local (for local distribution) or appstore (for App Store)')
     parser.add_argument('--skip-tests', action='store_true',
                        help='Skip running tests before building')
+    parser.add_argument('--skip-notarization', action='store_true',
+                       help='Skip notarization step (for testing unsigned apps)')
     
     args = parser.parse_args()
     
@@ -978,7 +982,8 @@ def main():
     
     success = build_app(
         target=args.target,
-        skip_tests=args.skip_tests
+        skip_tests=args.skip_tests,
+        skip_notarization=args.skip_notarization
     )
     
     if success:

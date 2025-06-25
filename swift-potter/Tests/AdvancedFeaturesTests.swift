@@ -7,7 +7,7 @@ import AppKit
 /// Automated tests based on manual test plan T6.x
 @MainActor
 class AdvancedFeaturesTests: TestBase {
-    var promptManager: PromptManager!
+    var promptManager: PromptService!
     var tempDirectoryURL: URL!
     var originalCurrentDirectory: String!
     
@@ -27,16 +27,16 @@ class AdvancedFeaturesTests: TestBase {
         // Change to temp directory
         FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
         
-        // Set up PromptManager to use test file
+        // Set up PromptService to use test file
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
-        PromptManager.shared.setTestFileURL(testPromptsFile)
+        PromptService.shared.setTestFileURL(testPromptsFile)
         
-        promptManager = PromptManager.shared
+        promptManager = PromptService.shared
     }
     
     override func tearDown() async throws {
-        // Restore PromptManager
-        PromptManager.shared.setTestFileURL(nil)
+        // Restore PromptService
+        PromptService.shared.setTestFileURL(nil)
         
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
@@ -62,7 +62,7 @@ class AdvancedFeaturesTests: TestBase {
         }
         
         promptManager.savePrompts(prompts)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 25)
         
@@ -85,12 +85,12 @@ class AdvancedFeaturesTests: TestBase {
         promptManager.savePrompts(originalPrompts)
         
         // Edit prompts
-        var editedPrompts = promptManager.loadPrompts()
+        var editedPrompts = promptManager.getPrompts()
         editedPrompts[0] = PromptItem(name: "edited1", prompt: "Edited prompt 1")
         editedPrompts[1] = PromptItem(name: editedPrompts[1].name, prompt: "Edited prompt 2 content")
         
         promptManager.savePrompts(editedPrompts)
-        let finalPrompts = promptManager.loadPrompts()
+        let finalPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(finalPrompts.count, 3)
         XCTAssertEqual(finalPrompts[0].name, "edited1")
@@ -115,7 +115,7 @@ class AdvancedFeaturesTests: TestBase {
         let filteredPrompts = originalPrompts.filter { $0.name.hasPrefix("keep") }
         promptManager.savePrompts(filteredPrompts)
         
-        let remainingPrompts = promptManager.loadPrompts()
+        let remainingPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(remainingPrompts.count, 2)
         XCTAssertTrue(remainingPrompts.contains { $0.name == "keep1" })
@@ -136,7 +136,7 @@ class AdvancedFeaturesTests: TestBase {
         ]
         
         promptManager.savePrompts(specialCharacterPrompts)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, specialCharacterPrompts.count)
         
@@ -154,7 +154,7 @@ class AdvancedFeaturesTests: TestBase {
         let longPrompt = PromptItem(name: longName, prompt: longContent)
         promptManager.savePrompts([longPrompt])
         
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 1)
         XCTAssertEqual(loadedPrompts[0].name, longName)
@@ -172,7 +172,7 @@ class AdvancedFeaturesTests: TestBase {
         ]
         
         promptManager.savePrompts(orderedPrompts)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 4)
         
@@ -193,7 +193,7 @@ class AdvancedFeaturesTests: TestBase {
         ]
         
         promptManager.savePrompts(promptsWithDuplicates)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         // All prompts should be saved (even with duplicate names, since they have different IDs)
         XCTAssertEqual(loadedPrompts.count, 4)
@@ -221,7 +221,7 @@ class AdvancedFeaturesTests: TestBase {
         
         // Save batch
         promptManager.savePrompts(batchPrompts)
-        let loadedBatch = promptManager.loadPrompts()
+        let loadedBatch = promptManager.getPrompts()
         
         XCTAssertEqual(loadedBatch.count, 40)
         
@@ -245,7 +245,7 @@ class AdvancedFeaturesTests: TestBase {
         ]
         
         promptManager.savePrompts(validationPrompts)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         // All prompts should be saved (validation is UI responsibility)
         XCTAssertEqual(loadedPrompts.count, validationPrompts.count)
@@ -436,7 +436,7 @@ class AdvancedFeaturesTests: TestBase {
     
     func testErrorDiagnostics() {
         // Test diagnostic information during error scenarios
-        let promptManager = PromptManager.shared
+        let promptManager = PromptService.shared
         
         // Create a scenario that might cause issues
         let problematicPrompts = [
@@ -446,7 +446,7 @@ class AdvancedFeaturesTests: TestBase {
         
         // This should not crash, even with problematic data
         promptManager.savePrompts(problematicPrompts)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 2)
         
@@ -461,7 +461,7 @@ class AdvancedFeaturesTests: TestBase {
         
         // Perform some operations that should be fast
         let buildInfo = BuildInfo.current()
-        let _ = promptManager.loadPrompts()
+        let _ = promptManager.getPrompts()
         let processManager = ProcessManager.shared
         let _ = processManager.checkForDuplicateProcesses()
         

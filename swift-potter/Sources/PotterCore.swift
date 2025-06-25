@@ -149,7 +149,7 @@ class PotterCore {
             do {
                 // Get current prompt from UserDefaults and prompt manager
                 let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? "summarize"
-                let selectedPrompt = PromptManager.shared.getPrompt(named: currentPromptName)
+                let selectedPrompt = PromptService.shared.getPrompt(named: currentPromptName)
                 let promptText = selectedPrompt?.prompt ?? currentMode.prompt
                 
                 PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")

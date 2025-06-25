@@ -27,146 +27,6 @@ struct PromptItem: Identifiable, Equatable, Codable {
     }
 }
 
-// MARK: - Prompt Manager for Persistence
-class PromptManager {
-    static let shared = PromptManager()
-    
-    // Cache to avoid repeated file I/O
-    private var promptsCache: [PromptItem]?
-    private var lastFileModification: Date?
-    
-    // For testing - allows override of file path
-    private var testFileURL: URL?
-    
-    private var promptsFileURL: URL {
-        // Use test file URL if set (for testing)
-        if let testURL = testFileURL {
-            return testURL
-        }
-        
-        // Always use Application Support to ensure consistency between command line and app bundle
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let potterDir = appSupport.appendingPathComponent("Potter")
-        
-        // Create directory if it doesn't exist
-        try? FileManager.default.createDirectory(at: potterDir, withIntermediateDirectories: true)
-        
-        return potterDir.appendingPathComponent("prompts.json")
-    }
-    
-    // For testing - allows setting a custom file path
-    func setTestFileURL(_ url: URL?) {
-        testFileURL = url
-        if let url = url {
-            // Create parent directory if needed
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        }
-        // Clear cache when test file changes
-        clearCache()
-    }
-    
-    // Clear cache - useful for testing and when external changes are made
-    func clearCache() {
-        promptsCache = nil
-        lastFileModification = nil
-        PotterLogger.shared.debug("prompts", "🗑️ Prompt cache cleared")
-    }
-    
-    // Get a specific prompt by name (commonly used operation)
-    func getPrompt(named name: String) -> PromptItem? {
-        return loadPrompts().first { $0.name == name }
-    }
-    
-    func loadPrompts() -> [PromptItem] {
-        // Check if we have valid cached data
-        if let cached = promptsCache,
-           let lastMod = lastFileModification,
-           let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path),
-           let currentMod = fileAttributes[.modificationDate] as? Date,
-           currentMod <= lastMod {
-            // Cache is still valid, return cached data
-            PotterLogger.shared.debug("prompts", "📋 Using cached prompts (\(cached.count) items)")
-            return cached
-        }
-        
-        // Check if file exists, if not create it with defaults
-        if !FileManager.default.fileExists(atPath: promptsFileURL.path) {
-            let defaults = defaultPrompts()
-            savePrompts(defaults)
-            PotterLogger.shared.debug("prompts", "📄 Created new prompts file with \(defaults.count) default prompts at \(promptsFileURL.path)")
-            return defaults
-        }
-        
-        // File exists, load from it
-        do {
-            let data = try Data(contentsOf: promptsFileURL)
-            let prompts = try JSONDecoder().decode([PromptItem].self, from: data)
-            
-            // Check if loaded prompts array is empty and restore defaults
-            if prompts.isEmpty {
-                PotterLogger.shared.warning("prompts", "📄 Loaded prompts array is empty - recreating with defaults")
-                let defaults = defaultPrompts()
-                savePrompts(defaults)
-                return defaults
-            }
-            
-            // Update cache
-            promptsCache = prompts
-            if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path) {
-                lastFileModification = fileAttributes[.modificationDate] as? Date
-            }
-            
-            PotterLogger.shared.debug("prompts", "📖 Loaded \(prompts.count) prompts from \(promptsFileURL.path)")
-            return prompts
-        } catch {
-            PotterLogger.shared.error("prompts", "📖 Failed to load prompts file: \(error.localizedDescription)")
-            // If file is corrupted, try to preserve any readable content and only add defaults if totally empty
-            PotterLogger.shared.warning("prompts", "📄 Corrupted prompts file detected - preserving any existing data")
-            
-            // Try to read as raw text to see if there's any content
-            if let rawData = try? String(contentsOf: promptsFileURL),
-               !rawData.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                PotterLogger.shared.warning("prompts", "📄 Non-empty corrupted file detected - returning defaults without overwriting")
-                // Return defaults but don't overwrite the file
-                return defaultPrompts()
-            } else {
-                // File is actually empty or unreadable, safe to recreate
-                let defaults = defaultPrompts()
-                savePrompts(defaults)
-                PotterLogger.shared.warning("prompts", "📄 Empty/unreadable prompts file recreated with defaults")
-                return defaults
-            }
-        }
-    }
-    
-    func savePrompts(_ prompts: [PromptItem]) {
-        do {
-            let data = try JSONEncoder().encode(prompts)
-            try data.write(to: promptsFileURL)
-            
-            // Update cache after successful save
-            promptsCache = prompts
-            if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path) {
-                lastFileModification = fileAttributes[.modificationDate] as? Date
-            }
-            
-            PotterLogger.shared.debug("prompts", "💾 Saved \(prompts.count) prompts to \(promptsFileURL.path)")
-        } catch {
-            PotterLogger.shared.error("prompts", "💾 Failed to save prompts: \(error.localizedDescription)")
-        }
-    }
-    
-    private func defaultPrompts() -> [PromptItem] {
-        return [
-            PromptItem(name: "polish", prompt: "Polish this text while preserving the author's original tone and voice. Focus on improving clarity and flow without adding unnecessary adjectives or changing the fundamental character of the writing."),
-            PromptItem(name: "summarize", prompt: "Please provide a concise summary of the following text. Focus on the key points and main ideas while maintaining clarity and brevity."),
-            PromptItem(name: "elaborate", prompt: "Expand this text using only the existing information. Add depth by breaking ideas into multiple sentences or expanding on points already present, without introducing new details or examples."),
-            PromptItem(name: "considerate", prompt: "Review and refine this text to ensure it's appropriate and safe to share. Smooth out any rough edges, anticipate potential concerns, and make the message more thoughtful while staying direct and authentic."),
-            PromptItem(name: "formal", prompt: "Please rewrite the following text in a formal, professional tone. Use proper business language and maintain a respectful, authoritative voice."),
-            PromptItem(name: "clarity", prompt: "Restructure this text to improve clarity and readability. Organize ideas logically, simplify complex sentences, and ensure the message is easy to understand without changing the core meaning."),
-        ]
-    }
-}
 
 // MARK: - Custom Window for ESC Handling
 class SettingsWindow: NSWindow {
@@ -246,7 +106,7 @@ struct ModernSettingsView: View {
     @Environment(\.colorScheme) var colorScheme
     
     // Prompts management
-    @State private var prompts: [PromptItem] = []
+    @StateObject private var promptService = PromptService.shared
     @State private var selectedPromptIndex: Int? = nil
     @State private var showingDeleteConfirmation = false
     @State private var currentPromptDialog: PromptEditDialogController? = nil  // Keep strong reference
@@ -272,7 +132,7 @@ struct ModernSettingsView: View {
         }
         .background(colorScheme == .dark ? Color(NSColor.windowBackgroundColor) : Color(NSColor.windowBackgroundColor))
         .onAppear {
-            loadInitialPrompts()
+            // PromptService loads automatically via @StateObject
         }
     }
     
@@ -469,7 +329,7 @@ struct ModernSettingsView: View {
                 Divider()
                 
                 // Rows
-                ForEach(Array(prompts.enumerated()), id: \.element.id) { index, promptItem in
+                ForEach(Array(promptService.prompts.enumerated()), id: \.element.id) { index, promptItem in
                     HStack {
                         Text(promptItem.name)
                             .frame(width: 120, alignment: .leading)
@@ -498,7 +358,7 @@ struct ModernSettingsView: View {
                             }
                     )
                     
-                    if index < prompts.count - 1 {
+                    if index < promptService.prompts.count - 1 {
                         Divider()
                     }
                 }
@@ -518,11 +378,11 @@ struct ModernSettingsView: View {
                     deleteSelectedPrompt()
                 }
                 .buttonStyle(.bordered)
-                .disabled(selectedPromptIndex == nil || prompts.count <= 1)
+                .disabled(selectedPromptIndex == nil || promptService.prompts.count <= 1)
                 
                 Spacer()
                 
-                Text("\(prompts.count) prompts")
+                Text("\(promptService.prompts.count) prompts")
                     .foregroundColor(.secondary)
                     .font(.caption)
             }
@@ -536,8 +396,8 @@ struct ModernSettingsView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            if let index = selectedPromptIndex, index < prompts.count {
-                Text("Are you sure you want to delete the prompt '\(prompts[index].name)'? This action cannot be undone.")
+            if let index = selectedPromptIndex, index < promptService.prompts.count {
+                Text("Are you sure you want to delete the prompt '\(promptService.prompts[index].name)'? This action cannot be undone.")
             }
         }
     }
@@ -948,90 +808,76 @@ struct ModernSettingsView: View {
     }
     
     // MARK: - Prompts Management Functions
-    private func loadInitialPrompts() {
-        prompts = PromptManager.shared.loadPrompts()
-    }
-    
     private func addNewPrompt() {
         selectedPromptIndex = nil  // Clear index for new prompt
         currentPromptDialog = PromptEditDialogController(
             isEditing: false,
             existingPrompt: nil,
-            existingPromptNames: prompts.map { $0.name }
+            existingPromptNames: promptService.prompts.map { $0.name }
         )
         currentPromptDialog?.onSave = { name, prompt in
-            self.savePrompt(name: name, prompt: prompt)
+            self.handleSavePrompt(name: name, prompt: prompt)
             self.currentPromptDialog = nil  // Release after save
         }
         currentPromptDialog?.showModal()
     }
     
     private func editPrompt(at index: Int) {
-        guard index < prompts.count else { return }
+        guard index < promptService.prompts.count else { return }
         selectedPromptIndex = index  // Set the index for editing
         currentPromptDialog = PromptEditDialogController(
             isEditing: true,
-            existingPrompt: prompts[index],
-            existingPromptNames: prompts.map { $0.name }
+            existingPrompt: promptService.prompts[index],
+            existingPromptNames: promptService.prompts.map { $0.name }
         )
         currentPromptDialog?.onSave = { name, prompt in
-            self.savePrompt(name: name, prompt: prompt)
+            self.handleSavePrompt(name: name, prompt: prompt)
             self.currentPromptDialog = nil  // Release after save
         }
         currentPromptDialog?.showModal()
     }
     
     private func deleteSelectedPrompt() {
-        guard selectedPromptIndex != nil else { return }
+        guard let index = selectedPromptIndex else { return }
         
-        // Prevent deleting the last prompt
-        if prompts.count <= 1 {
-            let alert = NSAlert()
-            alert.messageText = "Cannot Delete Last Prompt"
-            alert.informativeText = "At least one prompt is required. You cannot delete the last remaining prompt."
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-            return
+        let result = promptService.deletePrompt(at: index)
+        switch result {
+        case .success:
+            selectedPromptIndex = nil
+            notifyMenuUpdate()
+        case .failure(let error):
+            showErrorAlert(message: error.localizedDescription)
         }
-        
-        showingDeleteConfirmation = true
     }
     
     private func confirmDeletePrompt() {
-        guard let index = selectedPromptIndex, index < prompts.count else { return }
-        prompts.remove(at: index)
-        selectedPromptIndex = nil
-        PromptManager.shared.savePrompts(prompts)
-        PotterLogger.shared.info("settings", "🗑️ Deleted prompt at index \(index)")
-        notifyMenuUpdate()
+        guard selectedPromptIndex != nil else { return }
+        deleteSelectedPrompt()
     }
     
-    private func savePrompt(name: String, prompt: String) {
-        let wasEditingSelectedPrompt = selectedPromptIndex.map { prompts[$0].name } == getCurrentlySelectedPromptName()
+    private func handleSavePrompt(name: String, prompt: String) {
+        let wasEditingSelectedPrompt = selectedPromptIndex.map { promptService.prompts[$0].name } == getCurrentlySelectedPromptName()
         
-        let isEditing = selectedPromptIndex != nil
-        let targetIndex = selectedPromptIndex ?? prompts.count
+        let promptItem = PromptItem(name: name, prompt: prompt)
+        let result = promptService.savePrompt(promptItem, at: selectedPromptIndex)
         
-        // Update or add prompt
-        guard isEditing else {
-            prompts.append(PromptItem(name: name, prompt: prompt))
-            PotterLogger.shared.info("settings", "➕ Added new prompt: \(name)")
-            PromptManager.shared.savePrompts(prompts)
+        switch result {
+        case .success:
+            // Persist selection through rename if editing
+            updateGlobalSelection(from: wasEditingSelectedPrompt, to: name)
             selectedPromptIndex = nil
             notifyMenuUpdate()
-            return
+        case .failure(let error):
+            showErrorAlert(message: error.localizedDescription)
         }
-        
-        prompts[targetIndex].name = name
-        prompts[targetIndex].prompt = prompt
-        PotterLogger.shared.info("settings", "✏️ Updated prompt: \(name)")
-        
-        // Persist selection through rename
-        updateGlobalSelection(from: wasEditingSelectedPrompt, to: name)
-        
-        PromptManager.shared.savePrompts(prompts)
-        selectedPromptIndex = nil
-        notifyMenuUpdate()
+    }
+    
+    private func showErrorAlert(message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Error"
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
     
     private func getCurrentlySelectedPromptName() -> String? {
@@ -1125,11 +971,7 @@ struct ModernSettingsView: View {
     // MARK: - Fresh Initialization Logic
     private func initializeFreshState() {
         // 1. Reset prompts to defaults
-        PromptManager.shared.clearCache()
-        let promptsFileURL = getPromptsFileURL()
-        try? FileManager.default.removeItem(at: promptsFileURL)
-        let defaultPrompts = PromptManager.shared.loadPrompts()
-        prompts = defaultPrompts
+        promptService.resetToDefaults()
         
         // 2. Clear UserDefaults
         let bundleId = Bundle.main.bundleIdentifier ?? "com.graydot.potter"

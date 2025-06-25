@@ -28,9 +28,9 @@ class CoreFunctionalityTests: TestBase {
         // Change to temp directory
         FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
         
-        // Set up PromptManager to use test file
+        // Set up PromptService to use test file
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
-        PromptManager.shared.setTestFileURL(testPromptsFile)
+        PromptService.shared.setTestFileURL(testPromptsFile)
         
         // Initialize core components
         potterCore = PotterCore()
@@ -41,8 +41,8 @@ class CoreFunctionalityTests: TestBase {
     }
     
     override func tearDown() async throws {
-        // Restore PromptManager
-        PromptManager.shared.setTestFileURL(nil)
+        // Restore PromptService
+        PromptService.shared.setTestFileURL(nil)
         
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
@@ -208,7 +208,7 @@ class CoreFunctionalityTests: TestBase {
     
     func testPromptManagerInitialization() {
         // Test that PromptManager initializes with default prompts
-        let prompts = PromptManager.shared.loadPrompts()
+        let prompts = PromptService.shared.getPrompts()
         
         XCTAssertGreaterThan(prompts.count, 0, "Should have default prompts")
         
@@ -222,22 +222,22 @@ class CoreFunctionalityTests: TestBase {
     
     func testCustomPromptCreation() {
         // Test creating custom prompts
-        let manager = PromptManager.shared
-        let originalPrompts = manager.loadPrompts()
+        let manager = PromptService.shared
+        let originalPrompts = manager.getPrompts()
         
         let customPrompt = PromptItem(name: "translate_french", prompt: "Translate the following text to French:")
         let newPrompts = originalPrompts + [customPrompt]
         
         manager.savePrompts(newPrompts)
         
-        let loadedPrompts = manager.loadPrompts()
+        let loadedPrompts = manager.getPrompts()
         XCTAssertEqual(loadedPrompts.count, originalPrompts.count + 1)
         XCTAssertTrue(loadedPrompts.contains { $0.name == "translate_french" })
     }
     
     func testPromptPersistence() {
         // Test that prompts persist across manager instances
-        let manager = PromptManager.shared
+        let manager = PromptService.shared
         let testPrompts = [
             PromptItem(name: "test1", prompt: "Test prompt 1"),
             PromptItem(name: "test2", prompt: "Test prompt 2")
@@ -246,7 +246,7 @@ class CoreFunctionalityTests: TestBase {
         manager.savePrompts(testPrompts)
         
         // Load prompts again (simulating app restart)
-        let loadedPrompts = manager.loadPrompts()
+        let loadedPrompts = manager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 2)
         XCTAssertEqual(loadedPrompts[0].name, "test1")
@@ -294,7 +294,7 @@ class CoreFunctionalityTests: TestBase {
             PromptItem(name: "summarize", prompt: "Summarize this"),
             PromptItem(name: "formal", prompt: "Make this formal")
         ]
-        PromptManager.shared.savePrompts(testPrompts)
+        PromptService.shared.savePrompts(testPrompts)
         
         potterCore.setup()
         
@@ -311,8 +311,8 @@ class CoreFunctionalityTests: TestBase {
             prompts.append(PromptItem(name: "prompt_\(i)", prompt: "This is prompt number \(i)"))
         }
         
-        PromptManager.shared.savePrompts(prompts)
-        let loadedPrompts = PromptManager.shared.loadPrompts()
+        PromptService.shared.savePrompts(prompts)
+        let loadedPrompts = PromptService.shared.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 50)
         XCTAssertTrue(loadedPrompts.contains { $0.name == "prompt_1" })
@@ -326,8 +326,8 @@ class CoreFunctionalityTests: TestBase {
             prompt: "Translate to 中文: 🚀 Testing émojis and ünicöde characters! 💫"
         )
         
-        PromptManager.shared.savePrompts([specialPrompt])
-        let loadedPrompts = PromptManager.shared.loadPrompts()
+        PromptService.shared.savePrompts([specialPrompt])
+        let loadedPrompts = PromptService.shared.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 1)
         XCTAssertEqual(loadedPrompts[0].name, "émojis_test_🎯")
@@ -341,8 +341,8 @@ class CoreFunctionalityTests: TestBase {
         let longPromptText = String(repeating: "This is a very long prompt text. ", count: 100)
         let longPrompt = PromptItem(name: "long_prompt", prompt: longPromptText)
         
-        PromptManager.shared.savePrompts([longPrompt])
-        let loadedPrompts = PromptManager.shared.loadPrompts()
+        PromptService.shared.savePrompts([longPrompt])
+        let loadedPrompts = PromptService.shared.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 1)
         XCTAssertEqual(loadedPrompts[0].prompt.count, longPromptText.count)

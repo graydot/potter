@@ -9,7 +9,7 @@ import AppKit
 class PerformanceReliabilityTests: TestBase {
     var potterCore: PotterCore!
     var llmManager: LLMManager!
-    var promptManager: PromptManager!
+    var promptManager: PromptService!
     var tempDirectoryURL: URL!
     var originalCurrentDirectory: String!
     
@@ -29,21 +29,21 @@ class PerformanceReliabilityTests: TestBase {
         // Change to temp directory
         FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
         
-        // Set up PromptManager to use test file
+        // Set up PromptService to use test file
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
-        PromptManager.shared.setTestFileURL(testPromptsFile)
+        PromptService.shared.setTestFileURL(testPromptsFile)
         
         // Initialize components
         potterCore = PotterCore()
         llmManager = LLMManager()
-        promptManager = PromptManager.shared
+        promptManager = PromptService.shared
         
         clearTestSettings()
     }
     
     override func tearDown() async throws {
-        // Restore PromptManager
-        PromptManager.shared.setTestFileURL(nil)
+        // Restore PromptService
+        PromptService.shared.setTestFileURL(nil)
         
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
@@ -65,7 +65,7 @@ class PerformanceReliabilityTests: TestBase {
         // Create core components
         let core = PotterCore()
         let manager = LLMManager()
-        let prompts = PromptManager.shared
+        let prompts = PromptService.shared
         
         let endTime = CFAbsoluteTimeGetCurrent()
         let initTime = endTime - startTime
@@ -103,7 +103,7 @@ class PerformanceReliabilityTests: TestBase {
         
         // Load prompts
         let loadStartTime = CFAbsoluteTimeGetCurrent()
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         let loadTime = CFAbsoluteTimeGetCurrent() - loadStartTime
         XCTAssertLessThan(loadTime, 1.0, "Loading 1000 prompts should be fast")
         
@@ -208,8 +208,8 @@ class PerformanceReliabilityTests: TestBase {
                             prompts.append(PromptItem(name: "concurrent_\(i)_\(k)", prompt: "Concurrent test \(i) \(k)"))
                         }
                         
-                        PromptManager.shared.savePrompts(prompts)
-                        let _ = PromptManager.shared.loadPrompts()
+                        PromptService.shared.savePrompts(prompts)
+                        let _ = PromptService.shared.getPrompts()
                     }
                     
                     expectation.fulfill()
@@ -232,7 +232,7 @@ class PerformanceReliabilityTests: TestBase {
         measure {
             let core = PotterCore()
             let manager = LLMManager()
-            let _ = PromptManager.shared
+            let _ = PromptService.shared
             
             core.setup()
             manager.loadSettings()
@@ -250,7 +250,7 @@ class PerformanceReliabilityTests: TestBase {
         
         measure {
             promptManager.savePrompts(prompts)
-            let _ = promptManager.loadPrompts()
+            let _ = promptManager.getPrompts()
         }
         
         // Should complete within reasonable time
@@ -393,8 +393,8 @@ class PerformanceReliabilityTests: TestBase {
                         case 1:
                             // Prompt operations
                             let prompts = [PromptItem(name: "stress_\(i)", prompt: "Stress test \(i)")]
-                            PromptManager.shared.savePrompts(prompts)
-                            let _ = PromptManager.shared.loadPrompts()
+                            PromptService.shared.savePrompts(prompts)
+                            let _ = PromptService.shared.getPrompts()
                             
                         case 2:
                             // Clipboard operations
@@ -449,7 +449,7 @@ class PerformanceReliabilityTests: TestBase {
         let operationStartTime = CFAbsoluteTimeGetCurrent()
         
         promptManager.savePrompts(largePrompts)
-        let loadedPrompts = promptManager.loadPrompts()
+        let loadedPrompts = promptManager.getPrompts()
         
         let operationTime = CFAbsoluteTimeGetCurrent() - operationStartTime
         XCTAssertLessThan(operationTime, 3.0, "Large dataset operations should complete in reasonable time")
@@ -491,7 +491,7 @@ class PerformanceReliabilityTests: TestBase {
                 
                 let prompts = [PromptItem(name: "reliability_\(i)", prompt: "Reliability test \(i)")]
                 promptManager.savePrompts(prompts)
-                let _ = promptManager.loadPrompts()
+                let _ = promptManager.getPrompts()
                 
                 let _ = BuildInfo.current()
             }
@@ -545,7 +545,7 @@ class PerformanceReliabilityTests: TestBase {
                 }
                 
                 promptManager.savePrompts(batchPrompts)
-                let _ = promptManager.loadPrompts()
+                let _ = promptManager.getPrompts()
             }
             
             // Yield periodically

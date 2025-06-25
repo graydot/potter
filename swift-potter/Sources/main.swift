@@ -134,7 +134,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     
     /// Ensures a valid prompt is selected, falling back to first available prompt if needed
     private func ensureValidPromptSelection(_ requestedPrompt: String?) -> String {
-        let availablePrompts = PromptManager.shared.loadPrompts()
+        let availablePrompts = PromptService.shared.prompts
         
         // If no prompts available at all, something is seriously wrong
         guard !availablePrompts.isEmpty else {
@@ -514,7 +514,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, IconStateDelegate {
     
     private func addPromptsToMenu(_ menu: NSMenu) {
         // Load prompts from JSON
-        let prompts = PromptManager.shared.loadPrompts()
+        let prompts = PromptService.shared.prompts
         
         // Ensure current selection is valid before building menu
         currentPromptName = ensureValidPromptSelection(currentPromptName)

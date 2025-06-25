@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 @testable import Potter
 
-class PromptManagerTests: TestBase {
+class PromptServiceTests: TestBase {
     var tempDirectoryURL: URL!
     var originalCurrentDirectory: String!
     
@@ -19,14 +19,14 @@ class PromptManagerTests: TestBase {
         
         try! FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         
-        // Set up PromptManager to use test file instead of real Application Support
+        // Set up PromptService to use test file instead of real Application Support
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
-        PromptManager.shared.setTestFileURL(testPromptsFile)
+        PromptService.shared.setTestFileURL(testPromptsFile)
     }
     
     override func tearDown() {
-        // Restore PromptManager to use real file path
-        PromptManager.shared.setTestFileURL(nil)
+        // Restore PromptService to use real file path
+        PromptService.shared.setTestFileURL(nil)
         
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
@@ -38,8 +38,8 @@ class PromptManagerTests: TestBase {
     }
     
     func testLoadPromptsCreatesDefaultFile() {
-        let manager = PromptManager.shared
-        let prompts = manager.loadPrompts()
+        let manager = PromptService.shared
+        let prompts = manager.getPrompts()
         
         // Should create default prompts with proper structure
         XCTAssertGreaterThan(prompts.count, 0, "Should have default prompts")
@@ -58,7 +58,7 @@ class PromptManagerTests: TestBase {
     }
     
     func testSaveAndLoadPrompts() {
-        let manager = PromptManager.shared
+        let manager = PromptService.shared
         let testPrompts = [
             PromptItem(name: "test1", prompt: "Test prompt 1"),
             PromptItem(name: "test2", prompt: "Test prompt 2")
@@ -68,7 +68,7 @@ class PromptManagerTests: TestBase {
         manager.savePrompts(testPrompts)
         
         // Load them back
-        let loadedPrompts = manager.loadPrompts()
+        let loadedPrompts = manager.getPrompts()
         
         XCTAssertEqual(loadedPrompts.count, 2)
         XCTAssertEqual(loadedPrompts[0].name, "test1")
@@ -106,16 +106,20 @@ class PromptManagerTests: TestBase {
     }
     
     func testCorruptedFileRecovery() throws {
-        let manager = PromptManager.shared
+        let manager = PromptService.shared
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
         
         // Write corrupted JSON directly to the test file
         let corruptedData = "{ invalid json".data(using: .utf8)!
         try corruptedData.write(to: testPromptsFile)
         
+        // Clear cache and force reload to trigger recovery
+        manager.clearCache()
+        manager.loadPrompts()
+        
         // Should recover with defaults
-        let prompts = manager.loadPrompts()
+        let prompts = manager.getPrompts()
         XCTAssertGreaterThan(prompts.count, 0)
-        XCTAssertTrue(prompts.contains { $0.name == "summarize" })
+        XCTAssertTrue(prompts.contains { $0.name == "Summarize" })
     }
 }

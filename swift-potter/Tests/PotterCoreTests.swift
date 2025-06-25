@@ -27,9 +27,9 @@ class PotterCoreTests: TestBase {
         // Change to temp directory to use config/ subdirectory
         FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
         
-        // Set up PromptManager to use test file instead of real Application Support
+        // Set up PromptService to use test file instead of real Application Support
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
-        PromptManager.shared.setTestFileURL(testPromptsFile)
+        PromptService.shared.setTestFileURL(testPromptsFile)
         
         // Clear UserDefaults
         UserDefaults.standard.removeObject(forKey: "current_prompt")
@@ -41,8 +41,8 @@ class PotterCoreTests: TestBase {
     }
     
     override func tearDown() async throws {
-        // Restore PromptManager to use real file path
-        PromptManager.shared.setTestFileURL(nil)
+        // Restore PromptService to use real file path
+        PromptService.shared.setTestFileURL(nil)
         
         // TestBase already handles forceUserDefaultsForTesting = false
         
@@ -141,7 +141,7 @@ class PotterCoreTests: TestBase {
             PromptItem(name: "summarize", prompt: "Summarize this"),
             PromptItem(name: "formal", prompt: "Make this formal")
         ]
-        PromptManager.shared.savePrompts(testPrompts)
+        PromptService.shared.savePrompts(testPrompts)
         
         // Setup core
         potterCore.setup()

@@ -28,9 +28,9 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         // Change to temp directory
         FileManager.default.changeCurrentDirectoryPath(tempDirectoryURL.path)
         
-        // Set up PromptManager to use test file
+        // Set up PromptService to use test file
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
-        PromptManager.shared.setTestFileURL(testPromptsFile)
+        PromptService.shared.setTestFileURL(testPromptsFile)
         
         // Initialize components
         potterCore = PotterCore()
@@ -41,8 +41,8 @@ class ErrorHandlingEdgeCasesTests: TestBase {
     }
     
     override func tearDown() async throws {
-        // Restore PromptManager
-        PromptManager.shared.setTestFileURL(nil)
+        // Restore PromptService
+        PromptService.shared.setTestFileURL(nil)
         
         // Restore original directory
         FileManager.default.changeCurrentDirectoryPath(originalCurrentDirectory)
@@ -254,9 +254,9 @@ class ErrorHandlingEdgeCasesTests: TestBase {
     
     // MARK: - Additional Error Scenarios
     
-    func testPromptManagerErrorRecovery() throws {
+    func testPromptServiceErrorRecovery() throws {
         // Test prompt manager error recovery
-        let manager = PromptManager.shared
+        let manager = PromptService.shared
         let testPromptsFile = tempDirectoryURL.appendingPathComponent("test_prompts.json")
         
         // Write corrupted JSON
@@ -264,7 +264,7 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         try corruptedData.write(to: testPromptsFile)
         
         // Should recover with defaults
-        let prompts = manager.loadPrompts()
+        let prompts = manager.getPrompts()
         XCTAssertGreaterThan(prompts.count, 0, "Should recover with default prompts")
         
         // Test that prompts have proper structure after recovery
