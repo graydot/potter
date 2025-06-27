@@ -135,14 +135,11 @@ class FirstLaunchTests: TestBase {
     
     
     func testAPIKeyStorageMethodConfiguration() {
-        // Test that storage method can be configured
-        let storage = SecureAPIKeyStorage.shared
+        // Test that storage method is always UserDefaults now
+        let storageAdapter = StorageAdapter.shared
         
-        // During testing, should always return userDefaults
-        for provider in LLMProvider.allCases {
-            let method = storage.getStorageMethod(for: provider)
-            XCTAssertEqual(method, .userDefaults, "Testing should use UserDefaults storage")
-        }
+        // Storage is always UserDefaults now
+        XCTAssertEqual(storageAdapter.currentStorageMethod, .userDefaults, "Storage should always use UserDefaults")
     }
     
     func testMultipleProviderConfiguration() {
@@ -214,8 +211,7 @@ class FirstLaunchTests: TestBase {
         // Reset validation states
         if llmManager != nil {
             // Validation states are now managed by APIKeyService
-            // Clear any cached validation data if needed
-            APIKeyService.shared.clearValidationCache()
+            // No caching anymore, so no need to clear anything
         }
     }
 }

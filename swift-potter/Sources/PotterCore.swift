@@ -198,16 +198,12 @@ class PotterCore {
     
     /// Gets the current prompt text from settings and prompt service
     private func getCurrentPromptText() -> String {
-        let defaultPromptName = PromptService.shared.prompts.first!.name
-        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? defaultPromptName
-        let selectedPrompt = PromptService.shared.getPrompt(named: currentPromptName)
-        return selectedPrompt?.prompt ?? currentMode.prompt
+        return PromptService.shared.getCurrentPromptText() ?? currentMode.prompt
     }
     
     /// Logs the start of LLM processing
     private func logProcessingStart(promptText: String, inputText: String) {
-        let defaultPromptName = PromptService.shared.prompts.first!.name
-        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? defaultPromptName
+        let currentPromptName = PromptService.shared.currentPromptName
         PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
         PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
         PotterLogger.shared.info("text_processor", "||||| \(inputText) |||||")

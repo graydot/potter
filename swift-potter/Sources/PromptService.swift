@@ -9,6 +9,7 @@ class PromptService: ObservableObject {
     // MARK: - Published Properties for UI Binding
     @Published var prompts: [PromptItem] = []
     @Published var isLoading = false
+    @Published var currentPromptName: String = ""
     
     // MARK: - Private Properties
     private var promptsCache: [PromptItem]?
@@ -18,6 +19,7 @@ class PromptService: ObservableObject {
     // MARK: - Initialization
     private init() {
         loadPrompts()
+        loadCurrentPrompt()
     }
     
     // MARK: - File Management
@@ -159,6 +161,11 @@ class PromptService: ObservableObject {
         prompts.remove(at: index)
         savePromptsToFile(prompts)
         
+        // If we deleted the current prompt, select the first remaining one
+        if deletedPrompt.name == currentPromptName {
+            setCurrentPromptToFirst()
+        }
+        
         PotterLogger.shared.info("prompts", "🗑️ Deleted prompt: \(deletedPrompt.name)")
         return .success(())
     }
@@ -219,6 +226,63 @@ class PromptService: ObservableObject {
     /// For test compatibility - get current prompts array
     func getPrompts() -> [PromptItem] {
         return prompts
+    }
+    
+    // MARK: - Current Prompt Management
+    
+    /// Get the currently selected prompt
+    func getCurrentPrompt() -> PromptItem? {
+        return getPrompt(named: currentPromptName)
+    }
+    
+    /// Get the currently selected prompt text
+    func getCurrentPromptText() -> String? {
+        return getCurrentPrompt()?.prompt
+    }
+    
+    /// Set the current prompt by name
+    func setCurrentPrompt(_ name: String) {
+        guard getPrompt(named: name) != nil else {
+            PotterLogger.shared.warning("prompts", "⚠️ Attempted to set invalid prompt: \(name)")
+            return
+        }
+        
+        currentPromptName = name
+        UserDefaults.standard.set(name, forKey: "current_prompt")
+        PotterLogger.shared.info("prompts", "📋 Current prompt set to: \(name)")
+    }
+    
+    /// Load the current prompt from UserDefaults, with fallback to first prompt
+    private func loadCurrentPrompt() {
+        let savedPromptName = UserDefaults.standard.string(forKey: "current_prompt")
+        
+        if let savedPromptName = savedPromptName {
+            // Check if the saved prompt still exists
+            if getPrompt(named: savedPromptName) != nil {
+                currentPromptName = savedPromptName
+                PotterLogger.shared.debug("prompts", "📋 Loaded saved prompt: \(savedPromptName)")
+            } else {
+                // Saved prompt no longer exists, use first and save it
+                setCurrentPromptToFirst()
+                PotterLogger.shared.info("prompts", "📋 Saved prompt '\(savedPromptName)' not found, defaulting to first")
+            }
+        } else {
+            // No saved prompt, use first and save it
+            setCurrentPromptToFirst()
+            PotterLogger.shared.info("prompts", "📋 No saved prompt found, defaulting to first")
+        }
+    }
+    
+    /// Set current prompt to the first available prompt and save it
+    private func setCurrentPromptToFirst() {
+        guard let firstPrompt = prompts.first else {
+            PotterLogger.shared.error("prompts", "❌ No prompts available to set as current")
+            return
+        }
+        
+        currentPromptName = firstPrompt.name
+        UserDefaults.standard.set(firstPrompt.name, forKey: "current_prompt")
+        PotterLogger.shared.info("prompts", "📋 Set current prompt to first: \(firstPrompt.name)")
     }
     
     // MARK: - Private Methods

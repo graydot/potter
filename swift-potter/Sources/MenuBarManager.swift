@@ -213,10 +213,8 @@ class MenuBarManager: NSObject, IconStateDelegate {
             return
         }
         
-        // Get the current prompt from UserDefaults, defaulting to first available prompt
-        let defaultPromptName = availablePrompts.first!.name
-        let savedPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? defaultPromptName
-        currentPromptName = savedPromptName
+        // Get the current prompt from PromptService
+        currentPromptName = PromptService.shared.currentPromptName
         
         for prompt in availablePrompts {
             let menuItem = NSMenuItem(title: prompt.name, action: #selector(selectPrompt(_:)), keyEquivalent: "")
@@ -249,10 +247,8 @@ class MenuBarManager: NSObject, IconStateDelegate {
     
     @objc private func selectPrompt(_ sender: NSMenuItem) {
         if let promptName = sender.representedObject as? String {
+            PromptService.shared.setCurrentPrompt(promptName)
             currentPromptName = promptName
-            UserDefaults.standard.set(promptName, forKey: "current_prompt")
-            
-            PotterLogger.shared.info("menu", "📋 Selected prompt: \(promptName)")
             
             // Update menu to reflect new selection
             Task { @MainActor in

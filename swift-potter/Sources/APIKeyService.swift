@@ -11,8 +11,6 @@ class APIKeyService: ObservableObject {
     @Published var isValidating = false
     
     // MARK: - Private Properties
-    private var validationCache: [String: ValidationResult] = [:]
-    private let cacheTimeout: TimeInterval = 300 // 5 minutes
     
     // MARK: - Initialization
     private init() {
@@ -23,15 +21,6 @@ class APIKeyService: ObservableObject {
     
     /// Validate an API key for a specific provider
     func validateAPIKey(_ key: String, for provider: LLMProvider) async -> ValidationResult {
-        let cacheKey = "\(provider.rawValue):\(key.prefix(8))" // Use prefix for cache key
-        
-        // Check cache first
-        if let cached = validationCache[cacheKey],
-           cached.timestamp.timeIntervalSinceNow > -cacheTimeout {
-            PotterLogger.shared.debug("api_key", "🎯 Using cached validation result for \(provider.displayName)")
-            return cached
-        }
-        
         // Update UI state
         await MainActor.run {
             isValidating = true
@@ -39,9 +28,6 @@ class APIKeyService: ObservableObject {
         }
         
         let result = await performValidation(key: key, provider: provider)
-        
-        // Cache the result
-        validationCache[cacheKey] = result
         
         // Update UI state
         await MainActor.run {
@@ -82,8 +68,7 @@ class APIKeyService: ObservableObject {
     
     /// Save an API key for a provider
     func saveAPIKey(_ key: String, for provider: LLMProvider) -> Result<Void, APIKeyServiceError> {
-        let storageMethod = SecureAPIKeyStorage.shared.getStorageMethod(for: provider)
-        let result = SecureAPIKeyStorage.shared.saveAPIKey(key, for: provider, using: storageMethod)
+        let result = StorageAdapter.shared.setAPIKey(key, for: provider)
         
         switch result {
         case .success:
@@ -97,7 +82,7 @@ class APIKeyService: ObservableObject {
     
     /// Get an API key for a provider
     func getAPIKey(for provider: LLMProvider) -> String? {
-        let result = SecureAPIKeyStorage.shared.loadAPIKey(for: provider)
+        let result = StorageAdapter.shared.getAPIKey(for: provider)
         switch result {
         case .success(let key):
             if !key.isEmpty {
@@ -124,9 +109,8 @@ class APIKeyService: ObservableObject {
         }
         #endif
         
-        // Normal logic: check if API key exists and is not empty
-        guard let key = getAPIKey(for: provider) else { return false }
-        return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // Normal logic: check if API key exists via StorageAdapter
+        return StorageAdapter.shared.hasAPIKey(for: provider)
     }
     
     /// Get current validation state for a provider
@@ -134,19 +118,14 @@ class APIKeyService: ObservableObject {
         return validationStates[provider] ?? .notValidated
     }
     
-    /// Clear validation cache
-    func clearValidationCache() {
-        validationCache.removeAll()
-        PotterLogger.shared.debug("api_key", "🗑️ Validation cache cleared")
-    }
     
-    /// Migrate storage method
-    func migrateStorage(to method: StorageMethod) async -> Result<Void, APIKeyServiceError> {
+    /// Clear all API keys (migration no longer needed)
+    func clearAllAPIKeys() async -> Result<Void, APIKeyServiceError> {
         await MainActor.run {
             isValidating = true
         }
         
-        let result = StorageAdapter.shared.migrate(to: method)
+        let result = StorageAdapter.shared.clearAllAPIKeys()
         
         await MainActor.run {
             isValidating = false
@@ -154,13 +133,13 @@ class APIKeyService: ObservableObject {
         
         switch result {
         case .success:
-            PotterLogger.shared.info("api_key", "✅ Storage migration successful")
-            // Refresh validation states after migration
+            PotterLogger.shared.info("api_key", "✅ All API keys cleared")
+            // Refresh validation states after clearing
             refreshValidationStates()
             return .success(())
         case .failure(let error):
-            PotterLogger.shared.error("api_key", "❌ Storage migration failed: \(error)")
-            return .failure(.migrationError(error))
+            PotterLogger.shared.error("api_key", "❌ Failed to clear API keys: \(error)")
+            return .failure(.storageError(error))
         }
     }
     
@@ -262,9 +241,6 @@ enum ValidationResult {
         return false
     }
     
-    var timestamp: Date {
-        return Date()
-    }
 }
 
 /// Specific validation errors
@@ -294,15 +270,12 @@ enum APIKeyValidationError: Error, LocalizedError {
 /// Service-level errors
 enum APIKeyServiceError: Error, LocalizedError {
     case storageError(Error)
-    case migrationError(Error)
     case validationError(APIKeyValidationError)
     
     var errorDescription: String? {
         switch self {
         case .storageError(let error):
             return "Storage error: \(error.localizedDescription)"
-        case .migrationError(let error):
-            return "Migration error: \(error.localizedDescription)"
         case .validationError(let error):
             return error.localizedDescription
         }

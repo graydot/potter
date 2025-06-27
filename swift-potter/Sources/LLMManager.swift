@@ -10,6 +10,8 @@ class LLMManager: ObservableObject {
     private var clients: [LLMProvider: LLMClient] = [:]
     private let apiKeyService = APIKeyService.shared
     
+    @Published var isValidatingLocal: Bool = false
+    
     // MARK: - API Key Service Delegation
     
     /// Delegate to APIKeyService for validation states
@@ -19,7 +21,7 @@ class LLMManager: ObservableObject {
     
     /// Delegate to APIKeyService for validation status
     var isValidating: Bool {
-        return apiKeyService.isValidating
+        return isValidatingLocal || apiKeyService.isValidating
     }
     
     init() {
@@ -96,7 +98,11 @@ class LLMManager: ObservableObject {
     
     // MARK: - API Key Validation (Delegated to APIKeyService)
     func validateAndSaveAPIKey(_ apiKey: String, for provider: LLMProvider) async {
+        isValidatingLocal = true
+        
         let result = await apiKeyService.validateAndSaveAPIKey(apiKey, for: provider)
+        
+        isValidatingLocal = false
         
         if case .success = result {
             // Update client cache if validation successful

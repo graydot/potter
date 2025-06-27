@@ -100,11 +100,8 @@ struct LLMProviderView: View {
                     // Validation Status
                     validationStatusView
                     
-                    // Storage Method Toggle (Lock Icon)
-                    storageMethodToggle
-                    
-                    // Test & Save Button
-                    testAndSaveButton
+                    // Test & Save Button with spinner
+                    testAndSaveButtonWithSpinner
                 }
                 
                 Spacer()
@@ -145,27 +142,9 @@ struct LLMProviderView: View {
             }
             .padding(.leading, 88) // Align with API key field
             
-            // Storage Method Status with Success Message on same line
-            HStack(spacing: 6) {
-                Text("Storage:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize()
-                
-                Text(viewModel.storageStatusText)
-                    .font(.caption)
-                    .foregroundColor(viewModel.storageStatusColor)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                
-                Image(systemName: viewModel.storageIcon)
-                    .font(.caption)
-                    .foregroundColor(viewModel.storageStatusColor)
-                
-                // Success Message on the same line, to the right
-                if viewModel.showingSuccessCheckmark {
-                    Spacer().frame(width: 20) // Add some space
-                    
+            // Success Message
+            if viewModel.showingSuccessCheckmark {
+                HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                         .font(.caption)
@@ -174,13 +153,12 @@ struct LLMProviderView: View {
                         .font(.caption)
                         .foregroundColor(.green)
                         .transition(.opacity)
+                    
+                    Spacer() // Push everything to the left
                 }
-                
-                Spacer() // Push everything to the left
+                .padding(.leading, 88) // Align with API key field
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.leading, 88) // Align with API key field
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .lineLimit(1)
         }
     }
     
@@ -235,37 +213,25 @@ struct LLMProviderView: View {
         .frame(width: 24, height: 20)
     }
     
-    private var testAndSaveButton: some View {
-        Button("Test & Save") {
-            Task {
-                await viewModel.testAndSaveAPIKey()
+    private var testAndSaveButtonWithSpinner: some View {
+        HStack(spacing: 8) {
+            Button("Test & Save") {
+                Task {
+                    await viewModel.testAndSaveAPIKey()
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(viewModel.isTestAndSaveButtonDisabled)
+            
+            if viewModel.isValidating {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(width: 16, height: 16)
+                    .transition(.opacity)
             }
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(viewModel.isTestAndSaveButtonDisabled)
     }
     
-    private var storageMethodToggle: some View {
-        Button(action: {
-            Task {
-                await viewModel.toggleStorageMethod()
-            }
-        }) {
-            if viewModel.isMigrating {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .frame(width: 24, height: 20)
-            } else {
-                Image(systemName: viewModel.storageIcon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(viewModel.storageStatusColor)
-                    .frame(width: 24, height: 20)
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isMigrating)
-        .help(viewModel.storageToggleHelp)
-    }
     
 }
 

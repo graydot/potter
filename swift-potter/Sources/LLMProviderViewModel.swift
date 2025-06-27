@@ -9,10 +9,9 @@ class LLMProviderViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var apiKeyText: String = ""
     @Published var showAPIKey: Bool = false
-    @Published var storageMethod: APIKeyStorageMethod = .userDefaults
+    // Storage is now always UserDefaults
     @Published var showStorageError: Bool = false
     @Published var storageErrorMessage: String = ""
-    @Published var isMigrating: Bool = false
     @Published var showingSuccessCheckmark: Bool = false
     
     // MARK: - Dependencies
@@ -59,7 +58,7 @@ class LLMProviderViewModel: ObservableObject {
     }
     
     var isTestAndSaveButtonDisabled: Bool {
-        apiKeyText.isEmpty || isValidating || isMigrating
+        apiKeyText.isEmpty || isValidating
     }
     
     // MARK: - Initialization
@@ -69,14 +68,14 @@ class LLMProviderViewModel: ObservableObject {
         
         // Initialize state
         loadProviderState(for: self.llmManager.selectedProvider)
-        storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
+        // Storage is always UserDefaults now
     }
     
     // MARK: - Public Methods
     
     func onProviderChanged(to newProvider: LLMProvider) {
         loadProviderState(for: newProvider)
-        storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
+        // Storage is always UserDefaults now
         // Set default model for the new provider
         selectedModel = newProvider.models.first
     }
@@ -115,30 +114,7 @@ class LLMProviderViewModel: ObservableObject {
         }
     }
     
-    func toggleStorageMethod() async {
-        let newMethod: APIKeyStorageMethod = storageMethod == .keychain ? .userDefaults : .keychain
-        
-        // Disable UI during migration
-        isMigrating = true
-        showStorageError = false
-        
-        // Migrate all API keys to new storage method
-        let newStorageMethod = StorageMethod(rawValue: newMethod.rawValue) ?? .userDefaults
-        let result = StorageAdapter.shared.migrate(to: newStorageMethod)
-        
-        switch result {
-        case .success:
-            storageMethod = newMethod
-            await showSuccessState()
-            PotterLogger.shared.info("api_storage", "✅ Migrated all API keys to \(newMethod.rawValue)")
-            
-        case .failure(let error):
-            await showErrorState("Failed to migrate to \(newMethod.displayName): \(error.localizedDescription)")
-        }
-        
-        // Re-enable UI
-        isMigrating = false
-    }
+    // Storage method toggling removed - always UserDefaults now
     
     // MARK: - Private Methods
     
@@ -171,42 +147,4 @@ class LLMProviderViewModel: ObservableObject {
         showStorageError = false
     }
     
-    // MARK: - Storage Method Helpers
-    
-    var storageStatusText: String {
-        switch storageMethod {
-        case .keychain:
-            return "Keys encrypted and saved"
-        case .userDefaults:
-            return "Keys saved without encryption"
-        }
-    }
-    
-    var storageStatusColor: Color {
-        switch storageMethod {
-        case .keychain:
-            return .green
-        case .userDefaults:
-            return .orange
-        }
-    }
-    
-    var storageIcon: String {
-        switch storageMethod {
-        case .keychain:
-            return "lock.fill"
-        case .userDefaults:
-            return "lock.open.fill"
-        }
-    }
-    
-    var storageToggleHelp: String {
-        if isMigrating {
-            return "Migrating API keys..."
-        } else if storageMethod == .keychain {
-            return "Selected mode: Keychain access. Click to change to insecure mode to avoid keychain password requests"
-        } else {
-            return "Selected mode: Insecure. Click to change to keychain access for encrypted storage"
-        }
-    }
 }

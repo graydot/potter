@@ -107,11 +107,9 @@ class SettingsConfigurationTests: TestBase {
         XCTAssertEqual(storageAdapter.currentStorageMethod, .userDefaults,
                       "StorageAdapter should use UserDefaults during testing")
         
-        // Test that storage method changes are handled properly
-        // (During testing, it should remain UserDefaults regardless of setting)
-        storageAdapter.currentStorageMethod = .keychain
+        // Test that storage method is always UserDefaults now
         XCTAssertEqual(storageAdapter.currentStorageMethod, .userDefaults,
-                      "StorageAdapter should still use UserDefaults during testing even when set to keychain")
+                      "StorageAdapter should always use UserDefaults now")
     }
     
     // Disabled: Race condition in parallel testing
@@ -121,10 +119,10 @@ class SettingsConfigurationTests: TestBase {
         let provider = LLMProvider.openAI
         
         // Test saving and loading via StorageAdapter
-        let saveResult = storageAdapter.saveAPIKey(testKey, for: provider)
+        let saveResult = storageAdapter.setAPIKey(testKey, for: provider)
         XCTAssertTrue(saveResult.isSuccess)
         
-        let loadResult = storageAdapter.loadAPIKey(for: provider)
+        let loadResult = storageAdapter.getAPIKey(for: provider)
         switch loadResult {
         case .success(let loadedKey):
             XCTAssertEqual(loadedKey, testKey)

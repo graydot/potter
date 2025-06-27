@@ -111,13 +111,13 @@ class SecurityPrivacyTests: TestBase {
         UserDefaults.standard.synchronize()
         
         // Set key
-        let saveResult = storageAdapter.saveAPIKey(testKey, for: provider)
+        let saveResult = storageAdapter.setAPIKey(testKey, for: provider)
         XCTAssertTrue(saveResult.isSuccess)
         
         // Small delay to ensure save completed
         Thread.sleep(forTimeInterval: 0.01)
         
-        let loadResult = storageAdapter.loadAPIKey(for: provider)
+        let loadResult = storageAdapter.getAPIKey(for: provider)
         switch loadResult {
         case .success(let loadedKey):
             XCTAssertFalse(loadedKey.isEmpty, "Loaded key should not be empty")
@@ -135,7 +135,7 @@ class SecurityPrivacyTests: TestBase {
         Thread.sleep(forTimeInterval: 0.01)
         
         // Verify removal
-        let removedResult = storageAdapter.loadAPIKey(for: provider)
+        let removedResult = storageAdapter.getAPIKey(for: provider)
         XCTAssertTrue(removedResult.isFailure)
         
         // Verify UserDefaults is cleared
@@ -175,7 +175,7 @@ class SecurityPrivacyTests: TestBase {
         
         for (maliciousInput, testCase) in maliciousInputs {
             // Should handle malicious input safely
-            let saveResult = storageAdapter.saveAPIKey(maliciousInput, for: .openAI)
+            let saveResult = storageAdapter.setAPIKey(maliciousInput, for: LLMProvider.openAI)
             
             if maliciousInput.isEmpty {
                 // Empty strings should be rejected by validation
@@ -185,7 +185,7 @@ class SecurityPrivacyTests: TestBase {
                 XCTAssertTrue(saveResult.isSuccess, "Storage should succeed for \(testCase)")
             }
             
-            let loadResult = storageAdapter.loadAPIKey(for: .openAI)
+            let loadResult = storageAdapter.getAPIKey(for: LLMProvider.openAI)
             switch loadResult {
             case .success(let retrievedKey):
                 // Should store input safely - exact storage depends on sanitization policy
