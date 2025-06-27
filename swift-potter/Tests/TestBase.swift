@@ -8,14 +8,14 @@ class TestBase: XCTestCase {
     override class func setUp() {
         super.setUp()
         
-        // Set the testing flag as early as possible
+        // Set the testing flag as early as possible to avoid keychain access
         StorageAdapter.shared.forceUserDefaultsForTesting = true
     }
     
     override func setUp() {
         super.setUp()
         
-        // Ensure the testing flag is set
+        // Ensure the testing flag is set to force UserDefaults usage
         StorageAdapter.shared.forceUserDefaultsForTesting = true
         
         // Clear any existing test data from UserDefaults

@@ -164,16 +164,16 @@ class SettingsConfigurationTests: TestBase {
     
     func testValidationStateManagement() {
         // Test validation state management
-        llmManager.validationStates[.openAI] = .valid
+        APIKeyService.shared.setValidationStateForTesting(.valid, for: .openAI)
         XCTAssertTrue(llmManager.getCurrentValidationState().isValid)
         
         llmManager.selectProvider(.anthropic)
-        llmManager.validationStates[.anthropic] = .invalid("Test error")
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error"), for: .anthropic)
         // Allow some flexibility in validation state checking
         let currentState = llmManager.getCurrentValidationState()
         XCTAssertTrue(!currentState.isValid || currentState.errorMessage == "Test error")
         
-        llmManager.validationStates[.anthropic] = .validating
+        APIKeyService.shared.setValidationStateForTesting(.validating, for: .anthropic)
         XCTAssertFalse(llmManager.getCurrentValidationState().isValid)
         XCTAssertNil(llmManager.getCurrentValidationState().errorMessage)
     }

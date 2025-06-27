@@ -326,9 +326,9 @@ class ErrorHandlingEdgeCasesTests: TestBase {
     
     func testValidationStateConsistency() {
         // Test validation state consistency
-        llmManager.validationStates[.openAI] = .valid
-        llmManager.validationStates[.anthropic] = .invalid("Test error")
-        llmManager.validationStates[.google] = .validating
+        APIKeyService.shared.setValidationStateForTesting(.valid, for: .openAI)
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error"), for: .anthropic)
+        APIKeyService.shared.setValidationStateForTesting(.validating, for: .google)
         
         // Switch providers and check states
         llmManager.selectProvider(.openAI)

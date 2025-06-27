@@ -213,9 +213,9 @@ class FirstLaunchTests: TestBase {
         
         // Reset validation states
         if llmManager != nil {
-            for provider in LLMProvider.allCases {
-                llmManager.validationStates[provider] = .none
-            }
+            // Validation states are now managed by APIKeyService
+            // Clear any cached validation data if needed
+            APIKeyService.shared.clearValidationCache()
         }
     }
 }

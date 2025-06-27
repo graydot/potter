@@ -894,7 +894,7 @@ struct ModernSettingsView: View {
         DispatchQueue.main.async {
             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                 Task { @MainActor in
-                    appDelegate.updateMenu()
+                    appDelegate.menuBarManager?.updateMenu()
                 }
             }
         }

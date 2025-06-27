@@ -54,21 +54,21 @@ class LLMManagerTests: TestBase {
         // Initial state should not be valid
         XCTAssertFalse(llmManager.validationStates[.openAI]?.isValid ?? true)
         
-        // Test validation state properties
-        let validState = LLMManager.ValidationState.valid
-        let invalidState = LLMManager.ValidationState.invalid("Test error")
-        let validatingState = LLMManager.ValidationState.validating
-        let noneState = LLMManager.ValidationState.none
+        // Test validation state properties (now using APIKeyService ValidationState)
+        let validState = ValidationState.valid
+        let invalidState = ValidationState.invalid("Test error")
+        let validatingState = ValidationState.validating
+        let notValidatedState = ValidationState.notValidated
         
         XCTAssertTrue(validState.isValid)
         XCTAssertFalse(invalidState.isValid)
         XCTAssertFalse(validatingState.isValid)
-        XCTAssertFalse(noneState.isValid)
+        XCTAssertFalse(notValidatedState.isValid)
         
         XCTAssertNil(validState.errorMessage)
         XCTAssertEqual(invalidState.errorMessage, "Test error")
         XCTAssertNil(validatingState.errorMessage)
-        XCTAssertNil(noneState.errorMessage)
+        XCTAssertNil(notValidatedState.errorMessage)
     }
     
     func testHasValidProvider() {
@@ -79,12 +79,12 @@ class LLMManagerTests: TestBase {
         XCTAssertFalse(llmManager.hasValidProvider())
         
         // Set one provider as valid
-        llmManager.validationStates[.openAI] = .valid
+        APIKeyService.shared.setValidationStateForTesting(.valid, for: .openAI)
         XCTAssertTrue(llmManager.hasValidProvider())
         
         // Set to invalid - this should make hasValidProvider false
         // even if there's a stored API key, because validation state is explicitly invalid
-        llmManager.validationStates[.openAI] = .invalid("Test error")
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error"), for: .openAI)
         XCTAssertFalse(llmManager.hasValidProvider())
     }
     
@@ -93,17 +93,17 @@ class LLMManagerTests: TestBase {
         XCTAssertFalse(llmManager.isProviderConfigured(.openAI))
         
         // Set as valid
-        llmManager.validationStates[.openAI] = .valid
+        APIKeyService.shared.setValidationStateForTesting(.valid, for: .openAI)
         XCTAssertTrue(llmManager.isProviderConfigured(.openAI))
         
         // Set as invalid
-        llmManager.validationStates[.openAI] = .invalid("Test error")
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error"), for: .openAI)
         XCTAssertFalse(llmManager.isProviderConfigured(.openAI))
     }
     
     func testGetCurrentValidationState() {
         llmManager.selectedProvider = .anthropic
-        llmManager.validationStates[.anthropic] = .validating
+        APIKeyService.shared.setValidationStateForTesting(.validating, for: .anthropic)
         
         let state = llmManager.getCurrentValidationState()
         XCTAssertFalse(state.isValid) // validating state should not be valid

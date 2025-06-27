@@ -298,8 +298,8 @@ class UserDefaultsStorage: StorageBackend {
 class StorageAdapter {
     static let shared = StorageAdapter()
     
-    private let keychainStorage = KeychainStorage()
-    private let userDefaultsStorage = UserDefaultsStorage()
+    private lazy var keychainStorage = KeychainStorage()
+    private lazy var userDefaultsStorage = UserDefaultsStorage()
     
     /// When true, forces UserDefaults storage for all operations (used in testing)
     public var forceUserDefaultsForTesting = false

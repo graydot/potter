@@ -117,82 +117,132 @@ class PotterCore {
     
     @MainActor
     private func performTextProcessing(with llmManager: LLMManager) {
-        // Get clipboard text
-        let pasteboard = NSPasteboard.general
-        guard let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            PotterLogger.shared.warning("text_processor", "⚠️ No text found in clipboard")
-            // Put helpful message in clipboard instead of showing alert
-            pasteboard.clearContents()
-            pasteboard.setString("No text was in clipboard", forType: .string)
-            // No text in clipboard handled by icon state
-            iconDelegate?.setErrorState(message: "No text in clipboard")
+        // Step 1: Validate and retrieve clipboard text
+        guard let trimmedText = validateAndGetClipboardText() else {
             return
         }
         
-        // Check if the clipboard contains our own "no text" message and ignore it
+        // Step 2: Prepare for processing
+        prepareForProcessing(textLength: trimmedText.count)
+        
+        // Step 3: Process with LLM asynchronously
+        Task {
+            await processTextWithLLM(trimmedText, using: llmManager)
+        }
+    }
+    
+    // MARK: - Text Processing Steps
+    
+    /// Validates clipboard content and returns processed text if valid
+    @MainActor
+    private func validateAndGetClipboardText() -> String? {
+        let pasteboard = NSPasteboard.general
+        
+        // Check if clipboard has text
+        guard let text = pasteboard.string(forType: .string), 
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            handleNoTextInClipboard(pasteboard)
+            return nil
+        }
+        
+        // Check if it's our own "no text" message
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedText == "No text was in clipboard" {
-            PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
-            // Still no text handled by icon state
-            iconDelegate?.setErrorState(message: "Still no text in clipboard")
-            return
+            handleOwnNoTextMessage()
+            return nil
         }
         
-        PotterLogger.shared.info("text_processor", "📝 Processing \(trimmedText.count) characters")
-        // Processing state handled by spinner icon
-        
-        // Update menu bar icon to show processing state
+        return trimmedText
+    }
+    
+    /// Handles the case when no text is found in clipboard
+    @MainActor
+    private func handleNoTextInClipboard(_ pasteboard: NSPasteboard) {
+        PotterLogger.shared.warning("text_processor", "⚠️ No text found in clipboard")
+        // Put helpful message in clipboard instead of showing alert
+        pasteboard.clearContents()
+        pasteboard.setString("No text was in clipboard", forType: .string)
+        iconDelegate?.setErrorState(message: "No text in clipboard")
+    }
+    
+    /// Handles the case when clipboard contains our own "no text" message
+    @MainActor
+    private func handleOwnNoTextMessage() {
+        PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
+        iconDelegate?.setErrorState(message: "Still no text in clipboard")
+    }
+    
+    /// Prepares the UI and logging for text processing
+    @MainActor
+    private func prepareForProcessing(textLength: Int) {
+        PotterLogger.shared.info("text_processor", "📝 Processing \(textLength) characters")
         iconDelegate?.setProcessingState()
-        
-        // Process with LLM
-        Task {
-            do {
-                // Get current prompt from UserDefaults and prompt manager
-                let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? "summarize"
-                let selectedPrompt = PromptService.shared.getPrompt(named: currentPromptName)
-                let promptText = selectedPrompt?.prompt ?? currentMode.prompt
-                
-                PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
-                PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
-                PotterLogger.shared.info("text_processor", "||||| \(trimmedText) |||||")
-                PotterLogger.shared.info("text_processor", "🔄 Calling LLM API...")
-                
-                let processedText = try await llmManager.processText(trimmedText, prompt: promptText)
-                
-                PotterLogger.shared.info("text_processor", "✅ LLM processing complete")
-                PotterLogger.shared.info("text_processor", "📝 Text returned from LLM:")
-                PotterLogger.shared.info("text_processor", "||||| \(processedText) |||||")
-                PotterLogger.shared.info("text_processor", "📋 Result copied to clipboard (\(processedText.count) characters)")
-                
-                await MainActor.run {
-                    // Put result back in clipboard
-                    pasteboard.clearContents()
-                    pasteboard.setString(processedText, forType: .string)
-                    
-                    // Update menu bar icon to show success state
-                    self.iconDelegate?.setSuccessState()
-                    
-                    // Success state handled by icon
-                }
-            } catch {
-                let potterError: PotterError
-                if let existingPotterError = error as? PotterError {
-                    potterError = existingPotterError
-                } else {
-                    // Convert unknown errors to system errors
-                    potterError = PotterError.system(.systemCallFailed(call: "text_processing", errno: 0))
-                }
-                
-                await MainActor.run {
-                    GlobalErrorHandler.handle(potterError, context: "text_processing", showUser: false)
-                    
-                    // Set error state with user-friendly message
-                    self.iconDelegate?.setErrorState(message: potterError.localizedDescription)
-                    
-                    // Error state handled by icon
-                }
-            }
+    }
+    
+    /// Main LLM processing logic
+    private func processTextWithLLM(_ text: String, using llmManager: LLMManager) async {
+        do {
+            let promptText = getCurrentPromptText()
+            logProcessingStart(promptText: promptText, inputText: text)
+            
+            let processedText = try await llmManager.processText(text, prompt: promptText)
+            
+            logProcessingSuccess(outputText: processedText)
+            await handleProcessingSuccess(processedText)
+            
+        } catch {
+            let potterError = convertToPotterError(error)
+            await handleProcessingError(potterError)
         }
+    }
+    
+    /// Gets the current prompt text from settings and prompt service
+    private func getCurrentPromptText() -> String {
+        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? "summarize"
+        let selectedPrompt = PromptService.shared.getPrompt(named: currentPromptName)
+        return selectedPrompt?.prompt ?? currentMode.prompt
+    }
+    
+    /// Logs the start of LLM processing
+    private func logProcessingStart(promptText: String, inputText: String) {
+        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? "summarize"
+        PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
+        PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
+        PotterLogger.shared.info("text_processor", "||||| \(inputText) |||||")
+        PotterLogger.shared.info("text_processor", "🔄 Calling LLM API...")
+    }
+    
+    /// Logs successful LLM processing
+    private func logProcessingSuccess(outputText: String) {
+        PotterLogger.shared.info("text_processor", "✅ LLM processing complete")
+        PotterLogger.shared.info("text_processor", "📝 Text returned from LLM:")
+        PotterLogger.shared.info("text_processor", "||||| \(outputText) |||||")
+        PotterLogger.shared.info("text_processor", "📋 Result copied to clipboard (\(outputText.count) characters)")
+    }
+    
+    /// Handles successful text processing
+    @MainActor
+    private func handleProcessingSuccess(_ processedText: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(processedText, forType: .string)
+        iconDelegate?.setSuccessState()
+    }
+    
+    /// Converts any error to PotterError for consistent handling
+    private func convertToPotterError(_ error: Error) -> PotterError {
+        if let potterError = error as? PotterError {
+            return potterError
+        } else {
+            return PotterError.system(.systemCallFailed(call: "text_processing", errno: 0))
+        }
+    }
+    
+    /// Handles processing errors
+    @MainActor
+    private func handleProcessingError(_ error: PotterError) {
+        GlobalErrorHandler.handle(error, context: "text_processing", showUser: false)
+        iconDelegate?.setErrorState(message: error.localizedDescription)
     }
     
     func setPromptMode(_ mode: PromptMode) {
@@ -224,12 +274,9 @@ class PotterCore {
         
         // Notify icon delegate to update menu with new hotkey
         DispatchQueue.main.async {
-            if let appDelegate = NSApplication.shared.delegate as? IconStateDelegate {
-                // Force menu update through AppDelegate
-                if let mainAppDelegate = appDelegate as? AppDelegate {
-                    Task { @MainActor in
-                        mainAppDelegate.updateMenuForHotkeyChange()
-                    }
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                Task { @MainActor in
+                    appDelegate.menuBarManager?.updateMenuForHotkeyChange()
                 }
             }
         }

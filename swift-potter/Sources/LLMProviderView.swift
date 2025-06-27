@@ -3,14 +3,7 @@ import AppKit
 
 // MARK: - LLM Provider Configuration View
 struct LLMProviderView: View {
-    @StateObject private var llmManager = LLMManager()
-    @State private var apiKeyText: String = ""
-    @State private var showingSuccessCheckmark = false
-    @State private var showAPIKey = false
-    @State private var storageMethod: APIKeyStorageMethod = .userDefaults
-    @State private var showStorageError = false
-    @State private var storageErrorMessage = ""
-    @State private var isMigrating = false
+    @StateObject private var viewModel = LLMProviderViewModel()
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -32,40 +25,11 @@ struct LLMProviderView: View {
             }
             .padding(.leading, 8)
         }
-        .onAppear {
-            // Load current API key and storage method for display
-            loadProviderState(for: llmManager.selectedProvider)
-            storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
-        }
-        .onChange(of: llmManager.selectedProvider) { newProvider in
-            // Load API key and storage method for the newly selected provider
-            loadProviderState(for: newProvider)
-            storageMethod = APIKeyStorageMethod(rawValue: StorageAdapter.shared.currentStorageMethod.rawValue) ?? .userDefaults
-            // Set default model for the new provider
-            llmManager.selectedModel = newProvider.models.first
+        .onChange(of: viewModel.selectedProvider) { newProvider in
+            viewModel.onProviderChanged(to: newProvider)
         }
     }
     
-    // MARK: - Helper Functions
-    
-    private func loadProviderState(for provider: LLMProvider) {
-        let storedKey = llmManager.getAPIKey(for: provider)
-        apiKeyText = storedKey
-        
-        // If there's a stored key, it means it was previously validated
-        // So we mark it as valid (green). Empty fields will show red via border color logic.
-        if !storedKey.isEmpty {
-            llmManager.validationStates[provider] = .valid
-        } else {
-            llmManager.validationStates[provider] = .none
-        }
-    }
-    
-    private func updateValidationStateForText(_ text: String, provider: LLMProvider) {
-        // Any text change should reset validation state to none
-        // Border color logic will handle empty vs non-empty display
-        llmManager.validationStates[provider] = .none
-    }
     
     // MARK: - Provider Selection
     private var providerSelectionView: some View {
@@ -75,7 +39,7 @@ struct LLMProviderView: View {
                     .fontWeight(.medium)
                     .frame(width: 80, alignment: .leading)
                 
-                Picker("", selection: $llmManager.selectedProvider) {
+                Picker("", selection: $viewModel.selectedProvider) {
                     ForEach(LLMProvider.allCases) { provider in
                         Text(provider.displayName)
                             .tag(provider)
@@ -97,21 +61,21 @@ struct LLMProviderView: View {
                     .fontWeight(.medium)
                     .frame(width: 80, alignment: .leading)
                 
-                Picker("", selection: $llmManager.selectedModel) {
-                    ForEach(llmManager.selectedProvider.models) { model in
+                Picker("", selection: $viewModel.selectedModel) {
+                    ForEach(viewModel.selectedProvider.models) { model in
                         Text(model.name)
                             .tag(model as LLMModel?)
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
                 .frame(width: 200)
-                .help(llmManager.selectedModel?.description ?? "Select a model")
+                .help(viewModel.selectedModel?.description ?? "Select a model")
                 
                 Spacer()
             }
             
             // Description text below the picker
-            if let selectedModel = llmManager.selectedModel {
+            if let selectedModel = viewModel.selectedModel {
                 Text(selectedModel.description)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -147,7 +111,7 @@ struct LLMProviderView: View {
             }
             
             // Validation Error Message
-            if case .invalid(let message) = llmManager.validationStates[llmManager.selectedProvider] {
+            if case .invalid(let message) = viewModel.currentValidationState {
                 Text(message)
                     .font(.caption)
                     .foregroundColor(.red)
@@ -155,8 +119,8 @@ struct LLMProviderView: View {
             }
             
             // Storage Error Message
-            if showStorageError {
-                Text(storageErrorMessage)
+            if viewModel.showStorageError {
+                Text(viewModel.storageErrorMessage)
                     .font(.caption)
                     .foregroundColor(.red)
                     .padding(.leading, 88)
@@ -169,17 +133,15 @@ struct LLMProviderView: View {
                     .foregroundColor(.secondary)
                 
                 Button(action: {
-                    if let url = URL(string: llmManager.selectedProvider.apiKeyURL) {
-                        NSWorkspace.shared.open(url)
-                    }
+                    viewModel.openAPIKeyURL()
                 }) {
-                    Text(llmManager.selectedProvider.displayName + " API Keys")
+                    Text(viewModel.selectedProvider.displayName + " API Keys")
                         .font(.caption)
                         .foregroundColor(.blue)
                         .underline()
                 }
                 .buttonStyle(.plain)
-                .help("Open \(llmManager.selectedProvider.displayName) API keys page in browser")
+                .help("Open \(viewModel.selectedProvider.displayName) API keys page in browser")
             }
             .padding(.leading, 88) // Align with API key field
             
@@ -190,30 +152,18 @@ struct LLMProviderView: View {
                     .foregroundColor(.secondary)
                     .fixedSize()
                 
-                if storageMethod == .keychain {
-                    Text("Keys encrypted and saved")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                    
-                    Image(systemName: "lock.fill")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                } else {
-                    Text("Keys saved without encryption")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                    
-                    Image(systemName: "lock.open.fill")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
+                Text(viewModel.storageStatusText)
+                    .font(.caption)
+                    .foregroundColor(viewModel.storageStatusColor)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                Image(systemName: viewModel.storageIcon)
+                    .font(.caption)
+                    .foregroundColor(viewModel.storageStatusColor)
                 
                 // Success Message on the same line, to the right
-                if showingSuccessCheckmark {
+                if viewModel.showingSuccessCheckmark {
                     Spacer().frame(width: 20) // Add some space
                     
                     Image(systemName: "checkmark.circle.fill")
@@ -236,63 +186,43 @@ struct LLMProviderView: View {
     
     private var apiKeyTextField: some View {
         HStack {
-            if showAPIKey {
-                TextField(llmManager.selectedProvider.apiKeyPlaceholder, text: $apiKeyText)
+            if viewModel.showAPIKey {
+                TextField(viewModel.selectedProvider.apiKeyPlaceholder, text: $viewModel.apiKeyText)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
-                            .stroke(textFieldBorderColor, lineWidth: 2)
+                            .stroke(viewModel.textFieldBorderColor, lineWidth: 2)
                     )
             } else {
-                SecureField(llmManager.selectedProvider.apiKeyPlaceholder, text: $apiKeyText)
+                SecureField(viewModel.selectedProvider.apiKeyPlaceholder, text: $viewModel.apiKeyText)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
-                            .stroke(textFieldBorderColor, lineWidth: 2)
+                            .stroke(viewModel.textFieldBorderColor, lineWidth: 2)
                     )
             }
             
             Button(action: {
-                showAPIKey.toggle()
+                viewModel.toggleAPIKeyVisibility()
             }) {
-                Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
-            .help(showAPIKey ? "Hide API key" : "Show API key")
+            .help(viewModel.showAPIKey ? "Hide API key" : "Show API key")
         }
         .frame(width: 300)
-        .onChange(of: apiKeyText) { newValue in
-            // Update the in-memory cache
-            llmManager.apiKeys[llmManager.selectedProvider] = newValue
-            
-            // Update validation state based on new content
-            updateValidationStateForText(newValue, provider: llmManager.selectedProvider)
+        .onChange(of: viewModel.apiKeyText) { newValue in
+            viewModel.onAPIKeyTextChanged(newValue)
         }
     }
     
-    private var textFieldBorderColor: Color {
-        switch llmManager.validationStates[llmManager.selectedProvider] {
-        case .some(.invalid):
-            return .red.opacity(0.8) // Invalid = red
-        case .some(.valid):
-            return .green.opacity(0.8) // Successfully validated = green
-        case .some(.validating):
-            return .blue.opacity(0.6) // Currently validating = blue
-        case .some(.none), .none:
-            if apiKeyText.isEmpty {
-                return .red.opacity(0.8) // Empty field = red
-            } else {
-                return .clear // Non-empty, unvalidated = default/clear
-            }
-        }
-    }
     
     private var validationStatusView: some View {
         Group {
-            switch llmManager.validationStates[llmManager.selectedProvider] {
+            switch viewModel.currentValidationState {
             case .some(.validating):
                 ProgressView()
                     .scaleEffect(0.7)
@@ -307,105 +237,36 @@ struct LLMProviderView: View {
     
     private var testAndSaveButton: some View {
         Button("Test & Save") {
-            Task { @MainActor in
-                do {
-                    // Clear any previous errors
-                    showStorageError = false
-                    
-                    // Validate and save using current storage preference
-                    await llmManager.validateAndSaveAPIKey(apiKeyText, for: llmManager.selectedProvider)
-                    
-                    let success = llmManager.validationStates[llmManager.selectedProvider]?.isValid == true
-                    
-                    if success {
-                        // Show success checkmark briefly if validation succeeded
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showingSuccessCheckmark = true
-                        }
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                showingSuccessCheckmark = false
-                            }
-                        }
-                    } else {
-                        showStorageError = true
-                        let errorMessage = llmManager.validationStates[llmManager.selectedProvider]?.errorMessage ?? "Unknown validation error"
-                        storageErrorMessage = "Failed to validate API key: \(errorMessage)"
-                        
-                        // Hide error after 5 seconds
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                            showStorageError = false
-                        }
-                    }
-                }
+            Task {
+                await viewModel.testAndSaveAPIKey()
             }
         }
         .buttonStyle(.borderedProminent)
-        .disabled(apiKeyText.isEmpty || llmManager.isValidating || isMigrating)
+        .disabled(viewModel.isTestAndSaveButtonDisabled)
     }
     
     private var storageMethodToggle: some View {
         Button(action: {
-            toggleStorageMethod()
+            Task {
+                await viewModel.toggleStorageMethod()
+            }
         }) {
-            if isMigrating {
+            if viewModel.isMigrating {
                 ProgressView()
                     .scaleEffect(0.7)
                     .frame(width: 24, height: 20)
             } else {
-                Image(systemName: storageMethod == .keychain ? "lock.fill" : "lock.open.fill")
+                Image(systemName: viewModel.storageIcon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(storageMethod == .keychain ? .green : .orange)
+                    .foregroundColor(viewModel.storageStatusColor)
                     .frame(width: 24, height: 20)
             }
         }
         .buttonStyle(.plain)
-        .disabled(isMigrating)
-        .help(isMigrating ? "Migrating API keys..." :
-              (storageMethod == .keychain ? 
-               "Selected mode: Keychain access. Click to change to insecure mode to avoid keychain password requests" : 
-               "Selected mode: Insecure. Click to change to keychain access for encrypted storage"))
+        .disabled(viewModel.isMigrating)
+        .help(viewModel.storageToggleHelp)
     }
     
-    private func toggleStorageMethod() {
-        let newMethod: APIKeyStorageMethod = storageMethod == .keychain ? .userDefaults : .keychain
-        
-        // Disable button during migration
-        isMigrating = true
-        showStorageError = false
-        
-        Task { @MainActor in
-            // Migrate all API keys to new storage method
-            let newStorageMethod = StorageMethod(rawValue: newMethod.rawValue) ?? .userDefaults
-            let success = StorageAdapter.shared.migrate(to: newStorageMethod)
-            
-            switch success {
-            case .success:
-                // Update UI state
-                storageMethod = newMethod
-                
-                // Show brief success message
-                showingSuccessCheckmark = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    showingSuccessCheckmark = false
-                }
-                
-                PotterLogger.shared.info("api_storage", "✅ Migrated all API keys to \(newMethod.rawValue)")
-            case .failure(let error):
-                // Migration failed
-                showStorageError = true
-                storageErrorMessage = "Failed to migrate to \(newMethod.displayName): \(error.localizedDescription)"
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    showStorageError = false
-                }
-            }
-            
-            // Re-enable button
-            isMigrating = false
-        }
-    }
 }
 
 // MARK: - Custom Secure Text Field with Paste Support

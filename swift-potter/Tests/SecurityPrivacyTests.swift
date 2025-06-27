@@ -328,7 +328,7 @@ class SecurityPrivacyTests: TestBase {
         llmManager.setAPIKey(sensitiveKey, for: .openAI)
         
         // Error states should not expose the key
-        llmManager.validationStates[.openAI] = .invalid("Test error message")
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error message"), for: .openAI)
         
         let errorState = llmManager.getCurrentValidationState()
         if let errorMessage = errorState.errorMessage {
