@@ -19,7 +19,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
     
     // Dependencies
     private let potterCore: PotterCore
-    private var currentPromptName: String = "Fix Grammar" // Default prompt
+    private var currentPromptName: String = "" // Will be set to first available prompt
     
     // MARK: - Icon State
     enum IconState {
@@ -195,8 +195,9 @@ class MenuBarManager: NSObject, IconStateDelegate {
             return
         }
         
-        // Get the current prompt from UserDefaults
-        let savedPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? currentPromptName
+        // Get the current prompt from UserDefaults, defaulting to first available prompt
+        let defaultPromptName = availablePrompts.first!.name
+        let savedPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? defaultPromptName
         currentPromptName = savedPromptName
         
         for prompt in availablePrompts {
@@ -297,55 +298,39 @@ class MenuBarManager: NSObject, IconStateDelegate {
     // MARK: - Icon Drawing
     
     private func createCauldronIcon(forDarkMode isDarkMode: Bool, state: IconState = .normal) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size)
-        
-        image.lockFocus()
-        
-        let color: NSColor
-        
-        switch state {
-        case .normal:
-            color = isDarkMode ? NSColor.white : NSColor.black
-        case .success:
-            color = NSColor.systemGreen
-        case .error:
-            color = NSColor.systemRed
-        case .processing:
-            color = NSColor.systemBlue
+        // Load the template icon - no fallbacks
+        guard let templateIcon = Bundle.module.image(forResource: "menubar-icon-template") else {
+            fatalError("menubar-icon-template.png not found in Resources")
         }
         
-        // Draw a simple cauldron shape
-        let path = NSBezierPath()
+        let icon = templateIcon.copy() as! NSImage
+        icon.isTemplate = true
         
-        // Cauldron body (rounded rectangle)
-        let bodyRect = NSRect(x: 3, y: 4, width: 12, height: 10)
-        path.appendRoundedRect(bodyRect, xRadius: 2, yRadius: 2)
+        // Apply tint for different states
+        if state != .normal {
+            icon.isTemplate = false
+            let tintedIcon = NSImage(size: icon.size)
+            tintedIcon.lockFocus()
+            
+            let color: NSColor
+            switch state {
+            case .success:
+                color = NSColor.systemGreen
+            case .error:
+                color = NSColor.systemRed
+            case .processing:
+                color = NSColor.systemBlue
+            default:
+                color = isDarkMode ? NSColor.white : NSColor.black
+            }
+            
+            color.set()
+            icon.draw(at: NSZeroPoint, from: NSZeroRect, operation: .sourceAtop, fraction: 1.0)
+            tintedIcon.unlockFocus()
+            return tintedIcon
+        }
         
-        // Cauldron handle (left)
-        let leftHandle = NSBezierPath()
-        leftHandle.move(to: NSPoint(x: 2, y: 8))
-        leftHandle.curve(to: NSPoint(x: 3, y: 10), controlPoint1: NSPoint(x: 1, y: 8), controlPoint2: NSPoint(x: 1, y: 10))
-        
-        // Cauldron handle (right)
-        let rightHandle = NSBezierPath()
-        rightHandle.move(to: NSPoint(x: 15, y: 10))
-        rightHandle.curve(to: NSPoint(x: 16, y: 8), controlPoint1: NSPoint(x: 17, y: 10), controlPoint2: NSPoint(x: 17, y: 8))
-        
-        // Set color and draw
-        color.setStroke()
-        path.lineWidth = 1.5
-        path.stroke()
-        
-        leftHandle.lineWidth = 1.0
-        leftHandle.stroke()
-        
-        rightHandle.lineWidth = 1.0
-        rightHandle.stroke()
-        
-        image.unlockFocus()
-        
-        return image
+        return icon
     }
     
     private func createSpinnerIcon() -> NSImage {
