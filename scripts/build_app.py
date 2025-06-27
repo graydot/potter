@@ -130,12 +130,12 @@ def run_swift_tests():
         original_cwd = os.getcwd()
         os.chdir(SWIFT_PROJECT_DIR)
         
-        # Run Swift tests
+        # Run Swift tests with single worker to avoid test isolation issues
         result = subprocess.run(
-            ['swift', 'test', '--parallel'],
+            ['swift', 'test', '--parallel', '--num-workers', '1'],
             capture_output=True,
             text=True,
-            timeout=180  # 3 minute timeout for tests
+            timeout=300  # 5 minute timeout for tests (longer due to single worker)
         )
         
         # Return to original directory

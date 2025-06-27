@@ -77,13 +77,13 @@ class MenuBarManager: NSObject, IconStateDelegate {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // Settings
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
+        // Preferences
+        let preferencesItem = NSMenuItem(title: "Preferences...", action: #selector(showSettings), keyEquivalent: "")
+        preferencesItem.target = self
+        menu.addItem(preferencesItem)
         
         // Quit
-        let quitItem = NSMenuItem(title: "Quit Potter", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Potter", action: #selector(quit), keyEquivalent: "")
         quitItem.target = self
         menu.addItem(quitItem)
         

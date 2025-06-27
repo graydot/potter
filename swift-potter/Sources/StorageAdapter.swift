@@ -240,16 +240,25 @@ class KeychainStorage: StorageBackend {
 // MARK: - UserDefaults Storage Implementation
 
 class UserDefaultsStorage: StorageBackend {
+    private var userDefaults: UserDefaults {
+        // Use test UserDefaults if available and we're in testing mode
+        if StorageAdapter.shared.forceUserDefaultsForTesting,
+           let testDefaults = StorageAdapter.shared.testUserDefaults {
+            return testDefaults
+        }
+        return UserDefaults.standard
+    }
+    
     func get(key: String) -> Result<String, PotterError> {
         PotterLogger.shared.info("userdefaults", "📋 Reading key: \(key)")
         let bundleId = Bundle.main.bundleIdentifier ?? "no-bundle-id"
         PotterLogger.shared.debug("userdefaults", "📋 Bundle ID during read: \(bundleId)")
         
         // Debug: Show which storage method is currently selected
-        let currentMethod = UserDefaults.standard.string(forKey: "storage_method") ?? "not-set"
+        let currentMethod = userDefaults.string(forKey: "storage_method") ?? "not-set"
         PotterLogger.shared.debug("userdefaults", "📋 Current storage method: \(currentMethod)")
         
-        guard let value = UserDefaults.standard.string(forKey: key), !value.isEmpty else {
+        guard let value = userDefaults.string(forKey: key), !value.isEmpty else {
             PotterLogger.shared.debug("userdefaults", "📋 Key '\(key)' not found or empty")
             return .failure(.storage(.keyNotFound(key: key)))
         }
@@ -263,14 +272,14 @@ class UserDefaultsStorage: StorageBackend {
         PotterLogger.shared.debug("userdefaults", "📋 Bundle ID during write: \(bundleId)")
         
         // Debug: Show which storage method is currently selected
-        let currentMethod = UserDefaults.standard.string(forKey: "storage_method") ?? "not-set"
+        let currentMethod = userDefaults.string(forKey: "storage_method") ?? "not-set"
         PotterLogger.shared.debug("userdefaults", "📋 Current storage method during write: \(currentMethod)")
         PotterLogger.shared.debug("userdefaults", "📋 Writing value of length: \(value.count)")
         
-        UserDefaults.standard.set(value, forKey: key)
+        userDefaults.set(value, forKey: key)
         
         // Debug: Verify the write worked
-        let verification = UserDefaults.standard.string(forKey: key)
+        let verification = userDefaults.string(forKey: key)
         PotterLogger.shared.debug("userdefaults", "📋 Write verification - value exists: \(verification != nil), length: \(verification?.count ?? 0)")
         
         return .success(())
@@ -278,7 +287,7 @@ class UserDefaultsStorage: StorageBackend {
     
     func remove(key: String) -> Result<Void, PotterError> {
         PotterLogger.shared.info("userdefaults", "📋 Removing key: \(key)")
-        UserDefaults.standard.removeObject(forKey: key)
+        userDefaults.removeObject(forKey: key)
         return .success(())
     }
     
@@ -287,7 +296,7 @@ class UserDefaultsStorage: StorageBackend {
         // Remove all API key entries
         for provider in LLMProvider.allCases {
             let key = "api_key_\(provider.rawValue)"
-            UserDefaults.standard.removeObject(forKey: key)
+            userDefaults.removeObject(forKey: key)
         }
         return .success(())
     }
@@ -304,6 +313,9 @@ class StorageAdapter {
     /// When true, forces UserDefaults storage for all operations (used in testing)
     public var forceUserDefaultsForTesting = false
     
+    /// Test-specific UserDefaults suite to isolate test storage from production
+    public var testUserDefaults: UserDefaults?
+    
     private init() {
         // Debug: Log bundle identifier and UserDefaults suite info
         let bundleId = Bundle.main.bundleIdentifier ?? "no-bundle-id"
@@ -317,13 +329,15 @@ class StorageAdapter {
             if forceUserDefaultsForTesting {
                 return .userDefaults
             }
-            let raw = UserDefaults.standard.string(forKey: "storage_method") ?? StorageMethod.userDefaults.rawValue
+            let userDefaults = testUserDefaults ?? UserDefaults.standard
+            let raw = userDefaults.string(forKey: "storage_method") ?? StorageMethod.userDefaults.rawValue
             return StorageMethod(rawValue: raw) ?? .userDefaults
         }
         set {
             // Don't save storage method changes during testing
             if !forceUserDefaultsForTesting {
-                UserDefaults.standard.set(newValue.rawValue, forKey: "storage_method")
+                let userDefaults = testUserDefaults ?? UserDefaults.standard
+                userDefaults.set(newValue.rawValue, forKey: "storage_method")
             }
         }
     }

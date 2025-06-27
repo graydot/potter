@@ -18,32 +18,44 @@ class TestBase: XCTestCase {
         // Ensure the testing flag is set to force UserDefaults usage
         StorageAdapter.shared.forceUserDefaultsForTesting = true
         
+        // Create a unique UserDefaults suite for this test instance
+        let testId = UUID().uuidString
+        StorageAdapter.shared.testUserDefaults = UserDefaults(suiteName: "com.potter.tests.\(testId)")
+        
         // Clear any existing test data from UserDefaults
         clearTestUserDefaults()
     }
     
     override func tearDown() {
+        // Clean up test data before resetting
+        clearTestUserDefaults()
+        
         // Reset testing mode
         StorageAdapter.shared.forceUserDefaultsForTesting = false
-        
-        // Clean up test data
-        clearTestUserDefaults()
+        StorageAdapter.shared.testUserDefaults = nil
         
         super.tearDown()
     }
     
     /// Clear UserDefaults keys that might be set during testing
     private func clearTestUserDefaults() {
+        let testDefaults = StorageAdapter.shared.testUserDefaults ?? UserDefaults.standard
+        
         // Clear API keys
         for provider in LLMProvider.allCases {
-            UserDefaults.standard.removeObject(forKey: "api_key_\(provider.rawValue)")
-            UserDefaults.standard.removeObject(forKey: "api_key_storage_method_\(provider.rawValue)")
+            testDefaults.removeObject(forKey: "api_key_\(provider.rawValue)")
+            testDefaults.removeObject(forKey: "api_key_storage_method_\(provider.rawValue)")
+            testDefaults.removeObject(forKey: "has_api_key_\(provider.rawValue)")
         }
         
         // Clear other settings
-        UserDefaults.standard.removeObject(forKey: "llm_provider")
-        UserDefaults.standard.removeObject(forKey: "selected_model")
-        UserDefaults.standard.removeObject(forKey: "current_prompt")
-        UserDefaults.standard.removeObject(forKey: "global_hotkey")
+        testDefaults.removeObject(forKey: "llm_provider")
+        testDefaults.removeObject(forKey: "selected_model")
+        testDefaults.removeObject(forKey: "current_prompt")
+        testDefaults.removeObject(forKey: "global_hotkey")
+        testDefaults.removeObject(forKey: "storage_method")
+        
+        // Force synchronization to ensure changes are persisted
+        testDefaults.synchronize()
     }
 }

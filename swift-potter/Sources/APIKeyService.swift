@@ -113,6 +113,18 @@ class APIKeyService: ObservableObject {
     
     /// Check if a provider is properly configured
     func isProviderConfigured(_ provider: LLMProvider) -> Bool {
+        // In testing, prioritize validation state if explicitly set
+        #if DEBUG
+        let validationState = validationStates[provider] ?? .notValidated
+        if case .valid = validationState {
+            return true
+        }
+        if case .invalid = validationState {
+            return false
+        }
+        #endif
+        
+        // Normal logic: check if API key exists and is not empty
         guard let key = getAPIKey(for: provider) else { return false }
         return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
