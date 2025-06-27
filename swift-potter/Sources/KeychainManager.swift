@@ -31,10 +31,12 @@ class KeychainManager {
         return operationQueue.sync {
             loadAllKeysIfNeeded()
             
-            // If keychain access was denied during load, don't attempt to save
+            // If keychain access was denied during load, attempt to save anyway and let user decide
             if isKeychainDenied {
-                PotterLogger.shared.error("keychain_manager", "❌ Cannot save API key: keychain access was previously denied")
-                return false
+                PotterLogger.shared.warning("keychain_manager", "⚠️ Keychain access was previously denied, but attempting to save anyway")
+                // Reset the flag to allow retry
+                isKeychainDenied = false
+                cacheLoaded = false
             }
             
             cache[provider.rawValue] = apiKey

@@ -55,9 +55,9 @@ class PromptService: ObservableObject {
             return
         }
         
-        // Check if file exists, if not create it with defaults
+        // Check if file exists, if not copy from bundle
         if !FileManager.default.fileExists(atPath: promptsFileURL.path) {
-            let defaults = createDefaultPrompts()
+            let defaults = loadDefaultPromptsFromBundle()
             savePromptsToFile(defaults)
             PotterLogger.shared.debug("prompts", "📄 Created new prompts file with \(defaults.count) default prompts")
             updatePromptsOnMainThread(defaults)
@@ -72,7 +72,7 @@ class PromptService: ObservableObject {
             // Check if loaded prompts array is empty and restore defaults
             if loadedPrompts.isEmpty {
                 PotterLogger.shared.warning("prompts", "📄 Loaded prompts array is empty - recreating with defaults")
-                let defaults = createDefaultPrompts()
+                let defaults = loadDefaultPromptsFromBundle()
                 savePromptsToFile(defaults)
                 updatePromptsOnMainThread(defaults)
                 return
@@ -91,7 +91,7 @@ class PromptService: ObservableObject {
             PotterLogger.shared.error("prompts", "❌ Failed to load prompts: \(error)")
             
             // Fallback to defaults
-            let defaults = createDefaultPrompts()
+            let defaults = loadDefaultPromptsFromBundle()
             savePromptsToFile(defaults)
             updatePromptsOnMainThread(defaults)
         }
@@ -99,13 +99,12 @@ class PromptService: ObservableObject {
     
     /// Update prompts on main thread, handling test vs production scenarios
     private func updatePromptsOnMainThread(_ newPrompts: [PromptItem]) {
-        // For testing, update synchronously to avoid timing issues
-        if testFileURL != nil {
+        // Always update synchronously during initial load to ensure prompts are available immediately
+        if Thread.isMainThread {
             prompts = newPrompts
             isLoading = false
         } else {
-            // For production, update asynchronously to avoid blocking UI
-            DispatchQueue.main.async {
+            DispatchQueue.main.sync {
                 self.prompts = newPrompts
                 self.isLoading = false
             }
@@ -186,7 +185,7 @@ class PromptService: ObservableObject {
     
     /// Reset all prompts to defaults
     func resetToDefaults() {
-        let defaults = createDefaultPrompts()
+        let defaults = loadDefaultPromptsFromBundle()
         prompts = defaults
         savePromptsToFile(defaults)
         PotterLogger.shared.info("prompts", "🔄 Reset prompts to defaults")
@@ -244,14 +243,22 @@ class PromptService: ObservableObject {
         }
     }
     
-    private func createDefaultPrompts() -> [PromptItem] {
-        return [
-            PromptItem(name: "Fix Grammar", prompt: "Please fix any grammar, spelling, or punctuation errors in the following text while preserving its original meaning and tone:"),
-            PromptItem(name: "Summarize", prompt: "Please provide a concise summary of the following text:"),
-            PromptItem(name: "Explain", prompt: "Please explain the following text in simple, easy-to-understand terms:"),
-            PromptItem(name: "Translate", prompt: "Please translate the following text to English:"),
-            PromptItem(name: "Professional Tone", prompt: "Please rewrite the following text in a more professional and polished tone:")
-        ]
+    /// Load default prompts from the bundle's config/prompts.json file
+    private func loadDefaultPromptsFromBundle() -> [PromptItem] {
+        guard let bundleURL = Bundle.module.url(forResource: "prompts", withExtension: "json", subdirectory: "config") else {
+            PotterLogger.shared.error("prompts", "❌ Could not find prompts.json in bundle")
+            return []
+        }
+        
+        do {
+            let data = try Data(contentsOf: bundleURL)
+            let prompts = try JSONDecoder().decode([PromptItem].self, from: data)
+            PotterLogger.shared.debug("prompts", "📦 Loaded \(prompts.count) default prompts from bundle")
+            return prompts
+        } catch {
+            PotterLogger.shared.error("prompts", "❌ Failed to load default prompts from bundle: \(error)")
+            return []
+        }
     }
 }
 

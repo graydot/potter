@@ -117,6 +117,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         
+        // Ensure PromptService is fully loaded before creating menu
+        PotterLogger.shared.debug("startup", "⏳ Ensuring PromptService is loaded...")
+        PromptService.shared.loadPrompts()
+        PotterLogger.shared.debug("startup", "📋 PromptService loaded with \(PromptService.shared.prompts.count) prompts")
+        
         menuBarManager = MenuBarManager(potterCore: potterCore)
         potterCore.iconDelegate = menuBarManager
     }

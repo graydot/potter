@@ -22,6 +22,25 @@ struct PromptItem: Identifiable, Equatable, Codable {
         self.prompt = prompt
     }
     
+    // Custom decoding to handle missing id field
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Try to decode id, or generate a new one if missing
+        if let id = try? container.decode(UUID.self, forKey: .id) {
+            self.id = id
+        } else {
+            self.id = UUID()
+        }
+        
+        self.name = try container.decode(String.self, forKey: .name)
+        self.prompt = try container.decode(String.self, forKey: .prompt)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, name, prompt
+    }
+    
     static func == (lhs: PromptItem, rhs: PromptItem) -> Bool {
         lhs.id == rhs.id
     }

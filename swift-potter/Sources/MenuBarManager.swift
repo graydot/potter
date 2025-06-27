@@ -33,6 +33,10 @@ class MenuBarManager: NSObject, IconStateDelegate {
     init(potterCore: PotterCore) {
         self.potterCore = potterCore
         super.init()
+        
+        PotterLogger.shared.debug("menu", "🏗️ Initializing MenuBarManager")
+        PotterLogger.shared.debug("menu", "📋 PromptService prompts count at init: \(PromptService.shared.prompts.count)")
+        
         setupMenuBar()
         startMenuUpdateTimer()
     }
@@ -46,9 +50,15 @@ class MenuBarManager: NSObject, IconStateDelegate {
     /// Update the menu with current prompts and state
     @MainActor
     func updateMenu() {
+        PotterLogger.shared.debug("menu", "🔄 Updating menu...")
         let menu = NSMenu()
         
-        // Add error message at top if there's an error
+        // Process Text item (always show)
+        let processItem = NSMenuItem(title: "Process Text (⌘⇧9)", action: #selector(processText), keyEquivalent: "")
+        processItem.target = self
+        menu.addItem(processItem)
+        
+        // Add error message below Process Text if there's an error
         if currentIconState == .error && !currentErrorMessage.isEmpty {
             let errorItem = NSMenuItem(title: currentErrorMessage, action: #selector(clearError), keyEquivalent: "")
             errorItem.target = self
@@ -60,22 +70,15 @@ class MenuBarManager: NSObject, IconStateDelegate {
             ]
             errorItem.attributedTitle = NSAttributedString(string: currentErrorMessage, attributes: attributes)
             menu.addItem(errorItem)
-            menu.addItem(NSMenuItem.separator())
         }
+        
+        menu.addItem(NSMenuItem.separator())
         
         // Add prompts section
         addPromptsToMenu(menu)
         
-        // Add separator and settings
+        // Add separator before preferences
         menu.addItem(NSMenuItem.separator())
-        
-        // Process Text item (only if no error)
-        if currentIconState != .error {
-            let processItem = NSMenuItem(title: "Process Text (⌘⇧9)", action: #selector(processText), keyEquivalent: "")
-            processItem.target = self
-            menu.addItem(processItem)
-            menu.addItem(NSMenuItem.separator())
-        }
         
         // Preferences
         let preferencesItem = NSMenuItem(title: "Preferences...", action: #selector(showSettings), keyEquivalent: "")
@@ -102,8 +105,10 @@ class MenuBarManager: NSObject, IconStateDelegate {
     func setProcessingState() {
         DispatchQueue.main.async { [weak self] in
             self?.currentIconState = .processing
+            self?.currentErrorMessage = "" // Clear any previous error
             self?.updateMenuBarIcon()
             self?.startSpinnerAnimation()
+            self?.updateMenu() // Update menu to remove any error messages
         }
     }
     
@@ -132,11 +137,18 @@ class MenuBarManager: NSObject, IconStateDelegate {
     
     func setErrorState(message: String) {
         DispatchQueue.main.async { [weak self] in
+            PotterLogger.shared.debug("menu", "🔴 Setting error state: \(message)")
             self?.currentIconState = .error
             self?.currentErrorMessage = message
             self?.stopSpinnerAnimation()
             self?.updateMenuBarIcon()
             self?.updateMenu()
+            
+            // Auto-reset to normal after 10 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) { [weak self] in
+                PotterLogger.shared.debug("menu", "⏰ Auto-resetting from error state")
+                self?.setNormalState()
+            }
         }
     }
     
@@ -188,7 +200,13 @@ class MenuBarManager: NSObject, IconStateDelegate {
     private func addPromptsToMenu(_ menu: NSMenu) {
         let availablePrompts = PromptService.shared.prompts
         
+        PotterLogger.shared.debug("menu", "📋 Available prompts count: \(availablePrompts.count)")
+        for prompt in availablePrompts {
+            PotterLogger.shared.debug("menu", "📋 Prompt: \(prompt.name)")
+        }
+        
         guard !availablePrompts.isEmpty else {
+            PotterLogger.shared.warning("menu", "⚠️ No prompts available, showing placeholder")
             let noPromptsItem = NSMenuItem(title: "No prompts available", action: nil, keyEquivalent: "")
             noPromptsItem.isEnabled = false
             menu.addItem(noPromptsItem)
@@ -256,20 +274,25 @@ class MenuBarManager: NSObject, IconStateDelegate {
     private func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
         
-        let isDarkMode = NSApp.effectiveAppearance.name == .darkAqua || 
-                         NSApp.effectiveAppearance.name == .vibrantDark
+        // Dark mode detection removed - not needed with proper tinting
         
         let iconImage: NSImage
         
         switch currentIconState {
         case .normal:
-            iconImage = createCauldronIcon(forDarkMode: isDarkMode)
+            iconImage = createMenuBarIcon()
+            button.contentTintColor = nil // Use default tint
         case .processing:
             iconImage = createSpinnerIcon()
+            button.contentTintColor = nil
         case .success:
-            iconImage = createCauldronIcon(forDarkMode: isDarkMode, state: .success)
+            PotterLogger.shared.debug("menu", "🟢 Creating green success icon")
+            iconImage = createTintedIcon(color: NSColor.systemGreen)
+            button.contentTintColor = nil
         case .error:
-            iconImage = createCauldronIcon(forDarkMode: isDarkMode, state: .error)
+            PotterLogger.shared.debug("menu", "🔴 Creating red error icon")
+            iconImage = createTintedIcon(color: NSColor.systemRed)
+            button.contentTintColor = nil
         }
         
         button.image = iconImage
@@ -297,7 +320,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
     
     // MARK: - Icon Drawing
     
-    private func createCauldronIcon(forDarkMode isDarkMode: Bool, state: IconState = .normal) -> NSImage {
+    private func createMenuBarIcon() -> NSImage {
         // Load the template icon - no fallbacks
         guard let templateIcon = Bundle.module.image(forResource: "menubar-icon-template") else {
             fatalError("menubar-icon-template.png not found in Resources")
@@ -305,32 +328,26 @@ class MenuBarManager: NSObject, IconStateDelegate {
         
         let icon = templateIcon.copy() as! NSImage
         icon.isTemplate = true
-        
-        // Apply tint for different states
-        if state != .normal {
-            icon.isTemplate = false
-            let tintedIcon = NSImage(size: icon.size)
-            tintedIcon.lockFocus()
-            
-            let color: NSColor
-            switch state {
-            case .success:
-                color = NSColor.systemGreen
-            case .error:
-                color = NSColor.systemRed
-            case .processing:
-                color = NSColor.systemBlue
-            default:
-                color = isDarkMode ? NSColor.white : NSColor.black
-            }
-            
-            color.set()
-            icon.draw(at: NSZeroPoint, from: NSZeroRect, operation: .sourceAtop, fraction: 1.0)
-            tintedIcon.unlockFocus()
-            return tintedIcon
+        return icon
+    }
+    
+    private func createTintedIcon(color: NSColor) -> NSImage {
+        guard let templateIcon = Bundle.module.image(forResource: "menubar-icon-template") else {
+            fatalError("menubar-icon-template.png not found in Resources")
         }
         
-        return icon
+        let tintedIcon = NSImage(size: templateIcon.size)
+        tintedIcon.lockFocus()
+        
+        // Fill with the color
+        color.set()
+        NSRect(origin: .zero, size: templateIcon.size).fill()
+        
+        // Use the original icon as a mask
+        templateIcon.draw(at: .zero, from: NSRect(origin: .zero, size: templateIcon.size), operation: .destinationIn, fraction: 1.0)
+        
+        tintedIcon.unlockFocus()
+        return tintedIcon
     }
     
     private func createSpinnerIcon() -> NSImage {
@@ -345,7 +362,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
         
         let center = NSPoint(x: size.width / 2, y: size.height / 2)
         context?.translateBy(x: center.x, y: center.y)
-        context?.rotate(by: spinnerRotation * .pi / 180)
+        context?.rotate(by: -spinnerRotation * .pi / 180)
         context?.translateBy(x: -center.x, y: -center.y)
         
         drawSpinner()
@@ -374,8 +391,8 @@ class MenuBarManager: NSObject, IconStateDelegate {
                 y: center.y + CGFloat(sin(angle)) * radius
             )
             
-            let opacity = 0.2 + (0.8 * Double(i) / 7.0)
-            NSColor.systemBlue.withAlphaComponent(opacity).setStroke()
+            let opacity = 0.2 + (0.8 * Double(7 - i) / 7.0)
+            NSColor.white.withAlphaComponent(opacity).setStroke()
             
             let path = NSBezierPath()
             path.move(to: startPoint)

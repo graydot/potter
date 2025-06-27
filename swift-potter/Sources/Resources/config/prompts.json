@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Polish",
+    "prompt": "Polish this text while preserving the author's original tone and voice. Focus on improving clarity and flow without adding unnecessary adjectives or changing the fundamental character of the writing."
+  },
+  {
+    "name": "Summarize",
+    "prompt": "Please provide a concise summary of the following text. Focus on the key points and main ideas while maintaining clarity and brevity."
+  },
+  {
+    "name": "Elaborate",
+    "prompt": "Expand this text using only the existing information. Add depth by breaking ideas into multiple sentences or expanding on points already present, without introducing new details or examples."
+  },
+  {
+    "name": "Considerate",
+    "prompt": "Review and refine this text to ensure it's appropriate and safe to share. Smooth out any rough edges, anticipate potential concerns, and make the message more thoughtful while staying direct and authentic."
+  },
+  {
+    "name": "Formal",
+    "prompt": "Please rewrite the following text in a formal, professional tone. Use proper business language and maintain a respectful, authoritative voice."
+  },
+  {
+    "name": "Clarity",
+    "prompt": "Restructure this text to improve clarity and readability. Organize ideas logically, simplify complex sentences, and ensure the message is easy to understand without changing the core meaning."
+  }
+]

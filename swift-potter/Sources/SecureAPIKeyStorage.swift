@@ -88,14 +88,8 @@ class SecureAPIKeyStorage {
             return .failure(.validation(.emptyInput(field: "API Key")))
         }
         
-        // Remove from both locations first to avoid duplicates
-        let removeResult = removeAPIKey(for: provider)
-        switch removeResult {
-        case .failure(let error):
-            PotterLogger.shared.warning("api_storage", "Failed to clean up existing keys: \(error.technicalDescription)")
-        case .success:
-            break
-        }
+        // Only remove from the current storage method - no defensive cleanup
+        // Migration should have handled moving between storage methods
         
         let result: Result<Void, PotterError>
         switch method {
