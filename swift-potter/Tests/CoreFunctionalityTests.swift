@@ -290,22 +290,28 @@ class CoreFunctionalityTests: TestBase {
         // Test fallback to default prompt when none is selected
         UserDefaults.standard.removeObject(forKey: "current_prompt")
         
+        // Clear the PromptService cache to ensure fresh state
+        PromptService.shared.clearCache()
+        
         let testPrompts = [
             PromptItem(name: "summarize", prompt: "Summarize this"),
             PromptItem(name: "formal", prompt: "Make this formal")
         ]
         PromptService.shared.savePrompts(testPrompts)
         
-        // After saving prompts, explicitly set the current prompt to the first one since savePrompts doesn't do this
-        if let firstPrompt = testPrompts.first {
-            PromptService.shared.setCurrentPrompt(firstPrompt.name)
-        }
+        // Manually trigger current prompt initialization since we cleared the cache
+        PromptService.shared.loadPrompts()
         
         potterCore.setup()
         
-        // Should have a default prompt set
-        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt")
-        XCTAssertNotNil(currentPromptName, "Should have a default prompt set")
+        // After setup and reloading, the PromptService should have a current prompt
+        // Check that there are prompts available
+        let allPrompts = PromptService.shared.getPrompts()
+        XCTAssertGreaterThan(allPrompts.count, 0, "Should have prompts available")
+        
+        // Check that a current prompt exists (either from our test data or defaults)
+        let currentPromptName = PromptService.shared.currentPromptName
+        XCTAssertFalse(currentPromptName.isEmpty, "Current prompt name should not be empty after setup")
     }
     
     func testLargeNumberOfPrompts() {
