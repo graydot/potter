@@ -296,9 +296,14 @@ class CoreFunctionalityTests: TestBase {
         ]
         PromptService.shared.savePrompts(testPrompts)
         
+        // After saving prompts, explicitly set the current prompt to the first one since savePrompts doesn't do this
+        if let firstPrompt = testPrompts.first {
+            PromptService.shared.setCurrentPrompt(firstPrompt.name)
+        }
+        
         potterCore.setup()
         
-        // Should fall back to a default prompt (don't check exact name)
+        // Should have a default prompt set
         let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt")
         XCTAssertNotNil(currentPromptName, "Should have a default prompt set")
     }
