@@ -272,14 +272,18 @@ class SettingsConfigurationTests: TestBase {
     // MARK: - Helper Methods
     
     private func clearTestSettings() {
-        UserDefaults.standard.removeObject(forKey: "llm_provider")
-        UserDefaults.standard.removeObject(forKey: "selected_model")
-        UserDefaults.standard.removeObject(forKey: "global_hotkey")
-        UserDefaults.standard.removeObject(forKey: "current_prompt")
+        let testDefaults = StorageAdapter.shared.testUserDefaults ?? UserDefaults.standard
+        testDefaults.removeObject(forKey: "llm_provider")
+        testDefaults.removeObject(forKey: "selected_model")
+        testDefaults.removeObject(forKey: "global_hotkey")
+        testDefaults.removeObject(forKey: "current_prompt")
         
         for provider in LLMProvider.allCases {
-            UserDefaults.standard.removeObject(forKey: "api_key_\(provider.rawValue)")
-            UserDefaults.standard.removeObject(forKey: "api_key_storage_method_\(provider.rawValue)")
+            testDefaults.removeObject(forKey: "api_key_\(provider.rawValue)")
+            testDefaults.removeObject(forKey: "api_key_storage_method_\(provider.rawValue)")
         }
+        
+        testDefaults.synchronize()
+        StorageAdapter.shared.invalidateCache()
     }
 }

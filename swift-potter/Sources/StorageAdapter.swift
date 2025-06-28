@@ -78,8 +78,6 @@ class UserDefaultsStorage: StorageBackend {
 class StorageAdapter {
     static let shared = StorageAdapter()
     
-    private lazy var userDefaultsStorage = UserDefaultsStorage()
-    
     /// Cache for loaded API keys
     private var cache: [String: String] = [:]
     private var cacheLoaded = false
@@ -109,14 +107,26 @@ class StorageAdapter {
     }
     
     var currentBackend: StorageBackend {
-        return userDefaultsStorage
+        // Use test UserDefaults if available, otherwise use standard
+        let userDefaults = testUserDefaults ?? UserDefaults.standard
+        return UserDefaultsStorage(userDefaults: userDefaults)
     }
     
     // MARK: - Public API
     
     func setAPIKey(_ apiKey: String, for provider: LLMProvider) -> Result<Void, PotterError> {
         let storageKey = "api_key_\(provider.rawValue)"
-        return currentBackend.put(key: storageKey, value: apiKey)
+        let result = currentBackend.put(key: storageKey, value: apiKey)
+        
+        // Update cache if successful
+        if case .success = result {
+            cacheQueue.sync {
+                cache[storageKey] = apiKey
+                cacheLoaded = true
+            }
+        }
+        
+        return result
     }
     
     func getAPIKey(for provider: LLMProvider) -> Result<String, PotterError> {
@@ -126,7 +136,17 @@ class StorageAdapter {
     
     func removeAPIKey(for provider: LLMProvider) -> Result<Void, PotterError> {
         let storageKey = "api_key_\(provider.rawValue)"
-        return currentBackend.remove(key: storageKey)
+        let result = currentBackend.remove(key: storageKey)
+        
+        // Update cache if successful
+        if case .success = result {
+            cacheQueue.sync {
+                cache.removeValue(forKey: storageKey)
+                cacheLoaded = true
+            }
+        }
+        
+        return result
     }
     
     func hasAPIKey(for provider: LLMProvider) -> Bool {
@@ -174,5 +194,13 @@ class StorageAdapter {
         
         cacheLoaded = true
         PotterLogger.shared.debug("storage", "📦 Cache loaded with \(cache.count) keys")
+    }
+    
+    /// Force cache to be reloaded on next access (useful for testing)
+    func invalidateCache() {
+        cacheQueue.sync {
+            cache.removeAll()
+            cacheLoaded = false
+        }
     }
 }

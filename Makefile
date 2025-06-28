@@ -152,13 +152,31 @@ status: ## Show git status and recent changes
 	@echo "$(GREEN)📝 Recent commits:$(NC)"
 	@git log --oneline -5
 
-# Release preparation
+# Version management
 version: ## Show current version information
 	@echo "$(GREEN)📋 Version Information$(NC)"
 	@echo "====================="
-	@grep -n "version.*2\.0" scripts/build_app.py swift-potter/Sources/ProcessManager.swift || echo "Version strings found"
-	@echo ""
-	@echo "DMG name will be: Potter-2.0.dmg"
+	@python3 scripts/version_manager.py --get
+
+version-set: ## Set specific version (usage: make version-set VERSION=X.Y.Z)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "$(RED)❌ VERSION required. Usage: make version-set VERSION=X.Y.Z$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)📝 Setting version to $(VERSION)...$(NC)"
+	@python3 scripts/version_manager.py --set $(VERSION)
+
+version-bump-major: ## Bump major version (X.0.0)
+	@echo "$(GREEN)📈 Bumping major version...$(NC)"
+	@python3 scripts/version_manager.py --bump major
+
+version-bump-minor: ## Bump minor version (X.Y.0)
+	@echo "$(GREEN)📈 Bumping minor version...$(NC)"
+	@python3 scripts/version_manager.py --bump minor
+
+version-bump-patch: ## Bump patch version (X.Y.Z)
+	@echo "$(GREEN)📈 Bumping patch version...$(NC)"
+	@python3 scripts/version_manager.py --bump patch
 
 # Continuous Integration helpers
 ci-test: ## Run tests suitable for CI environment
@@ -191,7 +209,7 @@ all: clean build test ## Clean, build, and test everything
 release: ## Create a new release with auto-update support (with version bump)
 	@echo "$(GREEN)🚀 Creating new Potter release...$(NC)"
 	@echo "$(YELLOW)💡 Using automatic patch version bump. For custom version, use: python3 scripts/release_manager.py --version X.Y.Z$(NC)"
-	python3 scripts/release_manager.py --bump patch --notes "Automated release build" --version $$(python3 -c "from scripts.version_manager import get_current_version, bump_version; print(bump_version(get_current_version(), 'patch'))")
+	python3 scripts/release_manager.py --bump patch
 
 old-release: clean build publish ## Complete release workflow (legacy)
 quick: build-unsigned ## Quick build without signing (for testing)

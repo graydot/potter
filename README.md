@@ -55,6 +55,65 @@ For issues, feature requests, or questions:
 
 Potter automatically checks for updates and will notify you when new versions are available.
 
+## 🛠️ Development
+
+### Building from Source
+
+Potter uses a Makefile for easy development and building:
+
+```bash
+# Build signed app with DMG
+make build
+
+# Run tests
+make test
+
+# Run the app in development mode
+make run
+
+# Create a release (builds, tests, creates GitHub release)
+make release
+```
+
+### Version Management
+
+```bash
+# Show current version
+make version
+
+# Set specific version
+make version-set VERSION=2.0.0
+
+# Bump version numbers
+make version-bump-major    # 1.0.0 → 2.0.0
+make version-bump-minor    # 1.0.0 → 1.1.0
+make version-bump-patch    # 1.0.0 → 1.0.1
+```
+
+### Development Commands
+
+```bash
+# Show all available commands
+make help
+
+# Clean build artifacts
+make clean
+
+# Install to Applications folder
+make install
+
+# Check dependencies
+make deps
+```
+
+### Requirements for Building
+
+- **Xcode Command Line Tools**
+- **Swift 5.7+**
+- **Python 3.8+**
+- **Apple Developer ID** (for code signing)
+- **GitHub CLI** (for releases)
+
 ---
 
 **Potter** - Making text processing magical ✨

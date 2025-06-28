@@ -57,5 +57,8 @@ class TestBase: XCTestCase {
         
         // Force synchronization to ensure changes are persisted
         testDefaults.synchronize()
+        
+        // Invalidate cache to ensure fresh reads
+        StorageAdapter.shared.invalidateCache()
     }
 }

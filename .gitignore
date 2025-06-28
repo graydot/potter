@@ -95,7 +95,6 @@ build_info.json
 # Build artifacts - consolidated in dist/ with subdirectories
 # Use GitHub Releases for distribution instead
 dist/
-releases/
 dmg_staging/
 dmg_staging_test/
 distribution/
