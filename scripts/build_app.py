@@ -72,48 +72,18 @@ def check_signing_requirements(target='local'):
     
     return True, "All requirements met"
 
-def create_entitlements_file(target='local'):
-    """Create entitlements file based on target"""
+def get_entitlements_file(target='local'):
+    """Get the appropriate entitlements file based on target"""
     if target == 'local':
-        # More permissive entitlements for local distribution
-        entitlements = {
-            "com.apple.security.app-sandbox": False,
-            "com.apple.security.cs.allow-jit": True,
-            "com.apple.security.cs.allow-unsigned-executable-memory": True,
-            "com.apple.security.cs.disable-library-validation": True,
-            "com.apple.security.automation.apple-events": True,
-            "com.apple.security.device.accessibility": True,
-            "com.apple.security.network.client": True,
-        }
+        entitlements_file = "entitlements-direct.plist"
     else:  # appstore
-        # Restricted entitlements for App Store
-        entitlements = {
-            "com.apple.security.app-sandbox": True,
-            "com.apple.security.automation.apple-events": True,
-            "com.apple.security.device.accessibility": True,
-            "com.apple.security.files.user-selected.read-write": True,
-            "com.apple.security.network.client": True,
-        }
+        entitlements_file = "entitlements-appstore.plist"
     
-    # Create entitlements plist
-    entitlements_content = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-"""
+    # Check if the entitlements file exists
+    if not os.path.exists(entitlements_file):
+        raise FileNotFoundError(f"Entitlements file not found: {entitlements_file}")
     
-    for key, value in entitlements.items():
-        value_str = "true" if value else "false"
-        entitlements_content += f"    <key>{key}</key>\n    <{value_str}/>\n"
-    
-    entitlements_content += """</dict>
-</plist>
-"""
-    
-    entitlements_file = f"entitlements_{target}.plist"
-    with open(entitlements_file, 'w') as f:
-        f.write(entitlements_content)
-    
+    print(f"📝 Using entitlements file: {entitlements_file}")
     return entitlements_file
 
 def run_swift_tests():
@@ -164,9 +134,9 @@ def run_swift_tests():
         os.chdir(original_cwd)
         return False
 
-def build_swift_executable():
-    """Build the Swift executable"""
-    print("🔨 Building Swift executable...")
+def build_swift_executable(target='local'):
+    """Build the Swift executable with target-specific flags"""
+    print(f"🔨 Building Swift executable for {target} target...")
     
     if not os.path.exists(SWIFT_PROJECT_DIR):
         print(f"❌ Swift project directory not found: {SWIFT_PROJECT_DIR}")
@@ -177,9 +147,18 @@ def build_swift_executable():
         original_cwd = os.getcwd()
         os.chdir(SWIFT_PROJECT_DIR)
         
-        # Build in release mode
+        # Build command with target-specific flags
+        build_cmd = ['swift', 'build', '-c', 'release']
+        
+        # Add compilation flags based on target
+        if target == 'appstore':
+            print("📱 Building for App Store (APP_STORE flag enabled)")
+            build_cmd.extend(['-Xswiftc', '-DAPP_STORE'])
+        else:
+            print("🖥️ Building for direct distribution (Sparkle enabled)")
+        
         result = subprocess.run(
-            ['swift', 'build', '-c', 'release'],
+            build_cmd,
             capture_output=True,
             text=True
         )
@@ -201,15 +180,21 @@ def build_swift_executable():
         os.chdir(original_cwd)
         return False
 
-def create_app_bundle():
+def create_app_bundle(target='local'):
     """Create the macOS app bundle structure"""
     print("📦 Creating app bundle structure...")
     
-    app_path = f"dist/{APP_NAME}.app"
+    # Use different directories for different targets
+    if target == 'appstore':
+        dist_dir = "dist-appstore"
+    else:
+        dist_dir = "dist"
+        
+    app_path = f"{dist_dir}/{APP_NAME}.app"
     
-    # Clean previous builds
-    if os.path.exists("dist"):
-        shutil.rmtree("dist")
+    # Clean previous builds for this target
+    if os.path.exists(dist_dir):
+        shutil.rmtree(dist_dir)
     
     # Create app bundle structure
     os.makedirs(f"{app_path}/Contents/MacOS", exist_ok=True)
@@ -249,9 +234,9 @@ def create_app_bundle():
     print("✅ App bundle structure created")
     return app_path
 
-def create_info_plist(app_path):
+def create_info_plist(app_path, target='local'):
     """Copy and modify Info.plist from source"""
-    print("📝 Creating Info.plist from source...")
+    print(f"📝 Creating Info.plist from source for {target} target...")
     
     # Try to find source Info.plist
     source_info_plist = f"{SWIFT_PROJECT_DIR}/Sources/Resources/Info.plist"
@@ -274,6 +259,22 @@ def create_info_plist(app_path):
     plist_data['CFBundleName'] = APP_NAME
     plist_data['CFBundleDisplayName'] = APP_NAME
     plist_data['CFBundleIconFile'] = 'AppIcon'
+    
+    # Remove Sparkle-specific keys for App Store builds
+    if target == 'appstore':
+        sparkle_keys = [
+            'SUFeedURL',
+            'SUPublicEDKey', 
+            'SUEnableAutomaticChecks',
+            'SUScheduledCheckInterval'
+        ]
+        
+        for key in sparkle_keys:
+            if key in plist_data:
+                del plist_data[key]
+                print(f"📱 Removed Sparkle key for App Store: {key}")
+    else:
+        print("🖥️ Keeping Sparkle configuration for direct distribution")
     
     # Write the modified plist back
     with open(info_plist_path, 'wb') as f:
@@ -679,8 +680,10 @@ def create_dmg_professional(app_path):
         except Exception as e:
             print(f"⚠️  Could not get codename, using standard naming: {e}")
             dmg_name = f"{APP_NAME}-{version}.dmg"
-        dmg_path = f"dist/{dmg_name}"
-        source_folder = "dist/dmg_source"
+        # Get the correct dist directory from app_path
+        app_dir = os.path.dirname(app_path)  # Get dist or dist-appstore
+        dmg_path = f"{app_dir}/{dmg_name}"
+        source_folder = f"{app_dir}/dmg_source"
         
         # Clean up any existing files
         for path in [dmg_path, source_folder]:
@@ -735,7 +738,7 @@ def create_dmg_professional(app_path):
             '-srcfolder', source_folder,
             '-ov',
             '-format', 'UDRW',  # Read-write for customization
-            f"dist/temp_{dmg_name}"
+            f"{app_dir}/temp_{dmg_name}"
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -754,7 +757,7 @@ def create_dmg_professional(app_path):
                       capture_output=True, text=True)
         
         mount_result = subprocess.run([
-            'hdiutil', 'attach', f"dist/temp_{dmg_name}",
+            'hdiutil', 'attach', f"{app_dir}/temp_{dmg_name}",
             '-mountpoint', mount_point
         ], capture_output=True, text=True)
         
@@ -830,13 +833,13 @@ end tell'''
         
         # Convert to compressed final DMG
         subprocess.run([
-            'hdiutil', 'convert', f"dist/temp_{dmg_name}",
+            'hdiutil', 'convert', f"{app_dir}/temp_{dmg_name}",
             '-format', 'UDZO',
             '-o', dmg_path
         ], check=True)
         
         # Clean up
-        os.remove(f"dist/temp_{dmg_name}")
+        os.remove(f"{app_dir}/temp_{dmg_name}")
         shutil.rmtree(source_folder)
         
         print(f"✅ Professional DMG created: {dmg_path}")
@@ -845,7 +848,7 @@ end tell'''
     except Exception as e:
         print(f"❌ DMG creation error: {e}")
         # Clean up on error
-        cleanup_paths = [f"dist/temp_{dmg_name}", source_folder]
+        cleanup_paths = [f"{app_dir}/temp_{dmg_name}", source_folder]
         for path in cleanup_paths:
             if os.path.exists(path):
                 if os.path.isdir(path):
@@ -878,16 +881,16 @@ def build_app(target='local', skip_tests=False, skip_notarization=False):
     config = get_signing_config()
     
     # Build Swift executable
-    if not build_swift_executable():
+    if not build_swift_executable(target):
         return False
     
     # Create app bundle
-    app_path = create_app_bundle()
+    app_path = create_app_bundle(target)
     if not app_path:
         return False
     
     # Create Info.plist
-    if not create_info_plist(app_path):
+    if not create_info_plist(app_path, target):
         return False
     
     # Copy app icon
@@ -901,7 +904,7 @@ def build_app(target='local', skip_tests=False, skip_notarization=False):
     embed_build_id(app_path)
     
     # Code signing
-    entitlements_file = create_entitlements_file(target)
+    entitlements_file = get_entitlements_file(target)
     
     if target == 'local':
         signing_identity = config['developer_id_app']
@@ -937,9 +940,7 @@ def build_app(target='local', skip_tests=False, skip_notarization=False):
         print("❌ Code signing failed")
         return False
     
-    # Clean up entitlements file
-    if os.path.exists(entitlements_file):
-        os.remove(entitlements_file)
+    # Note: Keeping entitlements file as it's part of the repository
     
     print("✅ Swift Potter.app created at:", os.path.abspath(app_path))
     

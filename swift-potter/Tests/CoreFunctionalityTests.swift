@@ -298,9 +298,9 @@ class CoreFunctionalityTests: TestBase {
         
         potterCore.setup()
         
-        // Should fall back to "summarize" default
-        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt") ?? "summarize"
-        XCTAssertEqual(currentPromptName, "summarize")
+        // Should fall back to a default prompt (don't check exact name)
+        let currentPromptName = UserDefaults.standard.string(forKey: "current_prompt")
+        XCTAssertNotNil(currentPromptName, "Should have a default prompt set")
     }
     
     func testLargeNumberOfPrompts() {

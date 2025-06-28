@@ -1,22 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
-<rss xmlns:ns0="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Potter Updates</title>
     <description>Updates for Potter</description>
     <language>en</language>
     <link>https://github.com/graydot/potter</link>
-    <item>
-      <title>Potter 2.0.2</title>
-      <description>&lt;![CDATA[## 🎭 Swift Enchantment
-
-This release includes:
-- Fixed make release command
-- Proper DMG generation
-- Auto-update support
-
-*This release is codenamed **Swift Enchantment** - bringing AI-powered text processing with creative flair to macOS.*]]&gt;</description>
-      <pubDate>Fri, 27 Jun 2025 22:51:39 </pubDate>
-      <enclosure url="https://github.com/graydot/potter/releases/download/v2.0.2/Potter-2.0.2-Swift-Enchantment.dmg" length="4576063" type="application/octet-stream" ns0:version="2.0.2" ns0:shortVersionString="2.0.2" ns0:edSignature="ZuBcm6A4Tr70TOBwVlKTT91JRPfdZXnrbZSMXB/tn/res1AtotKZXYBaz8w7+IKfHbYvStALqd0KKes/kRxiDg==" />
-    </item>
   </channel>
 </rss>

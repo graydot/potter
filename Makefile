@@ -45,6 +45,10 @@ build-unsigned: ## Build unsigned Potter.app (for testing without certificates)
 	@echo "$(YELLOW)⚠️  Building unsigned Potter.app (testing only)...$(NC)"
 	python3 scripts/build_app.py --target local --skip-tests
 
+build-appstore: ## Build Potter.app for App Store (sandboxed, no Sparkle)
+	@echo "$(GREEN)🍎 Building Potter.app for App Store submission...$(NC)"
+	python3 scripts/build_app.py --target appstore
+
 # Testing
 test: swift-test ## Run all tests
 
@@ -210,6 +214,13 @@ release: ## Create a new release with auto-update support (with version bump)
 	@echo "$(GREEN)🚀 Creating new Potter release...$(NC)"
 	@echo "$(YELLOW)💡 Using automatic patch version bump. For custom version, use: python3 scripts/release_manager.py --version X.Y.Z$(NC)"
 	python3 scripts/release_manager.py --bump patch
+
+release-appstore: build-appstore ## Prepare App Store release (build only, manual submission)
+	@echo "$(GREEN)🍎 App Store release prepared!$(NC)"
+	@echo "$(YELLOW)📤 Next steps:$(NC)"
+	@echo "  1. Test the app thoroughly: open dist/Potter.app"
+	@echo "  2. Upload to App Store Connect using Xcode or Transporter"
+	@echo "  3. Submit for review through App Store Connect"
 
 old-release: clean build publish ## Complete release workflow (legacy)
 quick: build-unsigned ## Quick build without signing (for testing)

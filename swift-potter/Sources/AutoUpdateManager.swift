@@ -1,5 +1,7 @@
 import Foundation
+#if !APP_STORE
 import Sparkle
+#endif
 
 /**
  * AutoUpdateManager - Handles automatic updates for Potter using Sparkle framework
@@ -10,6 +12,7 @@ import Sparkle
  * - User-controlled update preferences
  * - Signature verification for security
  */
+#if !APP_STORE
 class AutoUpdateManager: NSObject, SPUUpdaterDelegate {
     static let shared = AutoUpdateManager()
     
@@ -223,3 +226,64 @@ extension AutoUpdateManager {
         PotterLogger.shared.info("autoupdate", "🔄 Application will relaunch to complete update")
     }
 }
+
+#else
+
+// MARK: - App Store Version (No Auto-Update)
+
+/**
+ * AutoUpdateManager - App Store version without Sparkle framework
+ * Provides compatible API but no actual update functionality
+ */
+class AutoUpdateManager: NSObject {
+    static let shared = AutoUpdateManager()
+    
+    private override init() {
+        super.init()
+        PotterLogger.shared.info("autoupdate", "📱 App Store version - auto-updates handled by App Store")
+    }
+    
+    // MARK: - Public API (Compatible with Sparkle version)
+    
+    func checkForUpdatesManually() {
+        PotterLogger.shared.info("autoupdate", "📱 App Store version - please check App Store for updates")
+    }
+    
+    func checkForUpdatesInBackground() {
+        // No-op for App Store version
+    }
+    
+    func schedulePeriodicChecks() {
+        // No-op for App Store version
+    }
+    
+    func isUpdateAvailable() -> Bool {
+        return false
+    }
+    
+    func getUpdateInformation() -> String {
+        return "Updates managed by App Store"
+    }
+    
+    func getCurrentVersion() -> String {
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.0"
+    }
+    
+    func getBuildNumber() -> String {
+        return Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "2.0.0"
+    }
+    
+    func getLastUpdateCheckDate() -> Date? {
+        return nil
+    }
+    
+    func getAutoUpdateEnabled() -> Bool {
+        return false
+    }
+    
+    func setAutoUpdateEnabled(_ enabled: Bool) {
+        // No-op for App Store version
+    }
+}
+
+#endif
