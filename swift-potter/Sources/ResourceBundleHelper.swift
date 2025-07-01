@@ -8,7 +8,8 @@ extension Bundle {
             .appendingPathComponent("Contents/Resources/Potter_Potter.bundle")
         
         guard let bundle = Bundle(url: bundlePath) else {
-            fatalError("Could not load Potter resource bundle at \(bundlePath.path). Ensure the app is properly built and the bundle is included.")
+            // In test environment, use Bundle.module
+            return Bundle.module
         }
         
         return bundle

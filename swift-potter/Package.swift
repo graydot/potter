@@ -29,7 +29,10 @@ let package = Package(
         .testTarget(
             name: "PotterTests",
             dependencies: ["Potter"],
-            path: "Tests"
+            path: "Tests",
+            resources: [
+                .copy("../Sources/Resources")
+            ]
         ),
     ]
 )
