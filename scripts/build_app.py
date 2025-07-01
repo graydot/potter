@@ -163,6 +163,9 @@ def build_swift_executable(target='local'):
             text=True
         )
         
+        # Fix the auto-generated resource bundle accessor to remove hardcoded fallback
+        fix_resource_bundle_accessor()
+        
         # Return to original directory
         os.chdir(original_cwd)
         
@@ -179,6 +182,38 @@ def build_swift_executable(target='local'):
         print(f"❌ Error building Swift executable: {e}")
         os.chdir(original_cwd)
         return False
+
+def fix_resource_bundle_accessor():
+    """Remove the hardcoded development path fallback from auto-generated resource bundle accessor"""
+    accessor_path = ".build/arm64-apple-macosx/release/Potter.build/DerivedSources/resource_bundle_accessor.swift"
+    
+    if not os.path.exists(accessor_path):
+        print("⚠️  Resource bundle accessor not found, skipping fix")
+        return
+    
+    try:
+        with open(accessor_path, 'r') as f:
+            content = f.read()
+        
+        # Replace the fallback logic to look in Resources directory instead
+        fixed_content = content.replace(
+            'let mainPath = Bundle.main.bundleURL.appendingPathComponent("Potter_Potter.bundle").path',
+            'let mainPath = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Potter_Potter.bundle").path'
+        ).replace(
+            'let preferredBundle = Bundle(path: mainPath)\n\n        guard let bundle = preferredBundle ?? Bundle(path: buildPath) else {',
+            'guard let bundle = Bundle(path: mainPath) else {'
+        ).replace(
+            'Swift.fatalError("could not load resource bundle: from \\(mainPath) or \\(buildPath)")',
+            'Swift.fatalError("could not load resource bundle: \\(mainPath) not found")'
+        )
+        
+        with open(accessor_path, 'w') as f:
+            f.write(fixed_content)
+        
+        print("🔧 Fixed resource bundle accessor to remove hardcoded fallback")
+        
+    except Exception as e:
+        print(f"⚠️  Could not fix resource bundle accessor: {e}")
 
 def create_app_bundle(target='local'):
     """Create the macOS app bundle structure"""
@@ -210,6 +245,15 @@ def create_app_bundle(target='local'):
     
     # Make executable
     os.chmod(f"{app_path}/Contents/MacOS/{APP_NAME}", 0o755)
+    
+    # Copy resource bundle to Resources directory (proper location)
+    resource_bundle = f"{SWIFT_PROJECT_DIR}/.build/release/Potter_Potter.bundle"
+    if os.path.exists(resource_bundle):
+        print("📦 Copying resource bundle...")
+        shutil.copytree(resource_bundle, f"{app_path}/Contents/Resources/Potter_Potter.bundle")
+        print("✅ Resource bundle copied to Resources directory")
+    else:
+        print("⚠️  Resource bundle not found, app may not work correctly")
     
     # Fix framework references to use correct paths
     print("🔧 Fixing framework references...")
@@ -700,9 +744,12 @@ def create_dmg_professional(app_path):
         # Create source folder structure
         os.makedirs(source_folder, exist_ok=True)
         
-        # Copy app to source folder
+        # Copy app to source folder using ditto to preserve signatures
         print("📁 Preparing DMG contents...")
-        shutil.copytree(app_path, f"{source_folder}/{APP_NAME}.app")
+        subprocess.run([
+            'ditto', '--rsrc', '--extattr', 
+            app_path, f"{source_folder}/{APP_NAME}.app"
+        ], check=True)
         
         # Create Applications symlink
         subprocess.run([
@@ -861,6 +908,73 @@ end tell'''
                     os.remove(path)
         return None
 
+def sign_dmg(dmg_path, signing_identity):
+    """Sign the DMG file"""
+    print(f"🔐 Signing DMG: {dmg_path}")
+    
+    try:
+        cmd = [
+            'codesign', '--sign', signing_identity,
+            '--timestamp',
+            dmg_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ DMG signed successfully")
+            return True
+        else:
+            print(f"❌ DMG signing failed: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ DMG signing error: {e}")
+        return False
+
+def notarize_dmg(dmg_path, config):
+    """Notarize the DMG file"""
+    if not config.get('apple_id') or not config.get('app_password'):
+        print("⚠️  Skipping DMG notarization - Apple ID or app password not provided")
+        return True
+    
+    print(f"📝 Submitting DMG for notarization: {dmg_path}")
+    
+    try:
+        # Submit DMG for notarization using notarytool
+        cmd = [
+            'xcrun', 'notarytool', 'submit',
+            dmg_path,
+            '--apple-id', config['apple_id'],
+            '--password', config['app_password'],
+            '--team-id', config.get('team_id', ''),
+            '--wait'
+        ]
+        
+        print("🕐 Submitting DMG for notarization (this may take several minutes)...")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("✅ DMG notarization successful!")
+            
+            # Staple the ticket
+            staple_cmd = ['xcrun', 'stapler', 'staple', dmg_path]
+            staple_result = subprocess.run(staple_cmd, capture_output=True, text=True)
+            
+            if staple_result.returncode == 0:
+                print("✅ DMG notarization ticket stapled")
+            else:
+                print("⚠️  Failed to staple DMG ticket, but notarization was successful")
+            
+            return True
+        else:
+            print(f"❌ DMG notarization failed: {result.stderr}")
+            print(f"Output: {result.stdout}")
+            return False
+        
+    except Exception as e:
+        print(f"❌ DMG notarization error: {e}")
+        return False
+
 def build_app(target='local', skip_tests=False, skip_notarization=False):
     """Main build function"""
     
@@ -933,7 +1047,14 @@ def build_app(target='local', skip_tests=False, skip_notarization=False):
                 print("📦 Creating professional DMG with signed app...")
                 dmg_path = create_dmg_professional(app_path)
                 if dmg_path:
-                    print(f"✅ Distribution DMG created: {dmg_path}")
+                    # Sign and notarize the DMG
+                    if sign_dmg(dmg_path, config['developer_id_app']):
+                        if not skip_notarization and notarize_dmg(dmg_path, config):
+                            print(f"✅ Distribution DMG created and notarized: {dmg_path}")
+                        else:
+                            print(f"✅ Distribution DMG created and signed: {dmg_path}")
+                    else:
+                        print(f"✅ Distribution DMG created (unsigned): {dmg_path}")
                 else:
                     print("❌ DMG creation failed, but signed app is available")
                 
