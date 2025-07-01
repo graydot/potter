@@ -309,7 +309,7 @@ class PromptService: ObservableObject {
     
     /// Load default prompts from the bundle's config/prompts.json file
     private func loadDefaultPromptsFromBundle() -> [PromptItem] {
-        guard let bundleURL = Bundle.module.url(forResource: "prompts", withExtension: "json", subdirectory: "config") else {
+        guard let bundleURL = Bundle.potterResources.url(forResource: "prompts", withExtension: "json", subdirectory: "config") else {
             PotterLogger.shared.error("prompts", "❌ Could not find prompts.json in bundle")
             return []
         }

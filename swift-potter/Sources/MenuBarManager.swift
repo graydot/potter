@@ -318,7 +318,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
     
     private func createMenuBarIcon() -> NSImage {
         // Load the template icon - no fallbacks
-        guard let templateIcon = Bundle.module.image(forResource: "menubar-icon-template") else {
+        guard let templateIcon = Bundle.potterResources.image(forResource: "menubar-icon-template") else {
             fatalError("menubar-icon-template.png not found in Resources")
         }
         
@@ -328,7 +328,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
     }
     
     private func createTintedIcon(color: NSColor) -> NSImage {
-        guard let templateIcon = Bundle.module.image(forResource: "menubar-icon-template") else {
+        guard let templateIcon = Bundle.potterResources.image(forResource: "menubar-icon-template") else {
             fatalError("menubar-icon-template.png not found in Resources")
         }
         

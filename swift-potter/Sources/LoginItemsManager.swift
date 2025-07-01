@@ -58,7 +58,7 @@ class LoginItemsManager: ObservableObject {
             alert.addButton(withTitle: "Open System Settings")
             
             // Add custom Potter icon
-            if let iconURL = Bundle.module.url(forResource: "potter-alert-icon", withExtension: "png", subdirectory: "Resources/AppIcon"),
+            if let iconURL = Bundle.potterResources.url(forResource: "potter-alert-icon", withExtension: "png", subdirectory: "Resources/AppIcon"),
                let alertIcon = NSImage(contentsOf: iconURL) {
                 alert.icon = alertIcon
             }

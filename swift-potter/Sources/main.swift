@@ -6,7 +6,7 @@ let app = NSApplication.shared
 app.setActivationPolicy(.accessory) // Menu bar app
 
 // Set custom app icon for dock (when settings window opens)
-if let iconURL = Bundle.module.url(forResource: "potter-icon-512", withExtension: "png", subdirectory: "Resources/AppIcon"),
+if let iconURL = Bundle.potterResources.url(forResource: "potter-icon-512", withExtension: "png", subdirectory: "Resources/AppIcon"),
    let appIcon = NSImage(contentsOf: iconURL) {
     app.applicationIconImage = appIcon
 }
@@ -194,7 +194,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "OK")
         
         // Add custom Potter icon to the alert
-        if let iconURL = Bundle.module.url(forResource: "potter-alert-icon", withExtension: "png", subdirectory: "Resources/AppIcon"),
+        if let iconURL = Bundle.potterResources.url(forResource: "potter-alert-icon", withExtension: "png", subdirectory: "Resources/AppIcon"),
            let alertIcon = NSImage(contentsOf: iconURL) {
             alert.icon = alertIcon
         }

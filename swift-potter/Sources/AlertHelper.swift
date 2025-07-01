@@ -4,7 +4,7 @@ import Foundation
 extension NSAlert {
     /// Apply the Potter icon to this alert
     func applyPotterIcon() {
-        if let iconURL = Bundle.module.url(forResource: "potter-alert-icon", withExtension: "png", subdirectory: "Resources/AppIcon"),
+        if let iconURL = Bundle.potterResources.url(forResource: "potter-alert-icon", withExtension: "png", subdirectory: "Resources/AppIcon"),
            let alertIcon = NSImage(contentsOf: iconURL) {
             self.icon = alertIcon
         }
