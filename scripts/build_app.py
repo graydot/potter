@@ -387,6 +387,7 @@ def sign_app(app_path, signing_identity, entitlements_file, target='local'):
                                     'codesign', '--force', '--verbose',
                                     '--sign', signing_identity,
                                     '--timestamp',
+                                    '--options', 'runtime',
                                     xpc_path
                                 ]
                                 
@@ -404,6 +405,7 @@ def sign_app(app_path, signing_identity, entitlements_file, target='local'):
                             'codesign', '--force', '--verbose',
                             '--sign', signing_identity,
                             '--timestamp',
+                            '--options', 'runtime',
                             autoupdate_path
                         ]
                         
@@ -421,6 +423,7 @@ def sign_app(app_path, signing_identity, entitlements_file, target='local'):
                             'codesign', '--force', '--verbose',
                             '--sign', signing_identity,
                             '--timestamp',
+                            '--options', 'runtime',
                             updater_app_path
                         ]
                         
@@ -435,6 +438,7 @@ def sign_app(app_path, signing_identity, entitlements_file, target='local'):
                         'codesign', '--force', '--verbose',
                         '--sign', signing_identity,
                         '--timestamp',
+                        '--options', 'runtime',
                         framework_path
                     ]
                     
