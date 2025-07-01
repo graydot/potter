@@ -147,27 +147,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func checkAndShowSettingsIfNeeded() {
-        // Get the currently selected LLM provider
-        let selectedProviderString = UserDefaults.standard.string(forKey: "llm_provider") ?? "openAI"
-        guard let selectedProvider = LLMProvider(rawValue: selectedProviderString) else {
-            PotterLogger.shared.warning("startup", "⚠️ Invalid provider '\(selectedProviderString)', defaulting to OpenAI")
-            return
-        }
-        
-        // Check if the currently selected provider has an API key using StorageAdapter
-        let hasSelectedProviderKey = StorageAdapter.shared.hasAPIKey(for: selectedProvider)
-        
-        PotterLogger.shared.debug("startup", "🔍 Checking selected provider: \(selectedProvider.displayName), has key: \(hasSelectedProviderKey)")
-        
-        if !hasSelectedProviderKey {
-            // Currently selected provider has no API key, show settings
-            PotterLogger.shared.info("startup", "📋 Selected provider '\(selectedProvider.displayName)' has no API key, showing settings dialog")
+        if !hasValidProviderConfiguration() {
+            PotterLogger.shared.info("startup", "📋 No valid provider configuration, showing settings dialog")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.showSettingsUntilSelectedProviderHasKey()
             }
         } else {
-            PotterLogger.shared.debug("startup", "✅ Selected provider '\(selectedProvider.displayName)' has API key, settings dialog will remain hidden")
+            PotterLogger.shared.debug("startup", "✅ Valid provider configuration found, settings dialog will remain hidden")
         }
+    }
+    
+    private func hasValidProviderConfiguration() -> Bool {
+        // Get the currently selected LLM provider
+        guard let selectedProviderString = UserDefaults.standard.string(forKey: "llm_provider"),
+              let selectedProvider = LLMProvider(rawValue: selectedProviderString.lowercased()) else {
+            PotterLogger.shared.debug("startup", "❌ No provider selected or invalid provider")
+            return false
+        }
+        
+        // Check if the selected provider has a validated API key
+        let hasKey = StorageAdapter.shared.hasAPIKey(for: selectedProvider)
+        PotterLogger.shared.debug("startup", "🔍 Provider: \(selectedProvider.displayName), has validated key: \(hasKey)")
+        
+        return hasKey
     }
     
     private func showSettingsUntilSelectedProviderHasKey() {
