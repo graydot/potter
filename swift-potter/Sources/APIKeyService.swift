@@ -20,14 +20,14 @@ class APIKeyService: ObservableObject {
     // MARK: - Public API
     
     /// Validate an API key for a specific provider
-    func validateAPIKey(_ key: String, for provider: LLMProvider) async -> ValidationResult {
+    func validateAPIKey(_ key: String, for provider: LLMProvider, using model: LLMModel? = nil) async -> ValidationResult {
         // Update UI state
         await MainActor.run {
             isValidating = true
             validationStates[provider] = .validating
         }
         
-        let result = await performValidation(key: key, provider: provider)
+        let result = await performValidation(key: key, provider: provider, model: model)
         
         // Update UI state
         await MainActor.run {
@@ -39,7 +39,7 @@ class APIKeyService: ObservableObject {
     }
     
     /// Validate and save an API key
-    func validateAndSaveAPIKey(_ key: String, for provider: LLMProvider) async -> ValidationResult {
+    func validateAndSaveAPIKey(_ key: String, for provider: LLMProvider, using model: LLMModel? = nil) async -> ValidationResult {
         guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             let result = ValidationResult.failure(.invalidKey("API key cannot be empty"))
             await MainActor.run {
@@ -48,7 +48,7 @@ class APIKeyService: ObservableObject {
             return result
         }
         
-        let result = await validateAPIKey(key, for: provider)
+        let result = await validateAPIKey(key, for: provider, using: model)
         
         if case .success = result {
             let saveResult = saveAPIKey(key, for: provider)
@@ -172,7 +172,7 @@ class APIKeyService: ObservableObject {
         }
     }
     
-    private func performValidation(key: String, provider: LLMProvider) async -> ValidationResult {
+    private func performValidation(key: String, provider: LLMProvider, model: LLMModel?) async -> ValidationResult {
         PotterLogger.shared.info("api_key", "🔍 Validating API key for \(provider.displayName)")
         
         // Create appropriate LLM client for validation
@@ -191,9 +191,9 @@ class APIKeyService: ObservableObject {
             let testPrompt = "Hello"
             let testMessage = "Say 'API key is valid' if you can read this."
             
-            // Use the first available model for the provider
-            let model = provider.models.first?.id ?? ""
-            _ = try await client.processText(testPrompt, prompt: testMessage, model: model)
+            // Use the selected model if provided, otherwise use the first model as fallback
+            let modelId = model?.id ?? provider.models.first?.id ?? ""
+            _ = try await client.processText(testPrompt, prompt: testMessage, model: modelId)
             
             PotterLogger.shared.info("api_key", "✅ API key validation successful for \(provider.displayName)")
             return .success

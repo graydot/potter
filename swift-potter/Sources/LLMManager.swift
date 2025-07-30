@@ -100,7 +100,7 @@ class LLMManager: ObservableObject {
     func validateAndSaveAPIKey(_ apiKey: String, for provider: LLMProvider) async {
         isValidatingLocal = true
         
-        let result = await apiKeyService.validateAndSaveAPIKey(apiKey, for: provider)
+        let result = await apiKeyService.validateAndSaveAPIKey(apiKey, for: provider, using: selectedModel)
         
         isValidatingLocal = false
         
