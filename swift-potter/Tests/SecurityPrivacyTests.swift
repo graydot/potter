@@ -272,7 +272,7 @@ class SecurityPrivacyTests: TestBase {
     func testRequestStructureSecurity() {
         // Test that request structures don't expose sensitive data
         let openAIMessage = OpenAIMessage(role: "user", content: "test message")
-        let openAIRequest = OpenAIRequest(model: "gpt-4o", messages: [openAIMessage])
+        let openAIRequest = OpenAIRequest(model: "gpt-4", messages: [openAIMessage])
         
         let anthropicMessage = AnthropicMessage(role: "user", content: "test message")
         let anthropicRequest = AnthropicRequest(model: "claude-3-5-sonnet-20241022", max_tokens: 1000, messages: [anthropicMessage])
@@ -282,7 +282,7 @@ class SecurityPrivacyTests: TestBase {
         let googleRequest = GoogleRequest(contents: [googleContent])
         
         // Request structures should be properly formed
-        XCTAssertEqual(openAIRequest.model, "gpt-4o")
+        XCTAssertEqual(openAIRequest.model, "gpt-4")
         XCTAssertEqual(anthropicRequest.model, "claude-3-5-sonnet-20241022")
         XCTAssertEqual(googleRequest.contents.count, 1)
         

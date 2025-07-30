@@ -85,6 +85,11 @@ class MenuBarManager: NSObject, IconStateDelegate {
         preferencesItem.target = self
         menu.addItem(preferencesItem)
         
+        // Show Onboarding
+        let onboardingItem = NSMenuItem(title: "Show Onboarding/Help", action: #selector(showOnboarding), keyEquivalent: "")
+        onboardingItem.target = self
+        menu.addItem(onboardingItem)
+        
         // Quit
         let quitItem = NSMenuItem(title: "Quit Potter", action: #selector(quit), keyEquivalent: "")
         quitItem.target = self
@@ -243,6 +248,10 @@ class MenuBarManager: NSObject, IconStateDelegate {
             ModernSettingsWindowController.shared.showWindow(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    @objc private func showOnboarding() {
+        OnboardingWindowController.shared.showOnboarding()
     }
     
     @objc private func selectPrompt(_ sender: NSMenuItem) {

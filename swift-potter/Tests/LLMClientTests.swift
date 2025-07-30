@@ -53,7 +53,7 @@ class LLMClientTests: TestBase {
         
         XCTAssertTrue(models.contains { $0.id == "claude-3-5-sonnet-20241022" })
         XCTAssertTrue(models.contains { $0.id == "claude-3-5-haiku-20241022" })
-        XCTAssertTrue(models.contains { $0.id == "claude-3-opus-20240229" })
+        XCTAssertEqual(models.count, 2, "Should only have 2 commonly available Anthropic models")
         
         let sonnet = models.first { $0.id == "claude-3-5-sonnet-20241022" }!
         XCTAssertEqual(sonnet.name, "Claude 3.5 Sonnet")
@@ -88,11 +88,11 @@ class LLMClientTests: TestBase {
         let message2 = OpenAIMessage(role: "user", content: "Hello")
         
         let request = OpenAIRequest(
-            model: "gpt-4o",
+            model: "gpt-4",
             messages: [message1, message2]
         )
         
-        XCTAssertEqual(request.model, "gpt-4o")
+        XCTAssertEqual(request.model, "gpt-4")
         XCTAssertEqual(request.messages.count, 2)
         XCTAssertEqual(request.messages[0].role, "system")
         XCTAssertEqual(request.messages[1].role, "user")

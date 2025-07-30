@@ -147,6 +147,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func checkAndShowSettingsIfNeeded() {
+        // Check if this is the first launch
+        let isFirstLaunch = !UserDefaults.standard.bool(forKey: "onboarding_completed")
+        
+        if isFirstLaunch {
+            PotterLogger.shared.info("startup", "🎉 First launch detected, showing onboarding")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                OnboardingWindowController.shared.showOnboarding()
+            }
+            return
+        }
+        
+        // For returning users, check if they need settings
         if !hasValidProviderConfiguration() {
             PotterLogger.shared.info("startup", "📋 No valid provider configuration, showing settings dialog")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -187,6 +199,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showSettings() {
         print("📋 Settings menu clicked!")
         ModernSettingsWindowController.shared.showWindow(nil)
+    }
+    
+    @objc func showOnboarding() {
+        print("🎉 Onboarding menu clicked!")
+        OnboardingWindowController.shared.showOnboarding()
     }
     
     private func showAlert(title: String, message: String) {

@@ -262,6 +262,7 @@ struct ModernSettingsView: View {
                 Text("General")
                     .font(.title)
                     .fontWeight(.semibold)
+                    .padding(.top, 20)
                 
                 // Use the new LLM Provider View
                 LLMProviderView()
@@ -590,6 +591,23 @@ struct ModernSettingsView: View {
                 }
                 .frame(maxWidth: 200)
             }
+            
+            // Help Section
+            VStack(alignment: .leading, spacing: 12) {
+                Divider()
+                    .padding(.bottom, 8)
+                
+                HStack {
+                    Spacer()
+                    Button("Onboarding/Help") {
+                        OnboardingWindowController.shared.showOnboarding()
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.caption)
+                    Spacer()
+                }
+            }
+            .padding(.top, 20)
             
             Spacer()
         }

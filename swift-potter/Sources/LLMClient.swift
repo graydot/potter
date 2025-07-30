@@ -8,27 +8,18 @@ struct LLMModel: Identifiable, Hashable {
     let provider: LLMProvider
     
     static let openAIModels = [
-        LLMModel(id: "o4-mini", name: "o4-mini", description: "Latest reasoning model, excellent for math, coding, and logical tasks", provider: .openAI),
-        LLMModel(id: "o3", name: "o3", description: "Most powerful reasoning model for complex scientific and technical problems", provider: .openAI),
-        LLMModel(id: "gpt-4.1", name: "GPT-4.1", description: "Latest GPT model with major improvements in coding and instruction following", provider: .openAI),
-        LLMModel(id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Fast and efficient with excellent performance, 83% cheaper than GPT-4o", provider: .openAI),
-        LLMModel(id: "gpt-4o", name: "GPT-4o", description: "Flagship multimodal model, excellent for complex reasoning and analysis", provider: .openAI),
-        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Cost-effective with good performance for most tasks", provider: .openAI),
-        LLMModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Legacy model, quick responses and cost-effective for simple tasks", provider: .openAI)
+        LLMModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Reliable and cost-effective for most tasks", provider: .openAI),
+        LLMModel(id: "gpt-4", name: "GPT-4", description: "Advanced reasoning and complex tasks", provider: .openAI)
     ]
     
     static let anthropicModels = [
-        LLMModel(id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Latest flagship model with enhanced reasoning and coding capabilities", provider: .anthropic),
-        LLMModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", description: "Excellent for creative writing and complex analysis", provider: .anthropic),
         LLMModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic),
-        LLMModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", description: "Legacy model for complex reasoning and research", provider: .anthropic)
+        LLMModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", description: "Excellent for creative writing and complex analysis", provider: .anthropic)
     ]
     
     static let googleModels = [
-        LLMModel(id: "gemini-2.5-pro-exp", name: "Gemini 2.5 Pro Experimental", description: "Latest experimental model with enhanced reasoning and multimodal capabilities", provider: .google),
-        LLMModel(id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash Experimental", description: "Next-generation flash model with improved performance and efficiency", provider: .google),
-        LLMModel(id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Advanced reasoning with large context, great for research", provider: .google),
-        LLMModel(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast and efficient, optimized for speed", provider: .google)
+        LLMModel(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast and efficient, optimized for speed", provider: .google),
+        LLMModel(id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Advanced reasoning with large context", provider: .google)
     ]
 }
 
@@ -182,7 +173,7 @@ class AnthropicClient: LLMClient {
         PotterLogger.shared.info("validation", "🔍 Anthropic validation URL: \(url.absoluteString)")
         
         let testBody = AnthropicRequest(
-            model: "claude-3-5-haiku-20241022",
+            model: LLMModel.anthropicModels.first!.id,
             max_tokens: 1,
             messages: [AnthropicMessage(role: "user", content: "test")]
         )
@@ -251,7 +242,8 @@ class GoogleClient: LLMClient {
     }
     
     func validateAPIKey(_ apiKey: String) async throws -> Bool {
-        let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent")!
+        let modelId = LLMModel.googleModels.first!.id
+        let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(modelId):generateContent")!
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
