@@ -8,8 +8,8 @@ struct LLMModel: Identifiable, Hashable {
     let provider: LLMProvider
     
     static let openAIModels = [
+        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast, intelligent, and cost-effective for most tasks", provider: .openAI),
         LLMModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Reliable and cost-effective for most tasks", provider: .openAI),
-        LLMModel(id: "gpt-4", name: "GPT-4", description: "Advanced reasoning and complex tasks", provider: .openAI)
     ]
     
     static let anthropicModels = [
