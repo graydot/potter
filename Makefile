@@ -1,7 +1,7 @@
 # Potter - AI Text Processing Tool for macOS
 # Makefile for building, testing, and distributing Potter
 
-.PHONY: help run build test clean install publish-github publish-appstore swift-test
+.PHONY: help run build test clean install publish-appstore swift-test
 
 # Default target
 .DEFAULT_GOAL := help
@@ -25,7 +25,7 @@ help: ## Show this help message
 	@echo "  make run          # Run the Swift app in development mode"
 	@echo "  make build        # Build signed app bundle and DMG"
 	@echo "  make test         # Run all tests (Swift)"
-	@echo "  make publish      # Publish to GitHub releases"
+	@echo "  make release      # Create new release with auto-update support"
 
 # Development
 run: ## Run the Swift Potter app in development mode
@@ -69,12 +69,6 @@ swift-test-fast: ## Fast Swift test run for pre-commit checks
 	cd swift-potter && swift test --quiet
 
 # Publishing
-publish: publish-github ## Alias for GitHub publish
-
-publish-github: build ## Build and publish to GitHub releases
-	@echo "$(GREEN)📦 Publishing to GitHub releases...$(NC)"
-	./scripts/create_github_release.sh
-
 publish-appstore: ## Build and submit to Mac App Store
 	@echo "$(GREEN)🍎 Building for Mac App Store...$(NC)"
 	python3 scripts/build_app.py --target appstore
@@ -222,8 +216,6 @@ release-appstore: build-appstore ## Prepare App Store release (build only, manua
 	@echo "  2. Upload to App Store Connect using Xcode or Transporter"
 	@echo "  3. Submit for review through App Store Connect"
 
-old-release: clean build publish ## Complete release workflow (legacy)
-quick: build-unsigned ## Quick build without signing (for testing)
 
 # Auto-update testing
 test-autoupdate: ## Set up auto-update testing environment
