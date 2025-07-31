@@ -201,12 +201,22 @@ class PotterCore {
         return PromptService.shared.getCurrentPromptText() ?? currentMode.prompt
     }
     
+    /// Helper function to truncate text for secure logging
+    private func truncateTextForLogging(_ text: String) -> String {
+        if text.count <= 10 {
+            return text
+        }
+        let start = String(text.prefix(5))
+        let end = String(text.suffix(5))
+        return "\(start)...\(end)"
+    }
+    
     /// Logs the start of LLM processing
     private func logProcessingStart(promptText: String, inputText: String) {
         let currentPromptName = PromptService.shared.currentPromptName
         PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
         PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
-        PotterLogger.shared.info("text_processor", "||||| \(inputText) |||||")
+        PotterLogger.shared.info("text_processor", "||||| \(truncateTextForLogging(inputText)) |||||")
         PotterLogger.shared.info("text_processor", "🔄 Calling LLM API...")
     }
     
@@ -214,7 +224,7 @@ class PotterCore {
     private func logProcessingSuccess(outputText: String) {
         PotterLogger.shared.info("text_processor", "✅ LLM processing complete")
         PotterLogger.shared.info("text_processor", "📝 Text returned from LLM:")
-        PotterLogger.shared.info("text_processor", "||||| \(outputText) |||||")
+        PotterLogger.shared.info("text_processor", "||||| \(truncateTextForLogging(outputText)) |||||")
         PotterLogger.shared.info("text_processor", "📋 Result copied to clipboard (\(outputText.count) characters)")
     }
     

@@ -193,6 +193,7 @@ class APIKeyService: ObservableObject {
             
             // Use the selected model if provided, otherwise use the first model as fallback
             let modelId = model?.id ?? provider.models.first?.id ?? ""
+            PotterLogger.shared.debug("api_key", "🎯 Using model for validation: \(modelId) (selected: \(model?.name ?? "none"), provider: \(provider.displayName))")
             _ = try await client.processText(testPrompt, prompt: testMessage, model: modelId)
             
             PotterLogger.shared.info("api_key", "✅ API key validation successful for \(provider.displayName)")
