@@ -1,9 +1,50 @@
 <?xml version='1.0' encoding='utf-8'?>
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+<rss xmlns:ns0="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Potter Updates</title>
     <description>Updates for Potter</description>
     <language>en</language>
     <link>https://github.com/graydot/potter</link>
+    <item>
+      <title>Potter 2.0.1</title>
+      <description>&lt;![CDATA[# Potter 'AI Resonance' Release Notes (v2.0.1)
+
+We're excited to announce the release of Potter 'AI Resonance' v2.0.1. In this version, we've focused on enhancing the user experience by providing more detailed error messages, improving our release scripts, and refining our text processing capabilities. We've also added a new feature and made important bug fixes. Read on to see what's new!
+
+## Features
+
+- Introduced a new feature, 4o-mini for OpenAI, which doesn't require credits for operation. This addition provides more flexibility for users when using AI-powered text processing.
+
+## Improvements
+
+- Enhanced the release script with git push prompt and automatic Potter web page updates to ensure smoother and more efficient updates.
+- Removed releases from .gitignore and updated readme with version commands to improve the development process.
+
+## Bug Fixes
+
+- Fixed an issue where insufficient quota error messages were not fully displayed. Now, users will be able to see the complete error message when they encounter status code 429.
+- Addressed an issue that was causing the app to be invalid due to notarization failure.
+- Fixed test failures by making the tests more flexible with runtime defaults.
+- Resolved an issue with the menu bar icon.
+- Corrected the issue of an incorrect dmg URL.
+- Improved the LLMManager validation logic to respect explicit invalid states.
+
+## Removals
+
+- Removed old commands from Makefile to streamline the build process.
+- Removed unnecessary files to clean up the codebase.
+- Eliminated unnecessary notifications to provide a smoother user experience.
+
+## Miscellaneous
+
+- Introduced version-specific codenames into the release process to make version identification easier.
+- Added images for the app store to enhance the visual appeal.
+- Adjusted settings pane to open when the key is not set for better user experience.
+- Implemented dynamic activation policy for Alt+Tab support.
+
+We hope you enjoy the improvements in Potter 'AI Resonance' v2.0.1. We are always looking for ways to improve and appreciate your feedback!]]&gt;</description>
+      <pubDate>Thu, 31 Jul 2025 10:53:07 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.0.1/Potter-2.0.1-AI-Resonance.dmg" length="4353761" type="application/octet-stream" ns0:version="2.0.1" ns0:shortVersionString="2.0.1" ns0:edSignature="4VcqJV/TKl/ox5HNgcpQaxTsYsPxtkiESM6+gFLWFxIYPhqdONl8k/L5gZ7xJ1k98Yr3uvqZEBy4o9XwH5AXCQ==" />
+    </item>
   </channel>
 </rss>
