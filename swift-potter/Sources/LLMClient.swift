@@ -414,7 +414,8 @@ private func createLLMError(for statusCode: Int, message: String, provider: Stri
         PotterLogger.shared.error("llm_client", "⏳ Retry After: \(retryAfter?.description ?? "not specified")")
         PotterLogger.shared.error("llm_client", "💬 Rate Limit Message: \(message)")
         
-        return .network(.rateLimited(retryAfter: retryAfter))
+        // Return the full error message for UI display
+        return .network(.serverError(statusCode: statusCode, message: message))
     case 500...599:
         return .network(.serverError(statusCode: statusCode, message: message))
     default:
