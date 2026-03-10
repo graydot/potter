@@ -60,28 +60,57 @@ struct LLMProviderView: View {
                 Text("Model:")
                     .fontWeight(.medium)
                     .frame(width: 80, alignment: .leading)
-                
+
                 Picker("", selection: $viewModel.selectedModel) {
-                    ForEach(viewModel.selectedProvider.models) { model in
-                        Text(model.name)
-                            .tag(model as LLMModel?)
+                    ForEach(viewModel.modelsByTier, id: \.tier) { group in
+                        Section(header: Text(group.tier.displayName)) {
+                            ForEach(group.models) { model in
+                                Text(model.name)
+                                    .tag(model as LLMModel?)
+                            }
+                        }
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
                 .frame(width: 200)
                 .help(viewModel.selectedModel?.description ?? "Select a model")
-                
+
+                // Refresh button
+                Button(action: {
+                    Task { await viewModel.refreshModels() }
+                }) {
+                    if viewModel.isRefreshingModels {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isRefreshingModels)
+                .help("Refresh available models from provider")
+
                 Spacer()
             }
-            
-            // Description text below the picker
-            if let selectedModel = viewModel.selectedModel {
-                Text(selectedModel.description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.leading, 88) // Align with model picker
-                    .fixedSize(horizontal: false, vertical: true)
+
+            // Description + last fetched
+            HStack {
+                if let selectedModel = viewModel.selectedModel {
+                    Text(selectedModel.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if let lastFetched = viewModel.lastFetchedText {
+                    Text(lastFetched)
+                        .font(.caption2)
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
             }
+            .padding(.leading, 88)
         }
     }
     

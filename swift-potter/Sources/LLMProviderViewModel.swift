@@ -17,6 +17,7 @@ class LLMProviderViewModel: ObservableObject {
     // MARK: - Dependencies
     private let llmManager: LLMManager
     private let apiKeyService: APIKeyService
+    private let modelRegistry: ModelRegistry
     
     // MARK: - Computed Properties
     var selectedProvider: LLMProvider {
@@ -62,22 +63,53 @@ class LLMProviderViewModel: ObservableObject {
     }
     
     // MARK: - Initialization
-    init(llmManager: LLMManager? = nil, apiKeyService: APIKeyService = APIKeyService.shared) {
+    init(llmManager: LLMManager? = nil, apiKeyService: APIKeyService = APIKeyService.shared, modelRegistry: ModelRegistry? = nil) {
         self.llmManager = llmManager ?? LLMManager()
         self.apiKeyService = apiKeyService
-        
+        self.modelRegistry = modelRegistry ?? ModelRegistry.shared
+
         // Initialize state
         loadProviderState(for: self.llmManager.selectedProvider)
-        // Storage is always UserDefaults now
+    }
+
+    // MARK: - Model Registry
+
+    /// Models for the current provider, grouped by tier for the UI.
+    var modelsByTier: [(tier: ModelTier, models: [LLMModel])] {
+        return modelRegistry.modelsByTier(for: selectedProvider)
+    }
+
+    /// All models for the current provider (flat list).
+    var availableModels: [LLMModel] {
+        return modelRegistry.getModels(for: selectedProvider)
+    }
+
+    /// Whether the registry is currently fetching models.
+    var isRefreshingModels: Bool {
+        return modelRegistry.isFetching
+    }
+
+    /// Human-readable "last fetched" text for the current provider.
+    var lastFetchedText: String? {
+        guard let date = modelRegistry.lastFetched[selectedProvider] else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return "Updated \(formatter.localizedString(for: date, relativeTo: Date()))"
+    }
+
+    /// Refresh models from the provider API.
+    func refreshModels() async {
+        let apiKey = llmManager.getAPIKey(for: selectedProvider)
+        guard !apiKey.isEmpty else { return }
+        await modelRegistry.refreshModels(for: selectedProvider, apiKey: apiKey)
     }
     
     // MARK: - Public Methods
     
     func onProviderChanged(to newProvider: LLMProvider) {
         loadProviderState(for: newProvider)
-        // Storage is always UserDefaults now
-        // Set default model for the new provider
-        selectedModel = newProvider.models.first
+        // Set default model from registry
+        selectedModel = modelRegistry.getModels(for: newProvider).first
     }
     
     func onAPIKeyTextChanged(_ newValue: String) {
