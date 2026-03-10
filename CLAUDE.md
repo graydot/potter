@@ -33,7 +33,9 @@ swift-potter/
 │   ├── Protocols.swift               # Protocol definitions for DI
 │   ├── PotterCore.swift              # Thin coordinator (DI-enabled)
 │   ├── TextProcessor.swift           # Text processing pipeline (testable)
-│   ├── HotkeyCoordinator.swift       # Carbon Event API hotkey management
+│   ├── HotkeyCoordinator.swift       # Carbon Event API hotkey (direct distribution)
+│   ├── NSEventHotkeyProvider.swift   # NSEvent hotkey (App Store / sandbox)
+│   ├── HotkeyKeyMapping.swift        # Shared key code/modifier mapping
 │   ├── LLMManager.swift              # Multi-provider LLM orchestration
 │   ├── LLMClient.swift               # LLMClient protocol + 3 implementations
 │   ├── APIKeyService.swift           # API key validation and state tracking

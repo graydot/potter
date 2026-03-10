@@ -5,14 +5,16 @@
 | Area | Score | Notes |
 |------|-------|-------|
 | Error Handling | 8/10 | Comprehensive 44-case error taxonomy, good flow |
-| Core Services | 7/10 | Good protocols for LLM, storage; well-isolated |
-| Code Reuse | 7/10 | LLMClient protocol enables clean provider swap |
-| Separation of Concerns | 7/10 | PotterCore split, settings split into focused views |
-| Testability | 7/10 | Protocol-based DI, 288 tests, integration tests |
-| Dependency Injection | 6/10 | Constructor injection for core services, some singletons remain |
+| Core Services | 8/10 | Full protocol abstractions, platform-abstracted hotkeys |
+| Code Reuse | 8/10 | LLMClient protocol, shared HotkeyKeyMapping, BaseLLMClient |
+| Separation of Concerns | 8/10 | PotterCore split, settings split, hotkey providers extracted |
+| Testability | 8/10 | Protocol-based DI, 315 tests, integration tests, mock providers |
+| Dependency Injection | 7/10 | Constructor injection for core + hotkeys, acceptable singletons |
 | UI Architecture | 7/10 | Settings split into 9 focused files, no god objects |
+| Caching | 7/10 | Event-based invalidation for LLM clients, file mod tracking for prompts |
+| Logging | 8/10 | Dual logging: per-component os.Logger + in-memory UI |
 
-**Overall: 7.5/10** — Solid core, good separation, singletons remain.
+**Overall: 8/10** — All planned improvements complete. Only low-ROI singletons remain.
 
 ### What's Working Well
 - **LLMClient protocol** — Clean abstraction, 3 implementations swap seamlessly
@@ -25,8 +27,7 @@
 - **TextProcessor + HotkeyCoordinator** — Extracted, testable, DI-enabled
 
 ### What Needs Work
-- **Remaining singletons** accessed via `.shared` — PotterLogger, LoginItemsManager, AutoUpdateManager
-- **Carbon Event API** in HotkeyCoordinator — blocks App Store submission
+- **Remaining singletons** accessed via `.shared` — PotterLogger, LoginItemsManager, AutoUpdateManager (documented as acceptable, low ROI to change)
 
 ---
 
@@ -101,19 +102,15 @@ PotterCore.swift (428 loc)
 
 ## P1: High Priority
 
-### 4. Extract Hotkey Platform Abstraction
+### ~~4. Extract Hotkey Platform Abstraction~~ ✅ DONE
 
-**Problem**: Carbon Event API calls directly in PotterCore. 40+ `case` statements for key codes. Impossible to test. Blocks App Store submission.
+Extracted shared key mapping into `HotkeyKeyMapping` utility. Created `NSEventHotkeyProvider` as sandbox/App Store compatible alternative to Carbon-based `HotkeyCoordinator`. Expanded `HotkeyProvider` protocol with full lifecycle methods. `PotterCore` now accepts any `HotkeyProvider` via constructor injection (defaults to Carbon).
 
-```swift
-protocol HotkeyProvider {
-    func register(hotkey: HotkeyCombo, handler: @escaping () -> Void) throws
-    func unregister()
-}
-
-class CarbonHotkeyProvider: HotkeyProvider { /* current Carbon code */ }
-class CGEventHotkeyProvider: HotkeyProvider { /* App Store compatible */ }
-class MockHotkeyProvider: HotkeyProvider { /* for tests */ }
+```
+HotkeyKeyMapping.swift    — Shared key code/modifier parsing (Carbon + CGEvent)
+NSEventHotkeyProvider.swift — NSEvent.addGlobalMonitorForEvents (sandbox compatible)
+HotkeyCoordinator.swift   — Carbon Event API (direct distribution, existing)
+MockHotkeyProvider         — In tests, for DI verification
 ```
 
 ### ~~5. Consistent Async/Await~~ ✅ DONE
@@ -136,15 +133,14 @@ Deleted SettingsWindow.swift and SimpleSettingsWindow.swift. ModernSettingsWindo
 
 ## P2: Medium Priority
 
-### 8. Cache Invalidation Strategy
-LLMManager caches clients forever. PromptService checks file mod times. No consistent pattern. Define TTL or event-based invalidation.
+### ~~8. Cache Invalidation Strategy~~ ✅ DONE
+LLMManager now invalidates cached LLMClient on API key change (`setAPIKey`) and provider switch (`selectProvider`). PromptService already checks file mod times. Event-based invalidation is now consistent across both.
 
 ### ~~9. Reduce LLMClient.swift Duplication~~ ✅ DONE (Phase 3)
 Extracted `BaseLLMClient` with shared HTTP utilities.
 
-### 10. Structured Logging with os.Logger
-Replace custom PotterLogger with Apple's `os.Logger` — built-in level filtering, automatic rotation, Console.app integration. Keep file logging as optional debug supplement.
-**Note**: PotterLogger is used by 19 files and is `ObservableObject` for the Logs UI. Full replacement is high effort. Consider incremental: add os.Logger internally while keeping the existing API.
+### ~~10. Structured Logging with os.Logger~~ ✅ DONE (incremental)
+PotterLogger now uses per-component os.Logger categories (cached) alongside the existing in-memory log UI. Each component (e.g. "hotkeys", "llm_manager", "core") gets its own `Logger(subsystem:category:)` for Console.app filtering. Existing API unchanged — `ObservableObject` + `logEntries` still drive the Logs UI.
 
 ### ~~11. Extract Icon/Animation Drawing~~ ✅ DONE (Phase 3)
 Extracted `IconFactory` and `MenuBuilder` from MenuBarManager.
@@ -183,10 +179,18 @@ Phase 4 (Async/Await + Settings Split) ✅ DONE:
   ├── ✅ Replace DispatchQueue.main.sync with async (deadlock fix)
   └── ✅ Replace DispatchQueue.main.asyncAfter with Task.sleep in @MainActor contexts
 
-Remaining (low priority):
-  ├── Cache invalidation strategy (P2 #8)
-  ├── os.Logger migration (P2 #10) — incremental, keep existing API
-  └── Remaining singletons documented as acceptable (P2 #12)
+Phase 5 (Platform Abstraction) ✅ DONE:
+  ├── ✅ Extract HotkeyKeyMapping shared utility (key codes + modifiers)
+  ├── ✅ Create NSEventHotkeyProvider (sandbox/App Store compatible)
+  ├── ✅ Expand HotkeyProvider protocol with full lifecycle
+  └── ✅ PotterCore accepts injected HotkeyProvider via constructor
+
+Phase 6 (Polish) ✅ DONE:
+  ├── ✅ Cache invalidation — LLMManager invalidates on key change + provider switch
+  └── ✅ os.Logger — per-component categories, existing API preserved
+
+Remaining (documented as acceptable):
+  └── Remaining singletons (P2 #12) — low ROI, architecture is sound
 ```
 
 ---

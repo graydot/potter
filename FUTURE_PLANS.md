@@ -43,19 +43,17 @@
 
 ---
 
-### Remaining Refactoring (Low Priority)
+### ~~Remaining Refactoring~~ ✅ DONE
 
-From ARCHITECTURE.md — documented as acceptable to defer:
-
-- **Cache invalidation strategy** — LLMManager caches clients forever, PromptService checks file mod times. Define consistent TTL or event-based invalidation.
-- **os.Logger migration** — Replace custom PotterLogger internals with Apple's os.Logger for Console.app integration. Keep existing API surface. High effort (19 files use PotterLogger).
-- **Remaining singletons** — PotterLogger (19 files, ObservableObject), AutoUpdateManager (dual compile-time impl), LoginItemsManager, ProcessManager, SecuritySanitizer. Analysis shows low ROI for protocol-ization.
+- ~~Cache invalidation strategy~~ — LLMManager now invalidates on key change + provider switch
+- ~~os.Logger migration~~ — Per-component os.Logger categories, existing API preserved
+- **Remaining singletons** — Documented as acceptable, low ROI (PotterLogger, AutoUpdateManager, LoginItemsManager, ProcessManager, SecuritySanitizer)
 
 ---
 
 ### App Store Submission
 
-- **CGEvent hotkey provider** — Current Carbon Event API blocks App Store. Need CGEventHotkeyProvider implementing existing HotkeyProvider protocol.
+- ~~CGEvent hotkey provider~~ ✅ — Created `NSEventHotkeyProvider` (sandbox compatible), `HotkeyKeyMapping` shared utility, PotterCore accepts injected provider
 - **Sandbox compliance** — Audit file access, keychain usage, accessibility APIs for sandbox.
 
 ---
