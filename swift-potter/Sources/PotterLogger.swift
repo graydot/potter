@@ -7,7 +7,16 @@ class PotterLogger: ObservableObject {
     
     @Published var logEntries: [LogEntry] = []
     private let maxLogEntries = 500
-    private let logger = Logger(subsystem: "com.potter.app", category: "general")
+    private static let subsystem = "com.potter.app"
+    private var loggers: [String: Logger] = [:]
+
+    /// Returns a cached os.Logger for the given component category.
+    private func osLogger(for component: String) -> Logger {
+        if let cached = loggers[component] { return cached }
+        let logger = Logger(subsystem: Self.subsystem, category: component)
+        loggers[component] = logger
+        return logger
+    }
     
     struct LogEntry {
         let timestamp: Date
@@ -71,16 +80,17 @@ class PotterLogger: ObservableObject {
             }
         }
         
-        // Also log to system logger (using sanitized message)
+        // Also log to system os.Logger with per-component categories
+        let osLog = osLogger(for: component)
         switch level {
         case .info:
-            logger.info("\(component) - \(sanitizedMessage)")
+            osLog.info("\(sanitizedMessage)")
         case .warning:
-            logger.warning("\(component) - \(sanitizedMessage)")
+            osLog.warning("\(sanitizedMessage)")
         case .error:
-            logger.error("\(component) - \(sanitizedMessage)")
+            osLog.error("\(sanitizedMessage)")
         case .debug:
-            logger.debug("\(component) - \(sanitizedMessage)")
+            osLog.debug("\(sanitizedMessage)")
         }
         
         // Print to console for development (using sanitized message)

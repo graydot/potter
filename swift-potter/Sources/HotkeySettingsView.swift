@@ -22,10 +22,8 @@ struct HotkeyConfigurationView: View {
                             hotkeyPill(capturedKeys[index], isActive: true)
                         }
 
-                        if capturedKeys.count < 3 {
-                            ForEach(capturedKeys.count..<3, id: \.self) { _ in
-                                hotkeyPill("?", isActive: false)
-                            }
+                        if capturedKeys.isEmpty {
+                            hotkeyPill("?", isActive: false)
                         }
                     } else {
                         ForEach(currentHotkey.indices, id: \.self) { index in
@@ -54,7 +52,7 @@ struct HotkeyConfigurationView: View {
             }
 
             if isCapturingHotkey {
-                Text("Press your desired key combination (3 keys minimum) or ESC to cancel")
+                Text("Press your desired key combination (modifier + key) or ESC to cancel")
                     .foregroundColor(.secondary)
                     .font(.caption)
             }
@@ -203,8 +201,11 @@ struct HotkeyConfigurationView: View {
     }
 
     private func validateKeyCombo() {
-        if capturedKeys.count < 3 {
-            warningMessage = "3 keys needed for hotkey combination"
+        let modifiers = capturedKeys.filter { HotkeyKeyMapping.modifierSymbols.contains($0) }
+        let regularKeys = capturedKeys.filter { !HotkeyKeyMapping.modifierSymbols.contains($0) }
+
+        if modifiers.isEmpty || regularKeys.isEmpty {
+            warningMessage = "Need at least one modifier (⌘⇧⌥⌃) and one key"
         } else {
             let conflictMessage = checkForShortcutConflicts(capturedKeys)
             if !conflictMessage.isEmpty {
@@ -212,7 +213,7 @@ struct HotkeyConfigurationView: View {
             } else {
                 warningMessage = ""
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    if isCapturingHotkey && capturedKeys.count >= 3 {
+                    if isCapturingHotkey && !capturedKeys.isEmpty {
                         applyNewHotkey()
                     }
                 }
@@ -281,7 +282,7 @@ struct HotkeyConfigurationView: View {
     }
 
     private func applyNewHotkey() {
-        currentHotkey = Array(capturedKeys.prefix(3))
+        currentHotkey = capturedKeys
         isCapturingHotkey = false
         isKeyCaptureFocused = false
         warningMessage = ""

@@ -89,23 +89,14 @@ struct LogsSettingsView: View {
                     .font(.caption)
             }
 
-            ScrollViewReader { proxy in
-                TextEditor(text: .constant(formattedLogText()))
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(height: 300)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color(NSColor.separatorColor))
-                    )
-                    .onChange(of: logger.logEntries.count) { _ in
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            if let textView = findTextView() {
-                                textView.scrollToEndOfDocument(nil)
-                            }
-                        }
-                    }
-            }
+            TextEditor(text: .constant(formattedLogText()))
+                .font(.system(.caption, design: .monospaced))
+                .frame(height: 300)
+                .background(Color(NSColor.textBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(NSColor.separatorColor))
+                )
         }
     }
 
@@ -121,31 +112,11 @@ struct LogsSettingsView: View {
 
     private func formattedLogText() -> String {
         let filteredLogs = logger.filteredEntries(level: logFilter)
-        return filteredLogs.map { logEntry in
+        return filteredLogs.reversed().map { logEntry in
             let timestamp = DateFormatter.timeFormatter.string(from: logEntry.timestamp)
             let levelIndicator = logEntry.level.emoji
             return "\(timestamp) \(levelIndicator) [\(logEntry.component)] \(logEntry.message)"
         }.joined(separator: "\n")
     }
 
-    private func findTextView() -> NSTextView? {
-        guard let window = NSApplication.shared.windows.first(where: { $0.title.contains("Potter") }) else { return nil }
-        return findTextViewInView(window.contentView)
-    }
-
-    private func findTextViewInView(_ view: NSView?) -> NSTextView? {
-        guard let view = view else { return nil }
-
-        if let textView = view as? NSTextView {
-            return textView
-        }
-
-        for subview in view.subviews {
-            if let found = findTextViewInView(subview) {
-                return found
-            }
-        }
-
-        return nil
-    }
 }
