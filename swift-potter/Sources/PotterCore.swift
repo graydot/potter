@@ -45,7 +45,7 @@ class PotterCore {
     private var currentMode: PromptMode = .formal
     private var settings: PotterSettings
     private var llmManager: LLMManager?
-    private var hotkeyCoordinator: HotkeyCoordinator?
+    private var hotkeyCoordinator: (any HotkeyProvider)?
 
     /// The current hotkey combo, delegated to HotkeyCoordinator.
     var currentHotkeyCombo: [String] {
@@ -55,9 +55,10 @@ class PotterCore {
     // Icon state delegate
     weak var iconDelegate: IconStateDelegate?
 
-    init(llmManager: LLMManager? = nil, settings: PotterSettings? = nil) {
+    init(llmManager: LLMManager? = nil, settings: PotterSettings? = nil, hotkeyProvider: (any HotkeyProvider)? = nil) {
         self.llmManager = llmManager
         self.settings = settings ?? PotterSettings()
+        self.hotkeyCoordinator = hotkeyProvider
     }
 
     func setup() {
@@ -70,12 +71,13 @@ class PotterCore {
             }
         }
 
-        // Setup hotkey via coordinator
-        let coordinator = HotkeyCoordinator()
-        coordinator.setup { [weak self] in
+        // Setup hotkey via coordinator (use injected provider or default to Carbon)
+        if self.hotkeyCoordinator == nil {
+            self.hotkeyCoordinator = HotkeyCoordinator()
+        }
+        hotkeyCoordinator?.setup { [weak self] in
             self?.handleHotkey()
         }
-        self.hotkeyCoordinator = coordinator
 
         PotterLogger.shared.info("core", "✅ Potter Core initialized")
     }

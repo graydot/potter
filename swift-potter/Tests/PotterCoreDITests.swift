@@ -78,4 +78,79 @@ final class PotterCoreDITests: TestBase {
         // Should not crash - stores the new hotkey combo
         core.updateHotkey(newCombo)
     }
+
+    // MARK: - Test 7: Injected HotkeyProvider is used
+    func testInjectedHotkeyProviderIsUsed() {
+        let mockProvider = MockHotkeyProvider()
+        let core = PotterCore(hotkeyProvider: mockProvider)
+
+        core.setup()
+
+        XCTAssertTrue(mockProvider.setupCalled, "setup() should call through to injected HotkeyProvider")
+    }
+
+    // MARK: - Test 8: Injected HotkeyProvider receives updateHotkey
+    func testInjectedHotkeyProviderReceivesUpdate() {
+        let mockProvider = MockHotkeyProvider()
+        let core = PotterCore(hotkeyProvider: mockProvider)
+
+        core.setup()
+        core.updateHotkey(["⌘", "⌥", "K"])
+
+        XCTAssertEqual(mockProvider.lastUpdatedHotkey, ["⌘", "⌥", "K"])
+    }
+
+    // MARK: - Test 9: Injected HotkeyProvider receives disable/enable
+    func testInjectedHotkeyProviderDisableEnable() {
+        let mockProvider = MockHotkeyProvider()
+        let core = PotterCore(hotkeyProvider: mockProvider)
+
+        core.setup()
+        core.disableGlobalHotkey()
+        XCTAssertTrue(mockProvider.disableCalled)
+
+        core.enableGlobalHotkey()
+        XCTAssertTrue(mockProvider.enableCalled)
+    }
+}
+
+// MARK: - Mock HotkeyProvider for DI Tests
+
+class MockHotkeyProvider: HotkeyProvider {
+    var currentHotkeyCombo: [String] = HotkeyConstants.defaultHotkey
+    var setupCalled = false
+    var registerCalled = false
+    var unregisterCalled = false
+    var disableCalled = false
+    var enableCalled = false
+    var lastUpdatedHotkey: [String]?
+    var storedHandler: (() -> Void)?
+
+    func register(hotkey: [String], handler: @escaping () -> Void) {
+        registerCalled = true
+        currentHotkeyCombo = hotkey
+        storedHandler = handler
+    }
+
+    func unregister() {
+        unregisterCalled = true
+    }
+
+    func setup(handler: @escaping () -> Void) {
+        setupCalled = true
+        storedHandler = handler
+    }
+
+    func updateHotkey(_ newHotkey: [String]) {
+        lastUpdatedHotkey = newHotkey
+        currentHotkeyCombo = newHotkey
+    }
+
+    func disableGlobalHotkey() {
+        disableCalled = true
+    }
+
+    func enableGlobalHotkey() {
+        enableCalled = true
+    }
 }
