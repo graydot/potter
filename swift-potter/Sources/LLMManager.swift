@@ -105,7 +105,11 @@ class LLMManager: ObservableObject, LLMProcessing {
         let apiKey = getAPIKey(for: provider)
         guard !apiKey.isEmpty else { return }
         Task {
-            await modelRegistry.refreshModels(for: provider, apiKey: apiKey)
+            do {
+                try await modelRegistry.refreshModels(for: provider, apiKey: apiKey)
+            } catch {
+                PotterLogger.shared.error("llm_manager", "Model refresh failed for \(provider.displayName): \(error.localizedDescription)")
+            }
         }
     }
     
@@ -187,22 +191,11 @@ class LLMManager: ObservableObject, LLMProcessing {
         
         PotterLogger.shared.info("llm_manager", "🤖 Processing text with \(selectedProvider.displayName) \(model.name)")
 
-        do {
-            let result = try await client.processText(text, prompt: prompt, model: model.id)
-            PotterLogger.shared.info("llm_manager", "✅ Text processing completed successfully")
-            return result
-        } catch let error as PotterError where isModelUnavailableError(error) {
-            // Model is deprecated/unavailable — try fallback
-            if let fallback = findFallbackModel(for: model) {
-                PotterLogger.shared.info("llm_manager", "⚠️ Model \(model.name) unavailable, falling back to \(fallback.name)")
-                selectedModel = fallback
-                saveSettings()
-                let result = try await client.processText(text, prompt: prompt, model: fallback.id)
-                PotterLogger.shared.info("llm_manager", "✅ Fallback model \(fallback.name) succeeded")
-                return result
-            }
-            throw error
-        }
+        let result = try await client.processText(text, prompt: prompt, model: model.id)
+
+        PotterLogger.shared.info("llm_manager", "✅ Text processing completed successfully")
+
+        return result
     }
     
     // MARK: - Validation Helpers (Delegated to APIKeyService)
@@ -216,32 +209,5 @@ class LLMManager: ObservableObject, LLMProcessing {
     
     func hasValidProvider() -> Bool {
         return isProviderConfigured(selectedProvider)
-    }
-
-    // MARK: - Model Fallback
-
-    /// Check if the error indicates a model is unavailable (404, deprecated).
-    private func isModelUnavailableError(_ error: PotterError) -> Bool {
-        switch error {
-        case .network(.invalidResponse(let reason)):
-            return reason.contains("404") || reason.lowercased().contains("not found") || reason.lowercased().contains("deprecated")
-        case .network(.serverError(let statusCode, _)):
-            return statusCode == 404
-        default:
-            return false
-        }
-    }
-
-    /// Find the next best model in the same tier and provider.
-    private func findFallbackModel(for model: LLMModel) -> LLMModel? {
-        let sameTierModels = modelRegistry.modelsForTier(model.tier, provider: model.provider)
-            .filter { $0.id != model.id }
-        if let fallback = sameTierModels.first {
-            return fallback
-        }
-        // If no same-tier fallback, try any model from the same provider
-        let anyModel = modelRegistry.getModels(for: model.provider)
-            .filter { $0.id != model.id }
-        return anyModel.first
     }
 }

@@ -61,47 +61,54 @@ class ModelRegistry: ObservableObject {
         return Date().timeIntervalSince(fetched) > cacheTTL
     }
 
-    /// Refresh models for a single provider.
-    func refreshModels(for provider: LLMProvider, apiKey: String) async {
+    /// Refresh models for a single provider. Throws on failure.
+    func refreshModels(for provider: LLMProvider, apiKey: String) async throws {
         isFetching = true
         defer { isFetching = false }
 
-        do {
-            let fetched = try await fetchModels(for: provider, apiKey: apiKey)
-            models[provider] = fetched
-            lastFetched[provider] = Date()
-            saveCacheToDisk()
-            PotterLogger.shared.info("model_registry", "Fetched \(fetched.count) models for \(provider.displayName)")
-        } catch {
-            PotterLogger.shared.error("model_registry", "Failed to fetch models for \(provider.displayName): \(error.localizedDescription)")
-            // Keep existing cache or fall back to static
-        }
+        let fetched = try await fetchModels(for: provider, apiKey: apiKey)
+        models[provider] = fetched
+        lastFetched[provider] = Date()
+        saveCacheToDisk()
+        PotterLogger.shared.info("model_registry", "Fetched \(fetched.count) models for \(provider.displayName)")
     }
 
-    /// Refresh all providers that have API keys.
-    func refreshAllModels(apiKeys: [LLMProvider: String]) async {
+    /// Refresh all providers that have API keys. Collects errors per provider.
+    func refreshAllModels(apiKeys: [LLMProvider: String]) async throws {
         isFetching = true
         defer { isFetching = false }
 
-        await withTaskGroup(of: Void.self) { group in
+        var errors: [LLMProvider: Error] = [:]
+
+        await withTaskGroup(of: (LLMProvider, Result<[LLMModel], Error>).self) { group in
             for (provider, key) in apiKeys where !key.isEmpty {
                 group.addTask { [weak self] in
-                    guard let self else { return }
+                    guard let self else { return (provider, .failure(ModelRegistryError.fetchFailed(provider: provider))) }
                     do {
                         let fetched = try await self.fetchModels(for: provider, apiKey: key)
-                        await MainActor.run {
-                            self.models[provider] = fetched
-                            self.lastFetched[provider] = Date()
-                        }
+                        return (provider, .success(fetched))
                     } catch {
-                        await MainActor.run {
-                            PotterLogger.shared.error("model_registry", "Failed to fetch \(provider.displayName) models: \(error.localizedDescription)")
-                        }
+                        return (provider, .failure(error))
                     }
+                }
+            }
+
+            for await (provider, result) in group {
+                switch result {
+                case .success(let fetched):
+                    models[provider] = fetched
+                    lastFetched[provider] = Date()
+                case .failure(let error):
+                    errors[provider] = error
                 }
             }
         }
         saveCacheToDisk()
+
+        if !errors.isEmpty {
+            let descriptions = errors.map { "\($0.key.displayName): \($0.value.localizedDescription)" }
+            throw ModelRegistryError.multipleFetchesFailed(descriptions: descriptions)
+        }
     }
 
     // MARK: - Static Fallbacks
@@ -121,8 +128,7 @@ class ModelRegistry: ObservableObject {
         case .openAI:
             return try await fetchOpenAIModels(apiKey: apiKey)
         case .anthropic:
-            // Anthropic has no list-models API — use curated static list
-            return LLMModel.anthropicModels
+            return try await fetchAnthropicModels(apiKey: apiKey)
         case .google:
             return try await fetchGoogleModels(apiKey: apiKey)
         }
@@ -150,6 +156,31 @@ class ModelRegistry: ObservableObject {
                 name: formatModelName(raw.id, provider: .openAI),
                 description: descriptionForTier(tier),
                 provider: .openAI,
+                tier: tier
+            )
+        }.sorted { $0.tier.sortOrder < $1.tier.sortOrder }
+    }
+
+    private func fetchAnthropicModels(apiKey: String) async throws -> [LLMModel] {
+        let url = URL(string: "https://api.anthropic.com/v1/models?limit=100")!
+        var request = URLRequest(url: url)
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw ModelRegistryError.fetchFailed(provider: .anthropic)
+        }
+
+        let decoded = try JSONDecoder().decode(AnthropicModelsResponse.self, from: data)
+
+        return decoded.data.map { raw in
+            let tier = ModelTierClassifier.classify(raw.id, provider: .anthropic)
+            return LLMModel(
+                id: raw.id,
+                name: raw.display_name,
+                description: descriptionForTier(tier),
+                provider: .anthropic,
                 tier: tier
             )
         }.sorted { $0.tier.sortOrder < $1.tier.sortOrder }
@@ -287,6 +318,15 @@ struct OpenAIModelEntry: Codable {
     let id: String
 }
 
+struct AnthropicModelsResponse: Codable {
+    let data: [AnthropicModelEntry]
+}
+
+struct AnthropicModelEntry: Codable {
+    let id: String
+    let display_name: String
+}
+
 struct GoogleModelsResponse: Codable {
     let models: [GoogleModelEntry]
 }
@@ -302,11 +342,14 @@ struct GoogleModelEntry: Codable {
 
 enum ModelRegistryError: Error, LocalizedError {
     case fetchFailed(provider: LLMProvider)
+    case multipleFetchesFailed(descriptions: [String])
 
     var errorDescription: String? {
         switch self {
         case .fetchFailed(let provider):
             return "Failed to fetch models from \(provider.displayName)"
+        case .multipleFetchesFailed(let descriptions):
+            return "Failed to fetch models: \(descriptions.joined(separator: "; "))"
         }
     }
 }

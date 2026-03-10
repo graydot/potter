@@ -77,7 +77,13 @@ struct LLMProviderView: View {
 
                 // Refresh button
                 Button(action: {
-                    Task { await viewModel.refreshModels() }
+                    Task {
+                        do {
+                            try await viewModel.refreshModels()
+                        } catch {
+                            PotterLogger.shared.error("settings", "Model refresh failed: \(error.localizedDescription)")
+                        }
+                    }
                 }) {
                     if viewModel.isRefreshingModels {
                         ProgressView()

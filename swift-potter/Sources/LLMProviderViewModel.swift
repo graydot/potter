@@ -98,10 +98,10 @@ class LLMProviderViewModel: ObservableObject {
     }
 
     /// Refresh models from the provider API.
-    func refreshModels() async {
+    func refreshModels() async throws {
         let apiKey = llmManager.getAPIKey(for: selectedProvider)
         guard !apiKey.isEmpty else { return }
-        await modelRegistry.refreshModels(for: selectedProvider, apiKey: apiKey)
+        try await modelRegistry.refreshModels(for: selectedProvider, apiKey: apiKey)
     }
     
     // MARK: - Public Methods

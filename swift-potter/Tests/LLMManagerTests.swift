@@ -172,19 +172,4 @@ class LLMManagerTests: TestBase {
         XCTAssertEqual(llmManager.selectedModel?.provider, .google)
     }
 
-    // MARK: - Fallback Logic
-
-    func testFindFallbackModel() {
-        // Select a specific model, then verify there's a fallback available
-        let models = llmManager.modelsForCurrentProvider()
-        guard models.count > 1 else { return }
-
-        let firstModel = models[0]
-        llmManager.selectModel(firstModel)
-
-        // The fallback logic is tested indirectly — verify the model registry
-        // provides models of the same tier
-        let sameTier = ModelRegistry.shared.modelsForTier(firstModel.tier, provider: firstModel.provider)
-        XCTAssertFalse(sameTier.isEmpty)
-    }
 }

@@ -136,10 +136,13 @@ class ModelRegistryTests: TestBase {
 
     // MARK: - Anthropic Always Uses Static
 
-    func testAnthropicRefreshReturnsStaticModels() async {
-        await registry.refreshModels(for: .anthropic, apiKey: "test-key")
-        let models = registry.getModels(for: .anthropic)
-        XCTAssertEqual(models, LLMModel.anthropicModels)
+    func testRefreshThrowsOnBadKey() async {
+        do {
+            try await registry.refreshModels(for: .anthropic, apiKey: "test-key")
+            XCTFail("Should throw on invalid API key")
+        } catch {
+            XCTAssertTrue(error is ModelRegistryError)
+        }
     }
 
     // MARK: - LLMModel Codable
