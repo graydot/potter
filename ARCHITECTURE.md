@@ -116,39 +116,21 @@ class CGEventHotkeyProvider: HotkeyProvider { /* App Store compatible */ }
 class MockHotkeyProvider: HotkeyProvider { /* for tests */ }
 ```
 
-### 5. Consistent Async/Await
+### ~~5. Consistent Async/Await~~ ✅ DONE
 
-**Problem**: Mix of `async`/`await` and closure callbacks. 16+ `@MainActor` boundaries in PotterCore create confusion about thread safety.
+Cleaned up async/await patterns:
+- Removed redundant `DispatchQueue.main.async { Task { @MainActor } }` nesting (3 locations)
+- Removed unnecessary dispatch in `@MainActor` contexts (PermissionManager)
+- Replaced `DispatchQueue.main.sync` with async in PromptService (deadlock fix)
+- No callback-based patterns remain — all async operations use async/await
 
-**Solution**:
-- All service methods → `async throws`
-- Remove closure-based callbacks
-- Mark clear `@MainActor` boundaries (UI layer only)
-- Use `Task { @MainActor in }` only at UI boundary
+### ~~6. Add Integration Test Layer~~ ✅ DONE (Phase 2)
 
-### 6. Add Integration Test Layer
+288 tests including pipeline integration tests with mock dependencies.
 
-**Problem**: ~82 unit tests but no end-to-end workflow tests. UI is completely untested.
+### ~~7. Consolidate Settings UI Files~~ ✅ DONE (Phase 2 + P0 #1)
 
-```swift
-// Test the full pipeline with mock LLM
-func testHotkeyToClipboardFlow() async throws {
-    let mockLLM = MockLLMClient(response: "improved text")
-    let core = PotterCore(
-        hotkeys: MockHotkeyProvider(),
-        llm: mockLLM,
-        prompts: InMemoryPromptRepository()
-    )
-    core.simulateHotkeyWithClipboard("rough text")
-    XCTAssertEqual(mockLLM.lastInput, "rough text")
-}
-```
-
-### 7. Consolidate Settings UI Files
-
-**Problem**: Three settings windows: `ModernSettingsWindow.swift`, `SettingsWindow.swift`, `SimpleSettingsWindow.swift`. Unclear which is canonical.
-
-**Solution**: Keep Modern (after P0 split), delete the others.
+Deleted SettingsWindow.swift and SimpleSettingsWindow.swift. ModernSettingsWindow split into 9 focused files.
 
 ---
 
@@ -157,14 +139,22 @@ func testHotkeyToClipboardFlow() async throws {
 ### 8. Cache Invalidation Strategy
 LLMManager caches clients forever. PromptService checks file mod times. No consistent pattern. Define TTL or event-based invalidation.
 
-### 9. Reduce LLMClient.swift Duplication
-OpenAI, Anthropic, Google clients share HTTP request/response patterns. Extract `BaseLLMClient` with shared request logic.
+### ~~9. Reduce LLMClient.swift Duplication~~ ✅ DONE (Phase 3)
+Extracted `BaseLLMClient` with shared HTTP utilities.
 
 ### 10. Structured Logging with os.Logger
 Replace custom PotterLogger with Apple's `os.Logger` — built-in level filtering, automatic rotation, Console.app integration. Keep file logging as optional debug supplement.
+**Note**: PotterLogger is used by 19 files and is `ObservableObject` for the Logs UI. Full replacement is high effort. Consider incremental: add os.Logger internally while keeping the existing API.
 
-### 11. Extract Icon/Animation Drawing
-MenuBarManager (408 loc) mixes icon pixel drawing with menu construction and state management. Split into `IconFactory`, `MenuBuilder`, thin `MenuBarManager`.
+### ~~11. Extract Icon/Animation Drawing~~ ✅ DONE (Phase 3)
+Extracted `IconFactory` and `MenuBuilder` from MenuBarManager.
+
+### 12. Remaining Singletons
+8 singletons without protocols remain. Analysis shows low ROI for most:
+- **PotterLogger** (19 files, ObservableObject) — too invasive to protocol-ize
+- **AutoUpdateManager** (dual compile-time implementations) — protocol would make it worse
+- **LoginItemsManager, ProcessManager, SecuritySanitizer** — 1 caller each, low impact
+Keep as-is; architecture is sound without full DI for these.
 
 ---
 
@@ -187,10 +177,16 @@ Phase 3 (Polish) ✅ DONE:
   ├── ✅ Reduce LLMClient duplication (BaseLLMClient)
   └── Threading model documented with tests
 
-Remaining:
-  ├── Async/await consistency pass
-  ├── Protocol-ize PotterLogger (→ os.Logger)
-  └── Reduce remaining singletons (LoginItemsManager, AutoUpdateManager)
+Phase 4 (Async/Await + Settings Split) ✅ DONE:
+  ├── ✅ Split ModernSettingsWindow (1408 loc → 9 files)
+  ├── ✅ Clean up redundant dispatch nesting (3 locations)
+  ├── ✅ Replace DispatchQueue.main.sync with async (deadlock fix)
+  └── ✅ Replace DispatchQueue.main.asyncAfter with Task.sleep in @MainActor contexts
+
+Remaining (low priority):
+  ├── Cache invalidation strategy (P2 #8)
+  ├── os.Logger migration (P2 #10) — incremental, keep existing API
+  └── Remaining singletons documented as acceptable (P2 #12)
 ```
 
 ---
