@@ -1,85 +1,126 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Commands
 
 ### Development
-- **Run app**: `cd swift-potter && swift run`
-- **Run tests**: `cd swift-potter && swift test --parallel`
-- **Test build** (unsigned): `./scripts/test_build.sh`
-- **Production build**: `python scripts/build_app.py --target local`
+- **Run app**: `cd swift-potter && swift run` or `make run`
+- **Run tests**: `cd swift-potter && swift test --parallel` or `make test`
+- **Build unsigned**: `./scripts/test_build.sh` or `make build-unsigned`
+- **Build signed**: `python scripts/build_app.py --target local` or `make build`
 - **App Store build**: `python scripts/build_app.py --target appstore`
+- **Create release**: `make release`
 
-### Using Makefile
-- **Run app**: `make run`
-- **Run tests**: `make test`
-- **Build signed app**: `make build`
-- **Build unsigned**: `make build-unsigned`
-- **Create release**: `make release` (with auto-update support and version bump)
+### Version Management
+- `make version` / `make version-set VERSION=x.y.z`
+- `make version-bump-major` / `make version-bump-minor` / `make version-bump-patch`
+
+## Project Overview
+
+Potter is a macOS menu bar app for AI-powered text processing via global hotkeys (Cmd+Shift+9). Captures selected text system-wide, sends it to an LLM (OpenAI/Anthropic/Gemini), and replaces with the result.
+
+- **Platform**: macOS 13+, Swift 5.9, SwiftUI + AppKit
+- **Build**: Swift Package Manager, single executable target
+- **Dependencies**: Sparkle 2.6.0 (auto-updates)
+- **Distribution**: Direct (Developer ID signed) + Mac App Store
 
 ## Architecture
 
-Potter is a macOS tray application that provides AI-powered text processing with global hotkeys (Cmd+Shift+9).
+```
+swift-potter/
+├── Package.swift
+├── Sources/
+│   ├── main.swift                    # Entry point, AppDelegate, menu bar setup
+│   ├── Protocols.swift               # Protocol definitions for DI
+│   ├── PotterCore.swift              # Thin coordinator (DI-enabled)
+│   ├── TextProcessor.swift           # Text processing pipeline (testable)
+│   ├── HotkeyCoordinator.swift       # Carbon Event API hotkey management
+│   ├── LLMManager.swift              # Multi-provider LLM orchestration
+│   ├── LLMClient.swift               # LLMClient protocol + 3 implementations
+│   ├── APIKeyService.swift           # API key validation and state tracking
+│   ├── StorageAdapter.swift          # Abstract storage with StorageBackend protocol
+│   ├── PromptService.swift           # Prompt CRUD with JSON persistence + caching
+│   ├── MenuBarManager.swift          # NSStatusBar icon, menu, icon state machine
+│   ├── ModernSettingsWindow.swift    # Main settings UI (SwiftUI)
+│   ├── PromptEditDialog.swift        # Modal prompt editor
+│   ├── LLMProviderView.swift         # Provider selection UI
+│   ├── LLMProviderViewModel.swift    # Provider view model
+│   ├── PermissionsView.swift         # Permissions UI component
+│   ├── PermissionManager.swift       # Accessibility permission monitoring
+│   ├── ProcessManager.swift          # Duplicate instance detection via lock files
+│   ├── AutoUpdateManager.swift       # Auto-update via Sparkle
+│   ├── OnboardingWindow.swift        # First-run experience
+│   ├── SecuritySanitizer.swift       # Log sanitization (API keys, PII)
+│   ├── SecureAPIKeyStorage.swift     # Keychain integration
+│   ├── PotterSettings.swift          # UserDefaults wrapper
+│   ├── PotterLogger.swift            # Structured file logging
+│   ├── PotterErrors.swift            # 44-case error taxonomy
+│   └── Resources/
+│       ├── config/prompts.json       # Default prompts
+│       └── AppIcon/
+└── Tests/                            # 21 test files, 258 tests
+    ├── TestBase.swift                # Shared test utilities + storage isolation
+    ├── PotterCoreTests.swift
+    ├── PotterCoreDITests.swift       # Dependency injection tests
+    ├── TextProcessorTests.swift      # Text processing with mocks
+    ├── HotkeyCoordinatorTests.swift  # Hotkey parsing + registration
+    ├── PipelineIntegrationTests.swift # End-to-end pipeline tests
+    ├── ProtocolConformanceTests.swift # Protocol existence + conformance
+    ├── ProtocolAdapterTests.swift    # Real→protocol adapter verification
+    ├── LLMManagerTests.swift
+    └── ...
+```
 
 ### Core Flow
-1. **Service Orchestration**: `swift-potter/Sources/PotterCore.swift` coordinates all components
-2. **Global Hotkeys**: Carbon APIs capture Cmd+Shift+9 system-wide
-3. **Text Processing**: LLM integration via multiple providers (OpenAI, Anthropic, Google Gemini)
-4. **Native UI**: SwiftUI settings window with modern sidebar design
-5. **Tray Management**: NSStatusBar integration for system tray presence
+1. **main.swift** → AppDelegate creates MenuBarManager + PotterCore
+2. **PotterCore** → creates **HotkeyCoordinator** (Carbon Event API)
+3. Hotkey fires → captures clipboard → **TextProcessor** processes via LLM
+4. **LLMManager** (conforms to `LLMProcessing`) → creates `LLMClient` → API call
+5. Result replaces clipboard → notifies user via `IconStateDelegate`
 
-### Key Components
-- **Entry point**: `swift-potter/Sources/main.swift` - AppDelegate with menu bar management
-- **Core Engine**: `swift-potter/Sources/PotterCore.swift` - Global hotkeys and text processing
-- **LLM Integration**: `swift-potter/Sources/LLMManager.swift` + `LLMClient.swift` - Multi-provider support
-- **Settings UI**: `swift-potter/Sources/ModernSettingsWindow.swift` - Native SwiftUI interface
-- **Auto-Updates**: `swift-potter/Sources/AutoUpdateManager.swift` - Sparkle framework integration
-- **Process Management**: `swift-potter/Sources/ProcessManager.swift` - Duplicate instance detection
-- **Permission System**: `swift-potter/Sources/PermissionManager.swift` - macOS permissions
-- **Secure Storage**: `swift-potter/Sources/SecureAPIKeyStorage.swift` - Keychain integration
+### Key Protocols (Protocols.swift)
+- `PromptRepository` — prompt CRUD (implemented by PromptService)
+- `PromptProviding` — current prompt access (implemented by PromptService)
+- `KeyValidationService` — API key management (implemented by APIKeyService)
+- `PermissionChecker` — permission checks (implemented by PermissionManager)
+- `LLMProcessing` — text processing (implemented by LLMManager)
+- `HotkeyProvider` — hotkey registration (implemented by HotkeyCoordinator)
+- `LLMClient` — provider-specific LLM calls (OpenAI, Anthropic, Google)
+- `StorageBackend` — storage abstraction (UserDefaults)
+- `IconStateDelegate` — PotterCore → MenuBarManager communication
 
-### Build System
-- **Swift Package Manager**: Native Xcode toolchain integration
-- **Build commands**: `python scripts/build_app.py --target [local|appstore]`
-- **Native compilation**: Direct to executable binary
-- **Code signing**: Integrated with Xcode build process
-- **Testing**: `swift test` and `swift test --parallel` for comprehensive test suite
-- **Dual distribution**: Supports both GitHub releases and Mac App Store
-- **Auto-update system**: Sparkle framework with appcast.xml for seamless updates
-- **Release management**: Automated version bumping and GitHub release creation via `make release`
-- **Intelligent versioning**: Handles multiple build conflicts with user dialogs
+### Dependency Injection
+- **PotterCore** accepts `init(llmManager:settings:)` — backward compatible defaults
+- **TextProcessor** accepts `init(promptProvider:llmProcessor:)` — fully mockable
+- **HotkeyCoordinator** extracted from PotterCore — testable without Carbon APIs
+- All services have protocol abstractions for test doubles
 
-### Dependencies & Permissions
-- **Native macOS app**: No external runtime dependencies
-- **Multi-LLM support**: OpenAI, Anthropic, Google Gemini APIs via native HTTP clients
-- **Settings persistence**: UserDefaults and JSON file management
-- **Permission management**: Native PermissionManager with direct system integration
-- **Critical permissions**: Accessibility (required), Notifications (graceful degradation)
-- **Dynamic prompt system**: JSON-based prompt management with real-time updates
-- **Secure storage**: Keychain Services integration for API key storage
+### Patterns Used
+- **DI**: Constructor injection for PotterCore, TextProcessor
+- **Protocol**: Every service boundary has a protocol for mocking
+- **Adapter**: StorageAdapter wraps storage backends
+- **Factory**: LLMManager creates provider-specific clients
+- **Observer**: Weak delegate for icon state changes
+- **Coordinator**: HotkeyCoordinator manages Carbon Event lifecycle
 
-### Testing Philosophy
-- **Comprehensive unit tests**: 82+ tests across all major components
-- **XCTest framework**: Native Swift testing with async/await support
-- **Real integration**: Minimal mocking, actual file I/O, real UserDefaults
-- **Auto-discovery**: Swift Package Manager finds all test files automatically
-- **Test coverage**: LLM clients, settings, permissions, process management, core functionality
-- **Performance testing**: Fast execution without network calls
-- **Commands**: `swift test`, `swift test --parallel`, `make test`
+### Error Handling
+`PotterError` enum with 6 categories × 7 cases each (44 total). Each error has user message, technical description, severity, and alert policy. Flow: LLMClient → PotterError → IconState → MenuBarManager display.
 
-### Development Notes
-- **Single instance enforcement**: PID files with build conflict resolution dialogs
-- **Build environment variables**: DEVELOPER_ID_APPLICATION, APPLE_TEAM_ID for signing
-- **Logging locations**: `swift-potter/potter_debug.log` (dev), `~/Library/Logs/potter.log` (production)
-- **Settings storage**: UserDefaults and JSON files in `swift-potter/config/`
-- **Project structure**: All Swift code in `swift-potter/` directory
+## Testing
+- **Framework**: XCTest with async/await
+- **258 tests** across 21 files
+- **Test isolation**: TestBase provides UserDefaults suite isolation
+- **Mock infrastructure**: MockPromptRepository, MockKeyValidationService, MockPermissionChecker, StubLLMProcessor, SpyIconDelegate
+- **Integration tests**: Full pipeline tests with mock dependencies
+- **Run**: `swift test` or `make test`
 
-### User Experience Features
-- **Global hotkey**: Cmd+Shift+9 for system-wide text processing
-- **Native macOS integration**: NSMenu, NSNotifications, accessibility services
-- **Permission management**: Direct navigation to system settings with fallback URLs
-- **Enhanced settings UI**: Modern SwiftUI sidebar design with keyboard shortcuts (ESC/Cmd+Enter)
-- **Build conflict resolution**: User-friendly dialogs when multiple builds detected
-- **Secure API storage**: Keychain Services integration with UserDefaults fallback
-- **Dynamic prompts**: JSON-based prompt system with real-time updates
+## File Locations
+- **Dev logs**: `swift-potter/potter_debug.log`
+- **Prod logs**: `~/Library/Logs/potter.log`
+- **Crash reports**: `~/Library/Logs/DiagnosticReports/Potter*`
+- **Settings**: UserDefaults + `~/Library/Application Support/Potter/`
+- **Lock file**: `~/.potter.pid`
+
+## Build Environment
+- `DEVELOPER_ID_APPLICATION` and `APPLE_TEAM_ID` for code signing
+- GitHub CLI (`gh`) for releases
+- Python 3.8+ for build scripts
