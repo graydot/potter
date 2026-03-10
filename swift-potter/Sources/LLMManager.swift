@@ -24,12 +24,31 @@ class LLMManager: ObservableObject, LLMProcessing {
         return isValidatingLocal || apiKeyService.isValidating
     }
     
-    init() {
+    private let modelRegistry: ModelRegistry
+
+    init(modelRegistry: ModelRegistry? = nil) {
+        self.modelRegistry = modelRegistry ?? ModelRegistry.shared
+
         // Load saved settings
         loadSettings()
-        
+
         // Set default model for selected provider
-        selectedModel = selectedProvider.models.first
+        if selectedModel == nil {
+            selectedModel = modelsForCurrentProvider().first
+        }
+
+        // Trigger background model refresh if stale
+        refreshModelsIfStale(for: selectedProvider)
+    }
+
+    /// Models for the current provider, using the registry (dynamic) with static fallback.
+    func modelsForCurrentProvider() -> [LLMModel] {
+        return modelRegistry.getModels(for: selectedProvider)
+    }
+
+    /// Models for a specific provider, using the registry.
+    func modelsForProvider(_ provider: LLMProvider) -> [LLMModel] {
+        return modelRegistry.getModels(for: provider)
     }
     
     // MARK: - Settings Management
@@ -43,14 +62,15 @@ class LLMManager: ObservableObject, LLMProcessing {
         // Don't preload all API keys during startup to avoid keychain prompts
         // Keys will be loaded on-demand when providers are selected
         
-        // Load selected model
+        // Load selected model from registry (dynamic) or static fallback
+        let providerModels = modelRegistry.getModels(for: selectedProvider)
         if let modelId = UserDefaults.standard.string(forKey: "selected_model") {
-            selectedModel = selectedProvider.models.first { $0.id == modelId }
+            selectedModel = providerModels.first { $0.id == modelId }
         }
-        
+
         // Always ensure a model is selected for the current provider
         if selectedModel == nil || selectedModel?.provider != selectedProvider {
-            selectedModel = selectedProvider.models.first
+            selectedModel = providerModels.first
         }
     }
     
@@ -68,12 +88,25 @@ class LLMManager: ObservableObject, LLMProcessing {
     // MARK: - Provider Management
     func selectProvider(_ provider: LLMProvider) {
         selectedProvider = provider
-        selectedModel = provider.models.first
+        selectedModel = modelRegistry.getModels(for: provider).first
         // Invalidate cached client — key may have changed since last cached
         clients.removeValue(forKey: provider)
         saveSettings()
 
+        // Refresh models for the new provider if stale
+        refreshModelsIfStale(for: provider)
+
         PotterLogger.shared.info("llm_manager", "🔄 Switched to \(provider.displayName) provider")
+    }
+
+    /// Trigger a background model refresh if the cache is stale.
+    private func refreshModelsIfStale(for provider: LLMProvider) {
+        guard modelRegistry.isStale(for: provider) else { return }
+        let apiKey = getAPIKey(for: provider)
+        guard !apiKey.isEmpty else { return }
+        Task {
+            await modelRegistry.refreshModels(for: provider, apiKey: apiKey)
+        }
     }
     
     func selectModel(_ model: LLMModel) {
@@ -153,12 +186,23 @@ class LLMManager: ObservableObject, LLMProcessing {
         }
         
         PotterLogger.shared.info("llm_manager", "🤖 Processing text with \(selectedProvider.displayName) \(model.name)")
-        
-        let result = try await client.processText(text, prompt: prompt, model: model.id)
-        
-        PotterLogger.shared.info("llm_manager", "✅ Text processing completed successfully")
-        
-        return result
+
+        do {
+            let result = try await client.processText(text, prompt: prompt, model: model.id)
+            PotterLogger.shared.info("llm_manager", "✅ Text processing completed successfully")
+            return result
+        } catch let error as PotterError where isModelUnavailableError(error) {
+            // Model is deprecated/unavailable — try fallback
+            if let fallback = findFallbackModel(for: model) {
+                PotterLogger.shared.info("llm_manager", "⚠️ Model \(model.name) unavailable, falling back to \(fallback.name)")
+                selectedModel = fallback
+                saveSettings()
+                let result = try await client.processText(text, prompt: prompt, model: fallback.id)
+                PotterLogger.shared.info("llm_manager", "✅ Fallback model \(fallback.name) succeeded")
+                return result
+            }
+            throw error
+        }
     }
     
     // MARK: - Validation Helpers (Delegated to APIKeyService)
@@ -172,5 +216,32 @@ class LLMManager: ObservableObject, LLMProcessing {
     
     func hasValidProvider() -> Bool {
         return isProviderConfigured(selectedProvider)
+    }
+
+    // MARK: - Model Fallback
+
+    /// Check if the error indicates a model is unavailable (404, deprecated).
+    private func isModelUnavailableError(_ error: PotterError) -> Bool {
+        switch error {
+        case .network(.invalidResponse(let reason)):
+            return reason.contains("404") || reason.lowercased().contains("not found") || reason.lowercased().contains("deprecated")
+        case .network(.serverError(let statusCode, _)):
+            return statusCode == 404
+        default:
+            return false
+        }
+    }
+
+    /// Find the next best model in the same tier and provider.
+    private func findFallbackModel(for model: LLMModel) -> LLMModel? {
+        let sameTierModels = modelRegistry.modelsForTier(model.tier, provider: model.provider)
+            .filter { $0.id != model.id }
+        if let fallback = sameTierModels.first {
+            return fallback
+        }
+        // If no same-tier fallback, try any model from the same provider
+        let anyModel = modelRegistry.getModels(for: model.provider)
+            .filter { $0.id != model.id }
+        return anyModel.first
     }
 }
