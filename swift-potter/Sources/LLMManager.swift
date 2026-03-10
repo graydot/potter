@@ -69,8 +69,10 @@ class LLMManager: ObservableObject, LLMProcessing {
     func selectProvider(_ provider: LLMProvider) {
         selectedProvider = provider
         selectedModel = provider.models.first
+        // Invalidate cached client — key may have changed since last cached
+        clients.removeValue(forKey: provider)
         saveSettings()
-        
+
         PotterLogger.shared.info("llm_manager", "🔄 Switched to \(provider.displayName) provider")
     }
     
@@ -86,6 +88,8 @@ class LLMManager: ObservableObject, LLMProcessing {
         let result = apiKeyService.saveAPIKey(apiKey, for: provider)
         switch result {
         case .success:
+            // Invalidate cached client so next processText creates one with the new key
+            clients.removeValue(forKey: provider)
             PotterLogger.shared.info("llm_manager", "✅ API key saved via service")
         case .failure(let error):
             PotterLogger.shared.error("llm_manager", "❌ Failed to save API key via service: \(error)")
