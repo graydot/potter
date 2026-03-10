@@ -83,72 +83,58 @@ class OpenAIClient: LLMClient {
         let url = URL(string: "https://api.openai.com/v1/models")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        
+
         PotterLogger.shared.info("validation", "🔍 OpenAI validation URL: \(url.absoluteString)")
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
         let httpResponse = response as? HTTPURLResponse
         let statusCode = httpResponse?.statusCode ?? 0
-        
+
         PotterLogger.shared.info("validation", "📡 OpenAI response status: \(statusCode)")
-        
+
         if statusCode != 200 {
             let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
             PotterLogger.shared.error("validation", "❌ OpenAI validation failed - Response: \(errorBody)")
-            throw createLLMError(for: statusCode, message: errorBody, provider: "OpenAI")
+            throw LLMHTTPClient.createLLMError(for: statusCode, message: errorBody, provider: "OpenAI")
         }
-        
+
         return true
     }
-    
+
     func processText(_ text: String, prompt: String, model: String) async throws -> String {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let requestBody = OpenAIRequest(
+        let body = OpenAIRequest(
             model: model,
             messages: [
                 OpenAIMessage(role: "system", content: prompt),
                 OpenAIMessage(role: "user", content: text)
             ]
         )
-        
-        let jsonData = try JSONEncoder().encode(requestBody)
-        request.httpBody = jsonData
-        
+        let headers = ["Authorization": "Bearer \(apiKey)"]
+
         PotterLogger.shared.debug("llm_client", "🌐 Making OpenAI API request...")
-        let (data, response): (Data, URLResponse)
+        let request: URLRequest
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            request = try LLMHTTPClient.makeJSONRequest(url: url, headers: headers, body: body)
         } catch {
+            throw LLMHTTPClient.createResponseError(reason: "Failed to encode request: \(error.localizedDescription)")
+        }
+
+        let response: OpenAIResponse
+        do {
+            response = try await LLMHTTPClient.performRequest(request, responseType: OpenAIResponse.self, provider: "OpenAI")
+        } catch {
+            if let potterError = error as? PotterError {
+                throw potterError
+            }
             PotterLogger.shared.error("llm_client", "🚫 OpenAI Network Error: \(error)")
-            throw createResponseError(reason: "Network error: \(error.localizedDescription)")
+            throw LLMHTTPClient.createResponseError(reason: "Network error: \(error.localizedDescription)")
         }
-        
-        // Debug logging for response investigation
-        PotterLogger.shared.debug("llm_client", "🔍 OpenAI Raw Response Type: \(type(of: response))")
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            PotterLogger.shared.error("llm_client", "❌ OpenAI Invalid Response Type: \(type(of: response))")
-            throw createResponseError(reason: "OpenAI API returned invalid HTTP response")
+
+        guard let firstChoice = response.choices.first else {
+            throw LLMHTTPClient.createResponseError(reason: "OpenAI API returned no response choices")
         }
-        
-        // Always log the status code for debugging
-        PotterLogger.shared.debug("llm_client", "📡 OpenAI Response Status: \(httpResponse.statusCode)")
-        
-        guard httpResponse.statusCode == 200 else {
-            throw handleLLMError(httpResponse: httpResponse, data: data, provider: "OpenAI")
-        }
-        
-        let openAIResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
-        
-        guard let firstChoice = openAIResponse.choices.first else {
-            throw createResponseError(reason: "OpenAI API returned no response choices")
-        }
-        
+
         return firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
@@ -164,70 +150,62 @@ class AnthropicClient: LLMClient {
     
     func validateAPIKey(_ apiKey: String) async throws -> Bool {
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        
-        PotterLogger.shared.info("validation", "🔍 Anthropic validation URL: \(url.absoluteString)")
-        
+        let headers = [
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+        ]
         let testBody = AnthropicRequest(
             model: LLMModel.anthropicModels.first!.id,
             max_tokens: 1,
             messages: [AnthropicMessage(role: "user", content: "test")]
         )
-        
-        request.httpBody = try JSONEncoder().encode(testBody)
-        
+
+        PotterLogger.shared.info("validation", "🔍 Anthropic validation URL: \(url.absoluteString)")
+
+        let request = try LLMHTTPClient.makeJSONRequest(url: url, headers: headers, body: testBody)
+
         let (data, response) = try await URLSession.shared.data(for: request)
         let httpResponse = response as? HTTPURLResponse
         let statusCode = httpResponse?.statusCode ?? 0
-        
+
         PotterLogger.shared.info("validation", "📡 Anthropic response status: \(statusCode)")
-        
+
         if statusCode != 200 {
             let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
             PotterLogger.shared.error("validation", "❌ Anthropic validation failed - Response: \(errorBody)")
-            throw createLLMError(for: statusCode, message: errorBody, provider: "Anthropic")
+            throw LLMHTTPClient.createLLMError(for: statusCode, message: errorBody, provider: "Anthropic")
         }
-        
+
         return true
     }
-    
+
     func processText(_ text: String, prompt: String, model: String) async throws -> String {
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        
-        let requestBody = AnthropicRequest(
+        let body = AnthropicRequest(
             model: model,
             max_tokens: 2048,
             messages: [AnthropicMessage(role: "user", content: "\(prompt)\n\n\(text)")]
         )
-        
-        let jsonData = try JSONEncoder().encode(requestBody)
-        request.httpBody = jsonData
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw createResponseError(reason: "Anthropic API returned invalid HTTP response")
+        let headers = [
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+        ]
+
+        let request = try LLMHTTPClient.makeJSONRequest(url: url, headers: headers, body: body)
+        let response: AnthropicResponse
+        do {
+            response = try await LLMHTTPClient.performRequest(request, responseType: AnthropicResponse.self, provider: "Anthropic")
+        } catch {
+            if let potterError = error as? PotterError {
+                throw potterError
+            }
+            throw LLMHTTPClient.createResponseError(reason: "Network error: \(error.localizedDescription)")
         }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw handleLLMError(httpResponse: httpResponse, data: data, provider: "Anthropic")
+
+        guard let firstContent = response.content.first else {
+            throw LLMHTTPClient.createResponseError(reason: "Anthropic API returned no response content")
         }
-        
-        let anthropicResponse = try JSONDecoder().decode(AnthropicResponse.self, from: data)
-        
-        guard let firstContent = anthropicResponse.content.first else {
-            throw createResponseError(reason: "Anthropic API returned no response content")
-        }
-        
+
         return firstContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
@@ -243,68 +221,55 @@ class GoogleClient: LLMClient {
     
     func validateAPIKey(_ apiKey: String) async throws -> Bool {
         let modelId = LLMModel.googleModels.first!.id
-        let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(modelId):generateContent")!
-        var request = URLRequest(url: baseURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        
-        PotterLogger.shared.info("validation", "🔍 Google validation URL: \(baseURL.absoluteString)")
-        
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(modelId):generateContent")!
+        let headers = ["x-goog-api-key": apiKey]
         let testBody = GoogleRequest(
             contents: [GoogleContent(parts: [GooglePart(text: "test")])]
         )
-        
-        request.httpBody = try JSONEncoder().encode(testBody)
-        
+
+        PotterLogger.shared.info("validation", "🔍 Google validation URL: \(url.absoluteString)")
+
+        let request = try LLMHTTPClient.makeJSONRequest(url: url, headers: headers, body: testBody)
+
         let (data, response) = try await URLSession.shared.data(for: request)
         let httpResponse = response as? HTTPURLResponse
         let statusCode = httpResponse?.statusCode ?? 0
-        
+
         PotterLogger.shared.info("validation", "📡 Google response status: \(statusCode)")
-        
+
         if statusCode != 200 {
             let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
             PotterLogger.shared.error("validation", "❌ Google validation failed - Response: \(errorBody)")
-            throw createLLMError(for: statusCode, message: errorBody, provider: "Google")
+            throw LLMHTTPClient.createLLMError(for: statusCode, message: errorBody, provider: "Google")
         }
-        
+
         return true
     }
-    
+
     func processText(_ text: String, prompt: String, model: String) async throws -> String {
-        let modelName = model
-        let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(modelName):generateContent")!
-        var request = URLRequest(url: baseURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
-        
-        let requestBody = GoogleRequest(
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(model):generateContent")!
+        let body = GoogleRequest(
             contents: [GoogleContent(parts: [GooglePart(text: "\(prompt)\n\n\(text)")])]
         )
-        
-        let jsonData = try JSONEncoder().encode(requestBody)
-        request.httpBody = jsonData
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw createResponseError(reason: "Google API returned invalid HTTP response")
+        let headers = ["x-goog-api-key": apiKey]
+
+        let request = try LLMHTTPClient.makeJSONRequest(url: url, headers: headers, body: body)
+        let googleResponse: GoogleResponse
+        do {
+            googleResponse = try await LLMHTTPClient.performRequest(request, responseType: GoogleResponse.self, provider: "Google")
+        } catch {
+            if let potterError = error as? PotterError {
+                throw potterError
+            }
+            throw LLMHTTPClient.createResponseError(reason: "Network error: \(error.localizedDescription)")
         }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw handleLLMError(httpResponse: httpResponse, data: data, provider: "Google")
-        }
-        
-        let googleResponse = try JSONDecoder().decode(GoogleResponse.self, from: data)
-        
+
         guard let firstCandidate = googleResponse.candidates.first,
               let content = firstCandidate.content,
               let firstPart = content.parts.first else {
-            throw createResponseError(reason: "Google API returned no response candidates")
+            throw LLMHTTPClient.createResponseError(reason: "Google API returned no response candidates")
         }
-        
+
         return firstPart.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
@@ -371,90 +336,3 @@ struct GoogleCandidate: Codable {
     let content: GoogleContent?
 }
 
-// MARK: - Error Conversion Helpers
-
-/// Unified error handling for all LLM providers
-private func handleLLMError(httpResponse: HTTPURLResponse, data: Data, provider: String) -> PotterError {
-    let statusCode = httpResponse.statusCode
-    let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-    
-    // Log the full API response for debugging
-    PotterLogger.shared.error("llm_client", "❌ \(provider) API Error - Status: \(statusCode)")
-    PotterLogger.shared.error("llm_client", "📄 Full API Response: \(errorMessage)")
-    
-    // Log headers that might contain rate limiting info
-    if let rateLimitHeaders = httpResponse.allHeaderFields as? [String: String] {
-        let relevantHeaders = rateLimitHeaders.filter { key, _ in
-            key.lowercased().contains("rate") || 
-            key.lowercased().contains("limit") || 
-            key.lowercased().contains("retry") ||
-            key.lowercased().contains("quota")
-        }
-        if !relevantHeaders.isEmpty {
-            PotterLogger.shared.error("llm_client", "🔢 Rate Limit Headers: \(relevantHeaders)")
-        }
-    }
-    
-    return createLLMError(for: statusCode, message: errorMessage, provider: provider)
-}
-
-/// Helper function to convert common LLM API errors to PotterError
-private func createLLMError(for statusCode: Int, message: String, provider: String) -> PotterError {
-    switch statusCode {
-    case 400:
-        return .network(.invalidResponse(reason: "\(provider) API: \(message)"))
-    case 401, 403:
-        return .network(.unauthorized(provider: provider))
-    case 429:
-        // Extract retry-after time from error message if available
-        let retryAfter = extractRetryAfterFromMessage(message)
-        
-        // Log additional rate limiting details for debugging
-        PotterLogger.shared.error("llm_client", "🚫 Rate Limiting Details - Provider: \(provider)")
-        PotterLogger.shared.error("llm_client", "⏳ Retry After: \(retryAfter?.description ?? "not specified")")
-        PotterLogger.shared.error("llm_client", "💬 Rate Limit Message: \(message)")
-        
-        // Return the full error message for UI display
-        return .network(.serverError(statusCode: statusCode, message: message))
-    case 500...599:
-        return .network(.serverError(statusCode: statusCode, message: message))
-    default:
-        return .network(.requestFailed(underlying: "\(provider) API Error (\(statusCode)): \(message)"))
-    }
-}
-
-/// Extract retry-after time from various API error message formats
-private func extractRetryAfterFromMessage(_ message: String) -> TimeInterval? {
-    // Common patterns in API rate limit messages
-    let patterns = [
-        #"retry.*?(\d+).*?second"#,
-        #"wait.*?(\d+).*?second"#,
-        #"Try again in (\d+) second"#,
-        #"Rate limit.*?(\d+).*?second"#,
-        #"Please try again in (\d+)"#
-    ]
-    
-    for pattern in patterns {
-        if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: message, options: [], range: NSRange(location: 0, length: message.count)),
-           match.numberOfRanges > 1 {
-            let range = match.range(at: 1)
-            let numberString = (message as NSString).substring(with: range)
-            if let seconds = Double(numberString) {
-                return seconds
-            }
-        }
-    }
-    
-    return nil
-}
-
-/// Helper function for invalid API key errors
-private func createInvalidAPIKeyError(provider: String) -> PotterError {
-    return .configuration(.invalidAPIKey(provider: provider))
-}
-
-/// Helper function for network response errors
-private func createResponseError(reason: String) -> PotterError {
-    return .network(.invalidResponse(reason: reason))
-}
