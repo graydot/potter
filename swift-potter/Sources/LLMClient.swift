@@ -1,29 +1,58 @@
 import Foundation
 
+// MARK: - Model Tier
+enum ModelTier: String, Codable, CaseIterable, Identifiable {
+    case fast
+    case standard
+    case thinking
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fast: return "Fast"
+        case .standard: return "Standard"
+        case .thinking: return "Thinking"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .fast: return "Small, cheap models for quick transforms"
+        case .standard: return "Balanced models for most tasks"
+        case .thinking: return "Reasoning models for complex prompts"
+        }
+    }
+}
+
 // MARK: - LLM Model Definitions
-struct LLMModel: Identifiable, Hashable {
+struct LLMModel: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let description: String
     let provider: LLMProvider
-    
+    let tier: ModelTier
+
     static let openAIModels = [
-        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast, intelligent, and cost-effective for most tasks", provider: .openAI),
-        LLMModel(id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Reliable and cost-effective for most tasks", provider: .openAI),
+        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast, intelligent, and cost-effective for most tasks", provider: .openAI, tier: .fast),
+        LLMModel(id: "gpt-4o", name: "GPT-4o", description: "Versatile model for a wide range of tasks", provider: .openAI, tier: .standard),
+        LLMModel(id: "o4-mini", name: "o4 Mini", description: "Fast reasoning model", provider: .openAI, tier: .thinking),
     ]
-    
+
     static let anthropicModels = [
-        LLMModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic),
-        LLMModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", description: "Excellent for creative writing and complex analysis", provider: .anthropic)
+        LLMModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic, tier: .fast),
+        LLMModel(id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Excellent for creative writing and complex analysis", provider: .anthropic, tier: .standard),
+        LLMModel(id: "claude-opus-4-20250514", name: "Claude Opus 4", description: "Most capable model for demanding tasks", provider: .anthropic, tier: .thinking),
     ]
-    
+
     static let googleModels = [
-        LLMModel(id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast and efficient, optimized for speed", provider: .google),
-        LLMModel(id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Advanced reasoning with large context", provider: .google)
+        LLMModel(id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Fast and efficient, optimized for speed", provider: .google, tier: .fast),
+        LLMModel(id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Advanced reasoning with large context", provider: .google, tier: .standard),
+        LLMModel(id: "gemini-2.5-flash-thinking", name: "Gemini 2.5 Flash Thinking", description: "Reasoning model with thinking capabilities", provider: .google, tier: .thinking),
     ]
 }
 
-enum LLMProvider: String, CaseIterable, Identifiable, Hashable {
+enum LLMProvider: String, CaseIterable, Identifiable, Hashable, Codable {
     case openAI = "openai"
     case anthropic = "anthropic"
     case google = "google"

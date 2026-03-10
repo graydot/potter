@@ -9,13 +9,15 @@ class LLMClientTests: TestBase {
             id: "test-model",
             name: "Test Model",
             description: "A test model",
-            provider: .openAI
+            provider: .openAI,
+            tier: .standard
         )
-        
+
         XCTAssertEqual(model.id, "test-model")
         XCTAssertEqual(model.name, "Test Model")
         XCTAssertEqual(model.description, "A test model")
         XCTAssertEqual(model.provider, .openAI)
+        XCTAssertEqual(model.tier, .standard)
     }
     
     func testLLMProviderProperties() {
@@ -51,13 +53,15 @@ class LLMClientTests: TestBase {
     func testAnthropicModels() {
         let models = LLMModel.anthropicModels
         
-        XCTAssertTrue(models.contains { $0.id == "claude-3-5-sonnet-20241022" })
+        XCTAssertTrue(models.contains { $0.id == "claude-sonnet-4-20250514" })
         XCTAssertTrue(models.contains { $0.id == "claude-3-5-haiku-20241022" })
-        XCTAssertEqual(models.count, 2, "Should only have 2 commonly available Anthropic models")
-        
-        let sonnet = models.first { $0.id == "claude-3-5-sonnet-20241022" }!
-        XCTAssertEqual(sonnet.name, "Claude 3.5 Sonnet")
+        XCTAssertTrue(models.contains { $0.id == "claude-opus-4-20250514" })
+        XCTAssertEqual(models.count, 3, "Should have 3 Anthropic models (one per tier)")
+
+        let sonnet = models.first { $0.id == "claude-sonnet-4-20250514" }!
+        XCTAssertEqual(sonnet.name, "Claude Sonnet 4")
         XCTAssertEqual(sonnet.provider, .anthropic)
+        XCTAssertEqual(sonnet.tier, .standard)
         XCTAssertFalse(sonnet.description.isEmpty)
     }
     
@@ -139,17 +143,17 @@ class LLMClientTests: TestBase {
     }
     
     func testLLMModelEquatable() {
-        let model1 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI)
-        let model2 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI)
-        let model3 = LLMModel(id: "different", name: "Test", description: "Test model", provider: .openAI)
+        let model1 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI, tier: .standard)
+        let model2 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI, tier: .standard)
+        let model3 = LLMModel(id: "different", name: "Test", description: "Test model", provider: .openAI, tier: .standard)
         
         XCTAssertEqual(model1, model2)
         XCTAssertNotEqual(model1, model3)
     }
     
     func testLLMModelHashable() {
-        let model1 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI)
-        let model2 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI)
+        let model1 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI, tier: .standard)
+        let model2 = LLMModel(id: "test", name: "Test", description: "Test model", provider: .openAI, tier: .standard)
         
         let set: Set<LLMModel> = [model1, model2]
         XCTAssertEqual(set.count, 1) // Should be deduplicated
