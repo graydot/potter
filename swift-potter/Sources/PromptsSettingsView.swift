@@ -22,6 +22,7 @@ struct PromptsSettingsView: View {
                 .font(.caption)
 
             promptsTable
+                .frame(minHeight: 150, maxHeight: .infinity)
 
             HStack {
                 Button("+") {
@@ -42,7 +43,6 @@ struct PromptsSettingsView: View {
                     .font(.caption)
             }
 
-            Spacer()
         }
         .alert("Delete Prompt", isPresented: $showingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
@@ -58,6 +58,7 @@ struct PromptsSettingsView: View {
 
     private var promptsTable: some View {
         VStack(spacing: 0) {
+            // Fixed header
             HStack {
                 Text("Name")
                     .fontWeight(.medium)
@@ -71,44 +72,51 @@ struct PromptsSettingsView: View {
 
             Divider()
 
-            ForEach(Array(promptService.prompts.enumerated()), id: \.element.id) { index, promptItem in
-                HStack {
-                    Text(promptItem.name)
-                        .frame(width: 120, alignment: .leading)
-                    Text(promptItem.prompt)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .foregroundColor(.secondary)
-                }
-                .padding()
-                .background(
-                    selectedPromptID == promptItem.id ?
-                    Color.accentColor.opacity(0.1) :
-                    Color(NSColor.textBackgroundColor)
-                )
-                .simultaneousGesture(
-                    TapGesture(count: 2)
-                        .onEnded {
-                            selectedPromptID = promptItem.id
-                            editPrompt(at: index)
+            // Scrollable rows
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(promptService.prompts.enumerated()), id: \.element.id) { index, promptItem in
+                        HStack {
+                            Text(promptItem.name)
+                                .frame(width: 120, alignment: .leading)
+                            Text(promptItem.prompt)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .foregroundColor(.secondary)
                         }
-                )
-                .simultaneousGesture(
-                    TapGesture(count: 1)
-                        .onEnded {
-                            selectedPromptID = promptItem.id
-                        }
-                )
+                        .padding()
+                        .background(
+                            selectedPromptID == promptItem.id ?
+                            Color.accentColor.opacity(0.1) :
+                            Color(NSColor.textBackgroundColor)
+                        )
+                        .simultaneousGesture(
+                            TapGesture(count: 2)
+                                .onEnded {
+                                    selectedPromptID = promptItem.id
+                                    editPrompt(at: index)
+                                }
+                        )
+                        .simultaneousGesture(
+                            TapGesture(count: 1)
+                                .onEnded {
+                                    selectedPromptID = promptItem.id
+                                }
+                        )
 
-                if index < promptService.prompts.count - 1 {
-                    Divider()
+                        if index < promptService.prompts.count - 1 {
+                            Divider()
+                        }
+                    }
                 }
             }
         }
+        .background(Color(NSColor.textBackgroundColor))
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .stroke(Color(NSColor.separatorColor))
         )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: - Selected Prompt Helpers
