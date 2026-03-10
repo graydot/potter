@@ -7,12 +7,12 @@
 | Error Handling | 8/10 | Comprehensive 44-case error taxonomy, good flow |
 | Core Services | 7/10 | Good protocols for LLM, storage; well-isolated |
 | Code Reuse | 7/10 | LLMClient protocol enables clean provider swap |
-| Separation of Concerns | 5/10 | UI/logic mixing, PotterCore too broad |
-| Testability | 5/10 | UI untestable, singletons block mocking |
-| Dependency Injection | 4/10 | 8 singletons, hardcoded `.shared` references |
-| UI Architecture | 3/10 | 1408-line god object, no component extraction |
+| Separation of Concerns | 7/10 | PotterCore split, settings split into focused views |
+| Testability | 7/10 | Protocol-based DI, 288 tests, integration tests |
+| Dependency Injection | 6/10 | Constructor injection for core services, some singletons remain |
+| UI Architecture | 7/10 | Settings split into 9 focused files, no god objects |
 
-**Overall: 6.5/10** — Solid core, weak edges.
+**Overall: 7.5/10** — Solid core, good separation, singletons remain.
 
 ### What's Working Well
 - **LLMClient protocol** — Clean abstraction, 3 implementations swap seamlessly
@@ -20,35 +20,33 @@
 - **PotterError** — 44-case taxonomy with severity, user messages, alert policies
 - **PromptService** — Focused responsibility, caching with file mod tracking, test file injection
 - **SecuritySanitizer** — Composition of specialized sanitizers for log safety
+- **Settings UI** — Split into 9 focused files (shell + 5 tab views + model + helpers + hotkey config)
+- **Protocol abstractions** — 6 protocols covering all service boundaries
+- **TextProcessor + HotkeyCoordinator** — Extracted, testable, DI-enabled
 
 ### What Needs Work
-- **ModernSettingsWindow.swift** (1408 lines) — God object handling 5+ concerns
-- **8 singletons** accessed via `.shared` — blocks mocking and test isolation
-- **PotterCore.swift** (428 lines) — Orchestrates hotkeys + text processing + state
-- **3 redundant settings UIs** — ModernSettingsWindow, SettingsWindow, SimpleSettingsWindow
-- **Carbon Event API** directly in PotterCore — untestable, blocks App Store
+- **Remaining singletons** accessed via `.shared` — PotterLogger, LoginItemsManager, AutoUpdateManager
+- **Carbon Event API** in HotkeyCoordinator — blocks App Store submission
 
 ---
 
 ## P0: Critical (Do First)
 
-### 1. Break Up ModernSettingsWindow.swift (1408 → ~6 files)
+### 1. ~~Break Up ModernSettingsWindow.swift~~ ✅ DONE
 
-**Problem**: Single file handles API key input, prompt editing, hotkey config, provider selection, log viewing, and settings persistence. Untestable, unmaintainable.
+Split 1408-line god object into 9 focused files:
 
 ```
-ModernSettingsWindow.swift (1408 loc)
-  ↓ split into:
-├── SettingsWindow.swift          (~100 loc) Shell/navigation only
-├── SettingsViewModel.swift       (~150 loc) Business logic, persistence
-├── APIKeySettingsView.swift      (~150 loc) Key input + validation UI
-├── PromptSettingsView.swift      (~200 loc) Prompt list + CRUD
-├── HotkeySettingsView.swift      (~100 loc) Hotkey picker
-├── ProviderSettingsView.swift    (~150 loc) LLM provider selection
-└── LogViewerView.swift           (~100 loc) Log display + filtering
+ModernSettingsWindow.swift (185 loc) — Shell: window, controller, sidebar navigation
+PromptItem.swift            (34 loc) — Data model shared by 15+ files
+SettingsHelpers.swift       (46 loc) — App-wide utilities (menu update, data reset)
+GeneralSettingsView.swift   (63 loc) — General tab (composes LLMProviderView + HotkeyView)
+PromptsSettingsView.swift  (199 loc) — Prompts tab + CRUD (uses stable ID selection)
+AboutSettingsView.swift    (299 loc) — About tab + data management
+UpdatesSettingsView.swift   (83 loc) — Updates tab
+LogsSettingsView.swift     (151 loc) — Log viewer tab
+HotkeySettingsView.swift   (328 loc) — Hotkey capture/configuration
 ```
-
-**Benefit**: Each component testable via its view model. Changes to prompt UI don't risk breaking hotkey config.
 
 ### 2. Protocol-ize Singletons for Dependency Injection
 
@@ -173,25 +171,27 @@ MenuBarManager (408 loc) mixes icon pixel drawing with menu construction and sta
 ## Phased Execution
 
 ```
-Phase 1 (Foundation) — unblocks everything else:
-  ├── Define protocols for top 4 singletons
-  ├── Add constructor injection to PotterCore
-  └── Split ModernSettingsWindow into components
+Phase 1 (Foundation) ✅ DONE:
+  ├── ✅ Define protocols for top 4 singletons
+  ├── ✅ Add constructor injection to PotterCore
+  └── ✅ Split ModernSettingsWindow into 9 components
 
-Phase 2 (Testability):
-  ├── Extract HotkeyCoordinator with protocol
-  ├── Split PotterCore → TextProcessor + Coordinator
-  ├── Add integration tests with mock providers
-  └── Delete redundant settings UI files
+Phase 2 (Testability) ✅ DONE:
+  ├── ✅ Extract HotkeyCoordinator with protocol
+  ├── ✅ Split PotterCore → TextProcessor + Coordinator
+  ├── ✅ Add integration tests with mock providers
+  └── ✅ Delete redundant settings UI files
 
-Phase 3 (Polish):
+Phase 3 (Polish) ✅ DONE:
+  ├── ✅ Extract IconFactory + MenuBuilder
+  ├── ✅ Reduce LLMClient duplication (BaseLLMClient)
+  └── Threading model documented with tests
+
+Remaining:
   ├── Async/await consistency pass
-  ├── Extract IconFactory + MenuBuilder
-  ├── Reduce LLMClient duplication
-  └── Migrate to os.Logger
+  ├── Protocol-ize PotterLogger (→ os.Logger)
+  └── Reduce remaining singletons (LoginItemsManager, AutoUpdateManager)
 ```
-
-Each phase is independently shippable. Phase 1 unblocks all later work.
 
 ---
 

@@ -40,11 +40,19 @@ swift-potter/
 │   ├── StorageAdapter.swift          # Abstract storage with StorageBackend protocol
 │   ├── PromptService.swift           # Prompt CRUD with JSON persistence + caching
 │   ├── MenuBarManager.swift          # NSStatusBar icon, menu, icon state machine
-│   ├── ModernSettingsWindow.swift    # Main settings UI (SwiftUI)
+│   ├── ModernSettingsWindow.swift    # Settings window shell + sidebar navigation
+│   ├── PromptItem.swift              # Prompt data model (shared across app + tests)
+│   ├── SettingsHelpers.swift         # App-wide settings utilities (menu update, data reset)
+│   ├── GeneralSettingsView.swift     # General settings tab
+│   ├── PromptsSettingsView.swift     # Prompts tab with CRUD
+│   ├── UpdatesSettingsView.swift     # Updates tab (Sparkle integration)
+│   ├── AboutSettingsView.swift       # About tab + data management
+│   ├── LogsSettingsView.swift        # Log viewer tab
+│   ├── HotkeySettingsView.swift      # Hotkey capture/configuration view
 │   ├── PromptEditDialog.swift        # Modal prompt editor
 │   ├── LLMProviderView.swift         # Provider selection UI
 │   ├── LLMProviderViewModel.swift    # Provider view model
-│   ├── PermissionsView.swift         # Permissions UI component
+│   ├── PermissionsView.swift         # Permissions + HotkeyView wrapper
 │   ├── PermissionManager.swift       # Accessibility permission monitoring
 │   ├── ProcessManager.swift          # Duplicate instance detection via lock files
 │   ├── AutoUpdateManager.swift       # Auto-update via Sparkle
