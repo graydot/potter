@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - LLM Manager
 @MainActor
-class LLMManager: ObservableObject {
+class LLMManager: ObservableObject, LLMProcessing {
     @Published var selectedProvider: LLMProvider = .openAI
     @Published var selectedModel: LLMModel?
     

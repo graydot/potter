@@ -61,7 +61,7 @@ enum PermissionStatus {
 
 // MARK: - Permission Manager
 @MainActor
-class PermissionManager: ObservableObject {
+class PermissionManager: ObservableObject, PermissionChecker {
     @Published var accessibilityStatus: PermissionStatus = .unknown
     @Published var isCheckingPermissions = false
     

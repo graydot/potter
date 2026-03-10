@@ -3,7 +3,7 @@ import Foundation
 // MARK: - APIKeyService
 /// Service class responsible for all API key management business logic
 /// Separates API key operations from UI concerns
-class APIKeyService: ObservableObject {
+class APIKeyService: ObservableObject, KeyValidationService {
     static let shared = APIKeyService()
     
     // MARK: - Published Properties for UI Binding

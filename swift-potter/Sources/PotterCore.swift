@@ -45,51 +45,39 @@ class PotterCore {
     private var currentMode: PromptMode = .formal
     private var settings: PotterSettings
     private var llmManager: LLMManager?
-    private var hotkeyEventHandler: EventHotKeyRef?
-    private var currentHotkeyCombo: [String] = HotkeyConstants.defaultHotkey
-    
+    private var hotkeyCoordinator: HotkeyCoordinator?
+
+    /// The current hotkey combo, delegated to HotkeyCoordinator.
+    var currentHotkeyCombo: [String] {
+        return hotkeyCoordinator?.currentHotkeyCombo ?? HotkeyConstants.defaultHotkey
+    }
+
     // Icon state delegate
     weak var iconDelegate: IconStateDelegate?
-    
-    init() {
-        self.settings = PotterSettings()
+
+    init(llmManager: LLMManager? = nil, settings: PotterSettings? = nil) {
+        self.llmManager = llmManager
+        self.settings = settings ?? PotterSettings()
     }
-    
+
     func setup() {
         PotterLogger.shared.info("core", "🚀 Starting Potter Core...")
-        
-        // Initialize LLM manager on main actor
-        Task { @MainActor in
-            self.llmManager = LLMManager()
+
+        // Initialize LLM manager on main actor if not injected
+        if self.llmManager == nil {
+            Task { @MainActor in
+                self.llmManager = LLMManager()
+            }
         }
-        
-        setupGlobalHotkey()
+
+        // Setup hotkey via coordinator
+        let coordinator = HotkeyCoordinator()
+        coordinator.setup { [weak self] in
+            self?.handleHotkey()
+        }
+        self.hotkeyCoordinator = coordinator
+
         PotterLogger.shared.info("core", "✅ Potter Core initialized")
-    }
-    
-    private func setupGlobalHotkey() {
-        // Load saved hotkey or use default
-        if let savedHotkey = UserDefaults.standard.array(forKey: HotkeyConstants.userDefaultsKey) as? [String] {
-            currentHotkeyCombo = savedHotkey
-        }
-        
-        // Install event handler for hotkey events
-        var eventTypes = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(
-            GetApplicationEventTarget(),
-            { (nextHandler, theEvent, userData) -> OSStatus in
-                let potter = Unmanaged<PotterCore>.fromOpaque(userData!).takeUnretainedValue()
-                potter.handleHotkey()
-                return noErr
-            },
-            1,
-            &eventTypes,
-            Unmanaged.passUnretained(self).toOpaque(),
-            nil
-        )
-        
-        // Register the current hotkey
-        registerHotkey(currentHotkeyCombo)
     }
     
     @objc private func handleHotkey() {
@@ -263,23 +251,11 @@ class PotterCore {
         return llmManager
     }
     
-    // MARK: - Hotkey Management
+    // MARK: - Hotkey Management (delegated to HotkeyCoordinator)
+
     func updateHotkey(_ newHotkey: [String]) {
-        // Unregister current hotkey
-        if let currentHandler = hotkeyEventHandler {
-            UnregisterEventHotKey(currentHandler)
-            hotkeyEventHandler = nil
-        }
-        
-        currentHotkeyCombo = newHotkey
-        
-        // Register new hotkey
-        registerHotkey(newHotkey)
-        
-        // Save to settings
-        UserDefaults.standard.set(newHotkey, forKey: HotkeyConstants.userDefaultsKey)
-        PotterLogger.shared.info("hotkeys", "🔄 Updated hotkey to: \(newHotkey.joined(separator: "+"))")
-        
+        hotkeyCoordinator?.updateHotkey(newHotkey)
+
         // Notify icon delegate to update menu with new hotkey
         DispatchQueue.main.async {
             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
@@ -289,141 +265,13 @@ class PotterCore {
             }
         }
     }
-    
-    func disableGlobalHotkey() {
-        if let currentHandler = hotkeyEventHandler {
-            UnregisterEventHotKey(currentHandler)
-            hotkeyEventHandler = nil
-            PotterLogger.shared.debug("hotkeys", "⏸️ Temporarily disabled global hotkey")
-        }
-    }
-    
-    func enableGlobalHotkey() {
-        // Only re-register if we don't already have a handler
-        if hotkeyEventHandler == nil {
-            registerHotkey(currentHotkeyCombo)
-            PotterLogger.shared.debug("hotkeys", "▶️ Re-enabled global hotkey")
-        }
-    }
-    
-    private func registerHotkey(_ hotkeyCombo: [String]) {
-        // Parse the hotkey combination
-        let (keyCode, modifiers) = parseHotkeyCombo(hotkeyCombo)
-        
-        var eventHotKeyRef: EventHotKeyRef?
-        let hotKeyID = EventHotKeyID(signature: fourCharCode("POTR"), id: UInt32(1))
-        
-        let status = RegisterEventHotKey(
-            keyCode,
-            modifiers,
-            hotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &eventHotKeyRef
-        )
-        
-        if status == noErr {
-            self.hotkeyEventHandler = eventHotKeyRef
-            PotterLogger.shared.info("hotkeys", "✅ Registered hotkey: \(hotkeyCombo.joined(separator: "+"))")
-        } else {
-            PotterLogger.shared.error("hotkeys", "❌ Failed to register hotkey: \(hotkeyCombo.joined(separator: "+"))")
-        }
-    }
-    
-    private func parseHotkeyCombo(_ combo: [String]) -> (UInt32, UInt32) {
-        var modifiers: UInt32 = 0
-        var keyCode: UInt32 = UInt32(kVK_ANSI_9) // Default to 9
-        
-        for key in combo {
-            switch key {
-            case "⌘":
-                modifiers |= UInt32(cmdKey)
-            case "⌥":
-                modifiers |= UInt32(optionKey)
-            case "⌃":
-                modifiers |= UInt32(controlKey)
-            case "⇧":
-                modifiers |= UInt32(shiftKey)
-            case "R":
-                keyCode = UInt32(kVK_ANSI_R)
-            case "T":
-                keyCode = UInt32(kVK_ANSI_T)
-            case "Y":
-                keyCode = UInt32(kVK_ANSI_Y)
-            case "U":
-                keyCode = UInt32(kVK_ANSI_U)
-            case "I":
-                keyCode = UInt32(kVK_ANSI_I)
-            case "O":
-                keyCode = UInt32(kVK_ANSI_O)
-            case "P":
-                keyCode = UInt32(kVK_ANSI_P)
-            case "A":
-                keyCode = UInt32(kVK_ANSI_A)
-            case "S":
-                keyCode = UInt32(kVK_ANSI_S)
-            case "D":
-                keyCode = UInt32(kVK_ANSI_D)
-            case "F":
-                keyCode = UInt32(kVK_ANSI_F)
-            case "G":
-                keyCode = UInt32(kVK_ANSI_G)
-            case "H":
-                keyCode = UInt32(kVK_ANSI_H)
-            case "J":
-                keyCode = UInt32(kVK_ANSI_J)
-            case "K":
-                keyCode = UInt32(kVK_ANSI_K)
-            case "L":
-                keyCode = UInt32(kVK_ANSI_L)
-            case "Z":
-                keyCode = UInt32(kVK_ANSI_Z)
-            case "X":
-                keyCode = UInt32(kVK_ANSI_X)
-            case "C":
-                keyCode = UInt32(kVK_ANSI_C)
-            case "V":
-                keyCode = UInt32(kVK_ANSI_V)
-            case "B":
-                keyCode = UInt32(kVK_ANSI_B)
-            case "N":
-                keyCode = UInt32(kVK_ANSI_N)
-            case "M":
-                keyCode = UInt32(kVK_ANSI_M)
-            case "9":
-                keyCode = UInt32(kVK_ANSI_9)
-            case "8":
-                keyCode = UInt32(kVK_ANSI_8)
-            case "7":
-                keyCode = UInt32(kVK_ANSI_7)
-            case "6":
-                keyCode = UInt32(kVK_ANSI_6)
-            case "5":
-                keyCode = UInt32(kVK_ANSI_5)
-            case "4":
-                keyCode = UInt32(kVK_ANSI_4)
-            case "3":
-                keyCode = UInt32(kVK_ANSI_3)
-            case "2":
-                keyCode = UInt32(kVK_ANSI_2)
-            case "1":
-                keyCode = UInt32(kVK_ANSI_1)
-            case "0":
-                keyCode = UInt32(kVK_ANSI_0)
-            default:
-                break
-            }
-        }
-        
-        return (keyCode, modifiers)
-    }
-    
-}
 
-// Convert string to FourCharCode
-private func fourCharCode(_ string: String) -> UInt32 {
-    let chars = Array(string.utf8)
-    return chars.indices.reduce(0) { acc, i in
-        acc + (UInt32(chars[i]) << (8 * (3 - i)))
+    func disableGlobalHotkey() {
+        hotkeyCoordinator?.disableGlobalHotkey()
     }
+
+    func enableGlobalHotkey() {
+        hotkeyCoordinator?.enableGlobalHotkey()
+    }
+
 }

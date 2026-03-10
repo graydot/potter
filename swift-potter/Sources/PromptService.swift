@@ -3,7 +3,7 @@ import Foundation
 // MARK: - PromptService
 /// Service class responsible for all prompt-related business logic and data operations
 /// Separates prompt management from UI concerns
-class PromptService: ObservableObject {
+class PromptService: ObservableObject, PromptRepository, PromptProviding {
     static let shared = PromptService()
     
     // MARK: - Published Properties for UI Binding
@@ -42,7 +42,8 @@ class PromptService: ObservableObject {
     // MARK: - Public API
     
     /// Load prompts from storage and update published properties
-    func loadPrompts() {
+    @discardableResult
+    func loadPrompts() -> [PromptItem] {
         isLoading = true
         
         // Check if we have valid cached data
@@ -54,49 +55,51 @@ class PromptService: ObservableObject {
             // Cache is still valid, return cached data
             PotterLogger.shared.debug("prompts", "📋 Using cached prompts (\(cached.count) items)")
             updatePromptsOnMainThread(cached)
-            return
+            return prompts
         }
-        
+
         // Check if file exists, if not copy from bundle
         if !FileManager.default.fileExists(atPath: promptsFileURL.path) {
             let defaults = loadDefaultPromptsFromBundle()
             savePromptsToFile(defaults)
             PotterLogger.shared.debug("prompts", "📄 Created new prompts file with \(defaults.count) default prompts")
             updatePromptsOnMainThread(defaults)
-            return
+            return prompts
         }
-        
+
         // File exists, load from it
         do {
             let data = try Data(contentsOf: promptsFileURL)
             let loadedPrompts = try JSONDecoder().decode([PromptItem].self, from: data)
-            
+
             // Check if loaded prompts array is empty and restore defaults
             if loadedPrompts.isEmpty {
                 PotterLogger.shared.warning("prompts", "📄 Loaded prompts array is empty - recreating with defaults")
                 let defaults = loadDefaultPromptsFromBundle()
                 savePromptsToFile(defaults)
                 updatePromptsOnMainThread(defaults)
-                return
+                return prompts
             }
-            
+
             // Update cache
             promptsCache = loadedPrompts
             if let fileAttributes = try? FileManager.default.attributesOfItem(atPath: promptsFileURL.path) {
                 lastFileModification = fileAttributes[.modificationDate] as? Date
             }
-            
+
             PotterLogger.shared.debug("prompts", "📖 Loaded \(loadedPrompts.count) prompts")
             updatePromptsOnMainThread(loadedPrompts)
-            
+
         } catch {
             PotterLogger.shared.error("prompts", "❌ Failed to load prompts: \(error)")
-            
+
             // Fallback to defaults
             let defaults = loadDefaultPromptsFromBundle()
             savePromptsToFile(defaults)
             updatePromptsOnMainThread(defaults)
         }
+
+        return prompts
     }
     
     /// Update prompts on main thread, handling test vs production scenarios
