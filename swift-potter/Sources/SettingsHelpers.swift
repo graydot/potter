@@ -2,11 +2,9 @@ import AppKit
 
 enum SettingsHelpers {
     static func notifyMenuUpdate() {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                Task { @MainActor in
-                    appDelegate.menuBarManager?.updateMenu()
-                }
+                appDelegate.menuBarManager?.updateMenu()
             }
         }
     }

@@ -76,9 +76,10 @@ class PermissionManager: ObservableObject, PermissionChecker {
     
     init() {
         checkAllPermissions()
-        // Store initial state after first check
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.initialAccessibilityStatus = self.accessibilityStatus
+        // Store initial state after first check (delay to let checkAllPermissions complete)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            self?.initialAccessibilityStatus = self?.accessibilityStatus ?? .unknown
         }
     }
     
@@ -115,8 +116,9 @@ class PermissionManager: ObservableObject, PermissionChecker {
             stopPermissionMonitoring()
             
             // Delay prompt slightly to let UI update
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.promptForRestart()
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                self?.promptForRestart()
             }
         }
     }
@@ -225,8 +227,9 @@ class PermissionManager: ObservableObject, PermissionChecker {
             if success {
                 PotterLogger.shared.info("permissions", "✅ Successfully reset all permissions")
                 // Update status after reset
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.checkAllPermissions()
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    self?.checkAllPermissions()
                 }
             } else {
                 PotterLogger.shared.error("permissions", "❌ Failed to reset permissions (exit code: \(process.terminationStatus))")

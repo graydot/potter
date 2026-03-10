@@ -104,12 +104,11 @@ class PromptService: ObservableObject, PromptRepository, PromptProviding {
     
     /// Update prompts on main thread, handling test vs production scenarios
     private func updatePromptsOnMainThread(_ newPrompts: [PromptItem]) {
-        // Always update synchronously during initial load to ensure prompts are available immediately
         if Thread.isMainThread {
             prompts = newPrompts
             isLoading = false
         } else {
-            DispatchQueue.main.sync {
+            DispatchQueue.main.async {
                 self.prompts = newPrompts
                 self.isLoading = false
             }

@@ -82,9 +82,7 @@ class PotterCore {
     
     @objc private func handleHotkey() {
         PotterLogger.shared.info("hotkey", "🎯 Global hotkey callback triggered")
-        DispatchQueue.main.async {
-            self.processClipboardText()
-        }
+        self.processClipboardText()
     }
     
     func processClipboardText() {
@@ -257,11 +255,9 @@ class PotterCore {
         hotkeyCoordinator?.updateHotkey(newHotkey)
 
         // Notify icon delegate to update menu with new hotkey
-        DispatchQueue.main.async {
+        Task { @MainActor in
             if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                Task { @MainActor in
-                    appDelegate.menuBarManager?.updateMenuForHotkeyChange()
-                }
+                appDelegate.menuBarManager?.updateMenuForHotkeyChange()
             }
         }
     }
