@@ -140,8 +140,8 @@ struct PromptsSettingsView: View {
             existingPrompt: nil,
             existingPromptNames: promptService.prompts.map { $0.name }
         )
-        currentPromptDialog?.onSave = { name, prompt in
-            self.handleSavePrompt(name: name, prompt: prompt, editIndex: nil)
+        currentPromptDialog?.onSave = { name, prompt, tier in
+            self.handleSavePrompt(name: name, prompt: prompt, modelTier: tier, editIndex: nil)
             self.currentPromptDialog = nil
         }
         currentPromptDialog?.showModal()
@@ -155,8 +155,8 @@ struct PromptsSettingsView: View {
             existingPrompt: promptService.prompts[index],
             existingPromptNames: promptService.prompts.map { $0.name }
         )
-        currentPromptDialog?.onSave = { name, prompt in
-            self.handleSavePrompt(name: name, prompt: prompt, editIndex: index)
+        currentPromptDialog?.onSave = { name, prompt, tier in
+            self.handleSavePrompt(name: name, prompt: prompt, modelTier: tier, editIndex: index)
             self.currentPromptDialog = nil
         }
         currentPromptDialog?.showModal()
@@ -180,12 +180,12 @@ struct PromptsSettingsView: View {
         deleteSelectedPrompt()
     }
 
-    private func handleSavePrompt(name: String, prompt: String, editIndex: Int?) {
+    private func handleSavePrompt(name: String, prompt: String, modelTier: ModelTier? = nil, editIndex: Int?) {
         let wasEditingSelectedPrompt = editIndex.flatMap { idx in
             promptService.prompts[idx].name
         }.map { $0 == getCurrentlySelectedPromptName() } ?? false
 
-        let promptItem = PromptItem(name: name, prompt: prompt)
+        let promptItem = PromptItem(name: name, prompt: prompt, modelTier: modelTier)
         let result = promptService.savePrompt(promptItem, at: editIndex)
 
         switch result {

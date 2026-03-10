@@ -52,6 +52,7 @@ class PromptEditDialogController: NSWindowController {
     private var promptTextView: NSTextView!
     private var nameCharCountLabel: NSTextField!
     private var promptCharCountLabel: NSTextField!
+    private var tierPopUp: NSPopUpButton!
     private var validationLabel: NSTextField!
     private var saveButton: NSButton!
     private var cancelButton: NSButton!
@@ -59,8 +60,8 @@ class PromptEditDialogController: NSWindowController {
     // Validation state
     private var isValidInput: Bool = false
     
-    // Callback
-    var onSave: ((String, String) -> Void)?
+    // Callback: name, prompt, modelTier
+    var onSave: ((String, String, ModelTier?) -> Void)?
     
     // Event monitor for proper cleanup
     private var eventMonitor: Any?
@@ -182,7 +183,19 @@ class PromptEditDialogController: NSWindowController {
         }
         
         scrollView.documentView = promptTextView
-        
+
+        // Model tier section
+        let tierLabel = NSTextField(labelWithString: "Model Tier:")
+        tierLabel.font = NSFont.boldSystemFont(ofSize: 13)
+
+        tierPopUp = NSPopUpButton()
+        tierPopUp.addItem(withTitle: "Default (use global setting)")
+        tierPopUp.lastItem?.tag = -1
+        for tier in ModelTier.allCases {
+            tierPopUp.addItem(withTitle: tier.displayName)
+            tierPopUp.lastItem?.tag = ModelTier.allCases.firstIndex(of: tier)!
+        }
+
         // Validation label
         validationLabel = NSTextField(labelWithString: "")
         validationLabel.font = NSFont.systemFont(ofSize: 11)
@@ -218,12 +231,14 @@ class PromptEditDialogController: NSWindowController {
         contentView.addSubview(promptLabel)
         contentView.addSubview(promptCharCountLabel)
         contentView.addSubview(scrollView)
+        contentView.addSubview(tierLabel)
+        contentView.addSubview(tierPopUp)
         contentView.addSubview(validationLabel)
         contentView.addSubview(cancelButton)
         contentView.addSubview(saveButton)
-        
+
         // Disable autoresizing masks
-        [titleLabel, nameLabel, nameCharCountLabel, nameTextField, promptLabel, promptCharCountLabel, scrollView, validationLabel, cancelButton, saveButton].forEach {
+        [titleLabel, nameLabel, nameCharCountLabel, nameTextField, promptLabel, promptCharCountLabel, scrollView, tierLabel, tierPopUp, validationLabel, cancelButton, saveButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
         
@@ -256,8 +271,16 @@ class PromptEditDialogController: NSWindowController {
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             scrollView.heightAnchor.constraint(equalToConstant: 150),
             
+            // Model tier
+            tierLabel.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 15),
+            tierLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+
+            tierPopUp.centerYAnchor.constraint(equalTo: tierLabel.centerYAnchor),
+            tierPopUp.leadingAnchor.constraint(equalTo: tierLabel.trailingAnchor, constant: 8),
+            tierPopUp.widthAnchor.constraint(equalToConstant: 250),
+
             // Validation label
-            validationLabel.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 5),
+            validationLabel.topAnchor.constraint(equalTo: tierLabel.bottomAnchor, constant: 5),
             validationLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             validationLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             
@@ -278,6 +301,14 @@ class PromptEditDialogController: NSWindowController {
             print("📝 Loading existing prompt: '\(existing.name)' with \(existing.prompt.count) characters")
             nameTextField.stringValue = existing.name
             promptTextView.string = existing.prompt
+
+            // Set tier popup
+            if let tier = existing.modelTier,
+               let idx = ModelTier.allCases.firstIndex(of: tier) {
+                tierPopUp.selectItem(at: idx + 1)  // +1 because index 0 is "Default"
+            } else {
+                tierPopUp.selectItem(at: 0)  // Default
+            }
             
             // Force layout and refresh
             DispatchQueue.main.async {
@@ -366,8 +397,14 @@ class PromptEditDialogController: NSWindowController {
         let trimmedName = nameTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPrompt = promptTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        print("💾 Saving prompt: '\(trimmedName)' with \(trimmedPrompt.count) characters")
-        onSave?(trimmedName, trimmedPrompt)
+        // Resolve selected tier
+        let selectedTierIndex = tierPopUp.indexOfSelectedItem
+        let selectedTier: ModelTier? = selectedTierIndex > 0
+            ? ModelTier.allCases[selectedTierIndex - 1]
+            : nil
+
+        print("💾 Saving prompt: '\(trimmedName)' with \(trimmedPrompt.count) characters, tier: \(selectedTier?.displayName ?? "Default")")
+        onSave?(trimmedName, trimmedPrompt, selectedTier)
         close()
     }
     

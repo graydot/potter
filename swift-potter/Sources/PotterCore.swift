@@ -172,7 +172,18 @@ class PotterCore {
         do {
             let promptText = getCurrentPromptText()
             logProcessingStart(promptText: promptText, inputText: text)
-            
+
+            // Check if the current prompt has a per-prompt tier override
+            let currentPrompt = PromptService.shared.getCurrentPrompt()
+            if let tier = currentPrompt?.modelTier {
+                await MainActor.run {
+                    if let tierModel = ModelRegistry.shared.bestModel(for: tier, provider: llmManager.selectedProvider) {
+                        PotterLogger.shared.info("text_processor", "Using per-prompt tier \(tier.displayName) → \(tierModel.name)")
+                        llmManager.selectModel(tierModel)
+                    }
+                }
+            }
+
             let processedText = try await llmManager.processText(text, prompt: promptText)
             
             logProcessingSuccess(outputText: processedText)
