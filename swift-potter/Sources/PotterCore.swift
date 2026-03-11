@@ -67,7 +67,7 @@ class PotterCore {
         // Initialize LLM manager on main actor if not injected
         if self.llmManager == nil {
             Task { @MainActor in
-                self.llmManager = LLMManager()
+                self.llmManager = LLMManager.shared
             }
         }
 

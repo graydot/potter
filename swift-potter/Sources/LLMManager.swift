@@ -4,9 +4,11 @@ import SwiftUI
 // MARK: - LLM Manager
 @MainActor
 class LLMManager: ObservableObject, LLMProcessing {
+    static let shared = LLMManager()
+
     @Published var selectedProvider: LLMProvider = .openAI
     @Published var selectedModel: LLMModel?
-    
+
     private var clients: [LLMProvider: LLMClient] = [:]
     private let apiKeyService = APIKeyService.shared
     

@@ -22,8 +22,8 @@ class LLMProviderViewModel: ObservableObject {
     // MARK: - Computed Properties
     var selectedProvider: LLMProvider {
         get { llmManager.selectedProvider }
-        set { 
-            llmManager.selectedProvider = newValue
+        set {
+            llmManager.selectProvider(newValue)
             loadProviderState(for: newValue)
         }
     }
@@ -64,7 +64,7 @@ class LLMProviderViewModel: ObservableObject {
     
     // MARK: - Initialization
     init(llmManager: LLMManager? = nil, apiKeyService: APIKeyService = APIKeyService.shared, modelRegistry: ModelRegistry? = nil) {
-        self.llmManager = llmManager ?? LLMManager()
+        self.llmManager = llmManager ?? LLMManager.shared
         self.apiKeyService = apiKeyService
         self.modelRegistry = modelRegistry ?? ModelRegistry.shared
 
