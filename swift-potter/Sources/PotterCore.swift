@@ -47,6 +47,7 @@ class PotterCore {
     private var llmManager: LLMManager?
     private var hotkeyCoordinator: (any HotkeyProvider)?
     private let textProvider: AccessibilityTextProvider
+    private var promptProvider: (any PromptProviding)?
 
     /// The current hotkey combo, delegated to HotkeyCoordinator.
     var currentHotkeyCombo: [String] {
@@ -59,11 +60,13 @@ class PotterCore {
     init(llmManager: LLMManager? = nil,
          settings: PotterSettings? = nil,
          hotkeyProvider: (any HotkeyProvider)? = nil,
-         textProvider: AccessibilityTextProvider = AccessibilityTextProvider()) {
+         textProvider: AccessibilityTextProvider = AccessibilityTextProvider(),
+         promptProvider: (any PromptProviding)? = nil) {
         self.llmManager = llmManager
         self.settings = settings ?? PotterSettings()
         self.hotkeyCoordinator = hotkeyProvider
         self.textProvider = textProvider
+        self.promptProvider = promptProvider
     }
 
     func setup() {
@@ -174,7 +177,7 @@ class PotterCore {
             // Resolve the model to use based on the prompt's tier setting.
             // - Tier set: use the user's preferred model for that tier on the active provider.
             // - Tier nil: fall back to the user's preferred Standard model (sensible default).
-            let currentPrompt = PromptService.shared.getCurrentPrompt()
+            let currentPrompt = (promptProvider ?? PromptService.shared).getCurrentPrompt()
             let tier = currentPrompt?.modelTier ?? .standard
             let outputMode = currentPrompt?.outputMode ?? .replace
             let resolvedModelName: String = await MainActor.run {
@@ -215,7 +218,7 @@ class PotterCore {
 
             // Record history entry (async, fire-and-forget)
             let providerName = await MainActor.run { llmManager.selectedProvider.displayName }
-            let promptName = PromptService.shared.currentPromptName
+            let promptName = (promptProvider ?? PromptService.shared).currentPromptName
             let entry = ProcessingHistoryEntry(
                 inputText: originalText,
                 outputText: processedText,
@@ -236,7 +239,7 @@ class PotterCore {
     
     /// Gets the current prompt text from settings and prompt service
     private func getCurrentPromptText() -> String {
-        return PromptService.shared.getCurrentPromptText() ?? currentMode.prompt
+        return (promptProvider ?? PromptService.shared).getCurrentPromptText() ?? currentMode.prompt
     }
     
     /// Helper function to truncate text for secure logging
@@ -251,7 +254,7 @@ class PotterCore {
     
     /// Logs the start of LLM processing
     private func logProcessingStart(promptText: String, inputText: String) {
-        let currentPromptName = PromptService.shared.currentPromptName
+        let currentPromptName = (promptProvider ?? PromptService.shared).currentPromptName
         PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
         PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
         PotterLogger.shared.info("text_processor", "||||| \(truncateTextForLogging(inputText)) |||||")

@@ -13,6 +13,10 @@ private class ThreadingMockPromptProvider: PromptProviding {
         return promptText
     }
 
+    func getCurrentPrompt() -> PromptItem? {
+        return nil
+    }
+
     var currentPromptName: String {
         return promptName
     }
@@ -46,6 +50,19 @@ private class ThreadingMockLLMProcessor: LLMProcessing {
 
     func callCount() async -> Int {
         return await counter.getCount()
+    }
+
+    func streamText(_ text: String, prompt: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        await counter.increment()
+        if processingDelay > 0 {
+            try await Task.sleep(nanoseconds: processingDelay)
+        }
+        if shouldFail {
+            throw failureError ?? NSError(domain: "MockLLM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock LLM failure"])
+        }
+        onToken(responseText)
+        return responseText
     }
 }
 

@@ -19,15 +19,17 @@ class MenuBarManager: NSObject, IconStateDelegate {
 
     // Dependencies
     private let potterCore: PotterCore
+    private let promptRepository: any PromptRepository
     private var currentPromptName: String = "" // Will be set to first available prompt
 
     // MARK: - Initialization
-    init(potterCore: PotterCore) {
+    init(potterCore: PotterCore, promptRepository: any PromptRepository = PromptService.shared) {
         self.potterCore = potterCore
+        self.promptRepository = promptRepository
         super.init()
 
         PotterLogger.shared.debug("menu", "🏗️ Initializing MenuBarManager")
-        PotterLogger.shared.debug("menu", "📋 PromptService prompts count at init: \(PromptService.shared.prompts.count)")
+        PotterLogger.shared.debug("menu", "📋 PromptService prompts count at init: \(promptRepository.prompts.count)")
 
         setupMenuBar()
         startMenuUpdateTimer()
@@ -195,7 +197,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
     // MARK: - Menu Building
 
     private func addPromptsToMenu(_ menu: NSMenu) {
-        let availablePrompts = PromptService.shared.prompts
+        let availablePrompts = promptRepository.prompts
 
         PotterLogger.shared.debug("menu", "📋 Available prompts count: \(availablePrompts.count)")
         for prompt in availablePrompts {
@@ -210,8 +212,8 @@ class MenuBarManager: NSObject, IconStateDelegate {
             return
         }
 
-        // Get the current prompt from PromptService
-        currentPromptName = PromptService.shared.currentPromptName
+        // Get the current prompt from promptRepository
+        currentPromptName = promptRepository.currentPromptName
 
         for prompt in availablePrompts {
             let menuItem = NSMenuItem(title: prompt.name, action: #selector(selectPrompt(_:)), keyEquivalent: "")
@@ -248,7 +250,7 @@ class MenuBarManager: NSObject, IconStateDelegate {
 
     @objc private func selectPrompt(_ sender: NSMenuItem) {
         if let promptName = sender.representedObject as? String {
-            PromptService.shared.setCurrentPrompt(promptName)
+            promptRepository.currentPromptName = promptName
             currentPromptName = promptName
 
             // Update menu to reflect new selection

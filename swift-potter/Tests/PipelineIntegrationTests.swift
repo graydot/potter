@@ -7,6 +7,7 @@ class StubPromptProvider: PromptProviding {
     var promptText: String?
     var currentPromptName: String = "Test Prompt"
     func getCurrentPromptText() -> String? { return promptText }
+    func getCurrentPrompt() -> PromptItem? { return nil }
 }
 
 class StubLLMProcessor: LLMProcessing {
@@ -21,6 +22,13 @@ class StubLLMProcessor: LLMProcessing {
         let response = callIndex < responses.count ? responses[callIndex] : "default response"
         callIndex += 1
         return response
+    }
+
+    func streamText(_ text: String, prompt: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        let result = try await processText(text, prompt: prompt)
+        onToken(result)
+        return result
     }
 }
 

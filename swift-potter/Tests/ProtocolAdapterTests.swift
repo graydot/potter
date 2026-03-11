@@ -45,10 +45,13 @@ class ProtocolAdapterTests: TestBase {
         // With mocks
         class QuickMockPrompt: PromptProviding {
             func getCurrentPromptText() -> String? { return "test" }
+            func getCurrentPrompt() -> PromptItem? { return nil }
             var currentPromptName: String { return "test" }
         }
         class QuickMockLLM: LLMProcessing {
             func processText(_ text: String, prompt: String) async throws -> String { return "done" }
+            func streamText(_ text: String, prompt: String,
+                            onToken: @Sendable @escaping (String) -> Void) async throws -> String { return "done" }
         }
 
         let mockTP = TextProcessor(promptProvider: QuickMockPrompt(), llmProcessor: QuickMockLLM())

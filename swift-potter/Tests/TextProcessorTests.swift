@@ -12,6 +12,10 @@ class MockPromptProvider: PromptProviding {
         return promptText
     }
 
+    func getCurrentPrompt() -> PromptItem? {
+        return nil
+    }
+
     var currentPromptName: String {
         return promptName
     }
@@ -29,6 +33,20 @@ class MockLLMProcessor: LLMProcessing {
         lastReceivedPrompt = prompt
         if shouldFail {
             throw failureError ?? NSError(domain: "MockLLM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock LLM failure"])
+        }
+        return responseText
+    }
+
+    func streamText(_ text: String, prompt: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        lastReceivedText = text
+        lastReceivedPrompt = prompt
+        if shouldFail {
+            throw failureError ?? NSError(domain: "MockLLM", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock LLM failure"])
+        }
+        // Simulate streaming: emit response word by word
+        for word in responseText.split(separator: " ") {
+            onToken(String(word) + " ")
         }
         return responseText
     }
