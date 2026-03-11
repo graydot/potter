@@ -48,6 +48,7 @@ class PotterCore {
     private var hotkeyCoordinator: (any HotkeyProvider)?
     private let textProvider: AccessibilityTextProvider
     private var promptProvider: (any PromptProviding)?
+    private var historyStore: (any HistoryStoring)?
 
     /// The current hotkey combo, delegated to HotkeyCoordinator.
     var currentHotkeyCombo: [String] {
@@ -61,12 +62,14 @@ class PotterCore {
          settings: PotterSettings? = nil,
          hotkeyProvider: (any HotkeyProvider)? = nil,
          textProvider: AccessibilityTextProvider = AccessibilityTextProvider(),
-         promptProvider: (any PromptProviding)? = nil) {
+         promptProvider: (any PromptProviding)? = nil,
+         historyStore: (any HistoryStoring)? = nil) {
         self.llmManager = llmManager
         self.settings = settings ?? PotterSettings()
         self.hotkeyCoordinator = hotkeyProvider
         self.textProvider = textProvider
         self.promptProvider = promptProvider
+        self.historyStore = historyStore
     }
 
     func setup() {
@@ -227,7 +230,7 @@ class PotterCore {
                 providerName: providerName,
                 durationMs: durationMs
             )
-            ProcessingHistoryStore.shared.append(entry)
+            (historyStore ?? ProcessingHistoryStore.shared).append(entry)
 
             await handleProcessingSuccess(finalText, inputSource: inputSource)
 

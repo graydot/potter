@@ -54,3 +54,14 @@ protocol LLMProcessing {
     func streamText(_ text: String, prompt: String,
                     onToken: @Sendable @escaping (String) -> Void) async throws -> String
 }
+
+// MARK: - HistoryStoring Protocol
+
+/// Abstraction over processing history persistence.
+/// Implemented by ProcessingHistoryStore; mockable for testing.
+protocol HistoryStoring {
+    func append(_ entry: ProcessingHistoryEntry)
+    func loadAll() -> [ProcessingHistoryEntry]
+    func delete(id: UUID)
+    func clearAll()
+}
