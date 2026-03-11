@@ -65,6 +65,14 @@ class MockKeyValidationService: KeyValidationService {
     var validateAndSaveAPIKeyResult: ValidationResult = .success
     var getValidationStateResult: ValidationState = .notValidated
 
+    // Required protocol properties (new in KeyValidationService)
+    var validationStates: [LLMProvider: ValidationState] = {
+        var states: [LLMProvider: ValidationState] = [:]
+        for provider in LLMProvider.allCases { states[provider] = .notValidated }
+        return states
+    }()
+    var isValidating: Bool = false
+
     func getAPIKey(for provider: LLMProvider) -> String? {
         getAPIKeyCalled = true
         return getAPIKeyResult

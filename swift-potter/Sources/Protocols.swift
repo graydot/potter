@@ -20,6 +20,8 @@ protocol PromptRepository: AnyObject {
 /// Abstraction over API key management and validation.
 /// Implemented by APIKeyService; mockable for testing.
 protocol KeyValidationService: AnyObject {
+    var validationStates: [LLMProvider: ValidationState] { get }
+    var isValidating: Bool { get }
     func getAPIKey(for provider: LLMProvider) -> String?
     func isProviderConfigured(_ provider: LLMProvider) -> Bool
     func saveAPIKey(_ key: String, for provider: LLMProvider) -> Result<Void, APIKeyServiceError>

@@ -10,7 +10,8 @@ class LLMManager: ObservableObject, LLMProcessing {
     @Published var selectedModel: LLMModel?
 
     private var clients: [LLMProvider: LLMClient] = [:]
-    private let apiKeyService = APIKeyService.shared
+    private var keyValidationService: (any KeyValidationService)?
+    private var apiKeyService: any KeyValidationService { keyValidationService ?? APIKeyService.shared }
     
     @Published var isValidatingLocal: Bool = false
     
@@ -28,8 +29,9 @@ class LLMManager: ObservableObject, LLMProcessing {
     
     private let modelRegistry: ModelRegistry
 
-    init(modelRegistry: ModelRegistry? = nil) {
+    init(modelRegistry: ModelRegistry? = nil, keyValidationService: (any KeyValidationService)? = nil) {
         self.modelRegistry = modelRegistry ?? ModelRegistry.shared
+        self.keyValidationService = keyValidationService
 
         // Load saved settings
         loadSettings()
