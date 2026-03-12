@@ -3,47 +3,38 @@ import Foundation
 class PotterSettings: ObservableObject {
     private let userDefaults: UserDefaults
     
-    // Keys - Updated to match StorageAdapter format
-    private enum Keys {
-        static let openaiAPIKey = "api_key_openai"
-        static let anthropicAPIKey = "api_key_anthropic"
-        static let googleAPIKey = "api_key_google"
-        static let currentProvider = "current_provider"
-        static let currentPrompt = "current_prompt"
-    }
-    
     // Published properties for SwiftUI bindings
     @Published var openaiAPIKey: String? {
-        didSet { 
-            userDefaults.set(openaiAPIKey, forKey: Keys.openaiAPIKey)
+        didSet {
+            userDefaults.set(openaiAPIKey, forKey: UserDefaultsKeys.apiKeyOpenAI)
             userDefaults.synchronize()
         }
     }
-    
+
     @Published var anthropicAPIKey: String? {
-        didSet { 
-            userDefaults.set(anthropicAPIKey, forKey: Keys.anthropicAPIKey)
+        didSet {
+            userDefaults.set(anthropicAPIKey, forKey: UserDefaultsKeys.apiKeyAnthropic)
             userDefaults.synchronize()
         }
     }
-    
+
     @Published var googleAPIKey: String? {
-        didSet { 
-            userDefaults.set(googleAPIKey, forKey: Keys.googleAPIKey)
+        didSet {
+            userDefaults.set(googleAPIKey, forKey: UserDefaultsKeys.apiKeyGoogle)
             userDefaults.synchronize()
         }
     }
-    
+
     @Published var currentProvider: String {
-        didSet { 
-            userDefaults.set(currentProvider, forKey: Keys.currentProvider)
+        didSet {
+            userDefaults.set(currentProvider, forKey: UserDefaultsKeys.llmProvider)
             userDefaults.synchronize()
         }
     }
-    
+
     @Published var currentPrompt: String {
-        didSet { 
-            userDefaults.set(currentPrompt, forKey: Keys.currentPrompt)
+        didSet {
+            userDefaults.set(currentPrompt, forKey: UserDefaultsKeys.currentPrompt)
             userDefaults.synchronize()
         }
     }
@@ -53,11 +44,11 @@ class PotterSettings: ObservableObject {
         self.userDefaults = userDefaults
         
         // Load from UserDefaults
-        self.openaiAPIKey = userDefaults.string(forKey: Keys.openaiAPIKey)
-        self.anthropicAPIKey = userDefaults.string(forKey: Keys.anthropicAPIKey)
-        self.googleAPIKey = userDefaults.string(forKey: Keys.googleAPIKey)
-        self.currentProvider = userDefaults.string(forKey: Keys.currentProvider) ?? "openai"
-        self.currentPrompt = userDefaults.string(forKey: Keys.currentPrompt) ?? "formal"
+        self.openaiAPIKey = userDefaults.string(forKey: UserDefaultsKeys.apiKeyOpenAI)
+        self.anthropicAPIKey = userDefaults.string(forKey: UserDefaultsKeys.apiKeyAnthropic)
+        self.googleAPIKey = userDefaults.string(forKey: UserDefaultsKeys.apiKeyGoogle)
+        self.currentProvider = userDefaults.string(forKey: UserDefaultsKeys.llmProvider) ?? "openai"
+        self.currentPrompt = userDefaults.string(forKey: UserDefaultsKeys.currentPrompt) ?? "formal"
     }
     
     func save() {

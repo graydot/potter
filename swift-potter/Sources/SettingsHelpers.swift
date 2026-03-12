@@ -33,7 +33,7 @@ enum SettingsHelpers {
 
         settings.resetToDefaults()
 
-        UserDefaults.standard.set(HotkeyConstants.defaultHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        UserDefaults.standard.set(HotkeyConstants.defaultHotkey, forKey: UserDefaultsKeys.globalHotkey)
 
         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
             Task { @MainActor in
