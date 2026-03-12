@@ -96,6 +96,10 @@ enum LLMProvider: String, CaseIterable, Identifiable, Hashable, Codable {
 protocol LLMClient {
     var provider: LLMProvider { get }
     func processText(_ text: String, prompt: String, model: String) async throws -> String
+    /// Stream the result token by token. `onToken` is called for each incremental chunk.
+    /// Returns the fully assembled string when complete.
+    func streamText(_ text: String, prompt: String, model: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String
     func validateAPIKey(_ apiKey: String) async throws -> Bool
 }
 
@@ -165,6 +169,46 @@ class OpenAIClient: LLMClient {
         }
 
         return firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func streamText(_ text: String, prompt: String, model: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var bodyDict: [String: Any] = [
+            "model": model,
+            "stream": true,
+            "messages": [
+                ["role": "system", "content": prompt],
+                ["role": "user", "content": text]
+            ]
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw LLMHTTPClient.createLLMError(for: http.statusCode,
+                                                message: "OpenAI streaming error",
+                                                provider: "OpenAI")
+        }
+
+        var assembled = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: ") else { continue }
+            let jsonStr = String(line.dropFirst(6))
+            guard jsonStr != "[DONE]" else { break }
+            guard let data = jsonStr.data(using: .utf8),
+                  let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data),
+                  let delta = chunk.choices.first?.delta.content,
+                  !delta.isEmpty else { continue }
+            assembled += delta
+            onToken(delta)
+        }
+        return assembled.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -237,6 +281,45 @@ class AnthropicClient: LLMClient {
 
         return firstContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    func streamText(_ text: String, prompt: String, model: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+        let bodyDict: [String: Any] = [
+            "model": model,
+            "max_tokens": 2048,
+            "stream": true,
+            "messages": [["role": "user", "content": "\(prompt)\n\n\(text)"]]
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw LLMHTTPClient.createLLMError(for: http.statusCode,
+                                                message: "Anthropic streaming error",
+                                                provider: "Anthropic")
+        }
+
+        var assembled = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: ") else { continue }
+            let jsonStr = String(line.dropFirst(6))
+            guard let data = jsonStr.data(using: .utf8),
+                  let chunk = try? JSONDecoder().decode(AnthropicStreamDelta.self, from: data),
+                  chunk.type == "content_block_delta",
+                  let delta = chunk.delta?.text,
+                  !delta.isEmpty else { continue }
+            assembled += delta
+            onToken(delta)
+        }
+        return assembled.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 // MARK: - Google Client
@@ -301,6 +384,62 @@ class GoogleClient: LLMClient {
 
         return firstPart.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    func streamText(_ text: String, prompt: String, model: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(model):streamGenerateContent?alt=sse&key=\(apiKey)")!
+        let bodyDict: [String: Any] = [
+            "contents": [["parts": [["text": "\(prompt)\n\n\(text)"]]]]
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw LLMHTTPClient.createLLMError(for: http.statusCode,
+                                                message: "Google streaming error",
+                                                provider: "Google")
+        }
+
+        var assembled = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: ") else { continue }
+            let jsonStr = String(line.dropFirst(6))
+            guard let data = jsonStr.data(using: .utf8),
+                  let chunk = try? JSONDecoder().decode(GoogleResponse.self, from: data),
+                  let partText = chunk.candidates.first?.content?.parts.first?.text,
+                  !partText.isEmpty else { continue }
+            assembled += partText
+            onToken(partText)
+        }
+        return assembled.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - Streaming Response Types
+
+// OpenAI streaming chunk
+struct OpenAIStreamChunk: Codable {
+    let choices: [OpenAIStreamChoice]
+}
+struct OpenAIStreamChoice: Codable {
+    let delta: OpenAIStreamDelta
+}
+struct OpenAIStreamDelta: Codable {
+    let content: String?
+}
+
+// Anthropic streaming event
+struct AnthropicStreamDelta: Codable {
+    let type: String
+    let delta: AnthropicStreamDeltaContent?
+}
+struct AnthropicStreamDeltaContent: Codable {
+    let type: String?
+    let text: String?
 }
 
 // MARK: - API Models

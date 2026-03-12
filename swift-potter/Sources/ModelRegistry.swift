@@ -46,6 +46,43 @@ class ModelRegistry: ObservableObject {
         return modelsForTier(tier, provider: provider).first
     }
 
+    // MARK: - Per-Provider Tier Config
+
+    /// Returns the user's preferred model for a tier on a given provider.
+    /// Falls back to the best available model in that tier if no preference is saved.
+    func preferredModel(for tier: ModelTier, provider: LLMProvider) -> LLMModel? {
+        let config = getTierConfig(for: provider)
+        if let modelID = config.modelID(for: tier),
+           let model = getModels(for: provider).first(where: { $0.id == modelID }) {
+            return model
+        }
+        return bestModel(for: tier, provider: provider)
+    }
+
+    /// Returns the saved tier config for a provider, or an empty config if none.
+    func getTierConfig(for provider: LLMProvider) -> ProviderTierConfig {
+        let key = UserDefaultsKeys.tierConfig(for: provider)
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let config = try? JSONDecoder().decode(ProviderTierConfig.self, from: data) else {
+            return ProviderTierConfig()
+        }
+        return config
+    }
+
+    /// Saves a tier config for a provider.
+    func setTierConfig(_ config: ProviderTierConfig, for provider: LLMProvider) {
+        let key = UserDefaultsKeys.tierConfig(for: provider)
+        if let data = try? JSONEncoder().encode(config) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    /// Updates a single tier's model selection for a provider.
+    func setPreferredModel(_ modelID: String?, tier: ModelTier, provider: LLMProvider) {
+        let updated = getTierConfig(for: provider).setting(modelID, for: tier)
+        setTierConfig(updated, for: provider)
+    }
+
     /// Models grouped by tier for UI display.
     func modelsByTier(for provider: LLMProvider) -> [(tier: ModelTier, models: [LLMModel])] {
         let allModels = getModels(for: provider)

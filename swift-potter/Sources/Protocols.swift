@@ -42,6 +42,7 @@ protocol PermissionChecker: AnyObject {
 /// Provides the current prompt text for text processing.
 protocol PromptProviding {
     func getCurrentPromptText() -> String?
+    func getCurrentPrompt() -> PromptItem?
     var currentPromptName: String { get }
 }
 
@@ -50,4 +51,6 @@ protocol PromptProviding {
 /// Processes text with an LLM given a prompt.
 protocol LLMProcessing {
     func processText(_ text: String, prompt: String) async throws -> String
+    func streamText(_ text: String, prompt: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String
 }
