@@ -56,7 +56,7 @@ class LLMManager: ObservableObject, LLMProcessing {
     // MARK: - Settings Management
     func loadSettings() {
         // Load selected provider
-        if let providerString = UserDefaults.standard.string(forKey: "llm_provider"),
+        if let providerString = UserDefaults.standard.string(forKey: UserDefaultsKeys.llmProvider),
            let provider = LLMProvider(rawValue: providerString) {
             selectedProvider = provider
         }
@@ -66,7 +66,7 @@ class LLMManager: ObservableObject, LLMProcessing {
         
         // Load selected model from registry (dynamic) or static fallback
         let providerModels = modelRegistry.getModels(for: selectedProvider)
-        if let modelId = UserDefaults.standard.string(forKey: "selected_model") {
+        if let modelId = UserDefaults.standard.string(forKey: UserDefaultsKeys.selectedModel) {
             selectedModel = providerModels.first { $0.id == modelId }
         }
 
@@ -77,13 +77,13 @@ class LLMManager: ObservableObject, LLMProcessing {
     }
     
     func saveSettings() {
-        UserDefaults.standard.set(selectedProvider.rawValue, forKey: "llm_provider")
+        UserDefaults.standard.set(selectedProvider.rawValue, forKey: UserDefaultsKeys.llmProvider)
         
         // API keys are now managed by StorageAdapter
         // Individual saves happen through setAPIKey method
         
         if let selectedModel = selectedModel {
-            UserDefaults.standard.set(selectedModel.id, forKey: "selected_model")
+            UserDefaults.standard.set(selectedModel.id, forKey: UserDefaultsKeys.selectedModel)
         }
     }
     
@@ -171,6 +171,12 @@ class LLMManager: ObservableObject, LLMProcessing {
     }
     
     // MARK: - Text Processing
+
+    /// Wraps the user's prompt with a system instruction to return only processed text.
+    private func buildSystemPrompt(_ prompt: String) -> String {
+        return "\(prompt)\n\nOutput only your rewritten version of the text. No preamble, no explanations, no bullet points, no labels like \"Here's the polished version\" — just the transformed text itself."
+    }
+
     func processText(_ text: String, prompt: String) async throws -> String {
         guard let model = selectedModel else {
             throw PotterError.configuration(.missingConfiguration(key: "selected model"))
@@ -193,13 +199,41 @@ class LLMManager: ObservableObject, LLMProcessing {
         
         PotterLogger.shared.info("llm_manager", "🤖 Processing text with \(selectedProvider.displayName) \(model.name)")
 
-        let result = try await client.processText(text, prompt: prompt, model: model.id)
+        let systemPrompt = buildSystemPrompt(prompt)
+        let result = try await client.processText(text, prompt: systemPrompt, model: model.id)
 
         PotterLogger.shared.info("llm_manager", "✅ Text processing completed successfully")
 
         return result
     }
     
+    /// Stream text processing — calls `onToken` for each chunk, returns full assembled text.
+    func streamText(_ text: String, prompt: String,
+                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
+        guard let model = selectedModel else {
+            throw PotterError.configuration(.missingConfiguration(key: "selected model"))
+        }
+
+        let apiKey = getAPIKey(for: selectedProvider)
+        guard !apiKey.isEmpty else {
+            throw PotterError.configuration(.missingAPIKey(provider: selectedProvider.displayName))
+        }
+
+        let client: LLMClient
+        if let existingClient = clients[selectedProvider] {
+            client = existingClient
+        } else {
+            client = createClient(for: selectedProvider, apiKey: apiKey)
+            clients[selectedProvider] = client
+        }
+
+        PotterLogger.shared.info("llm_manager", "🌊 Streaming text with \(selectedProvider.displayName) \(model.name)")
+        let systemPrompt = buildSystemPrompt(prompt)
+        let result = try await client.streamText(text, prompt: systemPrompt, model: model.id, onToken: onToken)
+        PotterLogger.shared.info("llm_manager", "✅ Streaming completed (\(result.count) chars)")
+        return result
+    }
+
     // MARK: - Validation Helpers (Delegated to APIKeyService)
     func isProviderConfigured(_ provider: LLMProvider) -> Bool {
         return apiKeyService.isProviderConfigured(provider)
