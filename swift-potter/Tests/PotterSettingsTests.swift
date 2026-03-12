@@ -6,25 +6,28 @@ class PotterSettingsTests: TestBase {
     var potterSettings: PotterSettings!
     var testUserDefaults: UserDefaults!
     
+    private var suiteName: String!
+
     override func setUp() {
         super.setUp()
-        
-        // Create test-specific UserDefaults suite
-        testUserDefaults = UserDefaults(suiteName: "com.potter.tests")!
-        
+
+        // Use unique suite per test invocation to avoid parallel test interference
+        suiteName = "com.potter.tests.\(UUID().uuidString)"
+        testUserDefaults = UserDefaults(suiteName: suiteName)!
+
         // Clear any existing test data
-        testUserDefaults.removePersistentDomain(forName: "com.potter.tests")
+        testUserDefaults.removePersistentDomain(forName: suiteName)
         testUserDefaults.synchronize()
-        
+
         // Create PotterSettings with test UserDefaults
         potterSettings = PotterSettings(userDefaults: testUserDefaults)
     }
-    
+
     override func tearDown() {
         // Clean up test UserDefaults
-        testUserDefaults.removePersistentDomain(forName: "com.potter.tests")
+        testUserDefaults.removePersistentDomain(forName: suiteName)
         testUserDefaults.synchronize()
-        
+
         super.tearDown()
     }
     

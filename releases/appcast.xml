@@ -46,5 +46,25 @@ We hope you enjoy the improvements in Potter 'AI Resonance' v2.0.1. We are alway
       <pubDate>Thu, 31 Jul 2025 10:53:07 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.0.1/Potter-2.0.1-AI-Resonance.dmg" length="4353761" type="application/octet-stream" ns0:version="2.0.1" ns0:shortVersionString="2.0.1" ns0:edSignature="4VcqJV/TKl/ox5HNgcpQaxTsYsPxtkiESM6+gFLWFxIYPhqdONl8k/L5gZ7xJ1k98Yr3uvqZEBy4o9XwH5AXCQ==" />
     </item>
+    <item>
+      <title>Potter 2.1.1</title>
+      <description>&lt;![CDATA[## Potter 2.1.1 - AI Resonance
+
+This release brings continued improvements to Potter's AI-powered text processing capabilities.
+
+### What's New
+- Performance improvements and optimizations
+- Enhanced stability and reliability
+- Bug fixes and user experience improvements
+
+### Technical Updates
+- Updated dependencies and security patches
+- Code quality improvements
+- Enhanced error handling
+
+*Thank you for using Potter! Your feedback helps make each release better.*]]&gt;</description>
+      <pubDate>Wed, 11 Mar 2026 18:09:02 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.1/Potter-2.1.1-AI-Resonance.dmg" length="4594326" type="application/octet-stream" ns0:version="2.1.1" ns0:shortVersionString="2.1.1" ns0:edSignature="nMULqaNBCZeHHuC+sVrGnGYyLmbfaQYnIHi4nrVkkanNWRI8/s775gVaSNNuL6+bQHuNjiqASRlG10vcQhUfBQ==" />
+    </item>
   </channel>
 </rss>
