@@ -1,60 +1,55 @@
 # Potter — Future Plans
 
-## Backlog
+## Completed This Session
 
-### Dynamic Model Selection & Auto-Tiering
+### ~~Dynamic Model Selection & Auto-Tiering~~ ✅ DONE (prior session)
 
-**Priority**: HIGH — core UX improvement
-
-**Problem**: Potter maintains static model lists that go stale when providers deprecate or rename models. When a cached model disappears, Potter enters an error state with no recovery path. Individual model names don't matter to most users — they care about speed vs quality.
-
-**Proposed Design**:
-
-1. **Fetch models from provider APIs at runtime**
-   - Each provider (OpenAI, Anthropic, Google) has a list-models endpoint
-   - Cache the fetched list locally with a TTL (e.g., 24h)
-   - On cache miss or expired, fetch fresh; on fetch failure, fall back to cached list
-   - Settings UI: "Refresh Models" button to force re-fetch
-
-2. **Auto-tier models into categories**
-   - **Fast** — smaller/cheaper models for quick transforms (e.g., GPT-4o-mini, Claude Haiku, Gemini Flash)
-   - **Standard** — balanced models (e.g., GPT-4o, Claude Sonnet, Gemini Pro)
-   - **Thinking** — reasoning models for complex prompts (e.g., o3, Claude with extended thinking)
-   - Tiering heuristic: match on model name patterns or use provider metadata
-   - New prompts default to "Fast" tier
-
-3. **Per-prompt model tier config**
-   - In the prompt editor, add a tier selector (Fast / Standard / Thinking)
-   - "Use thinking models" checkbox as a shortcut for Thinking tier
-   - Tier selection stored with the prompt in prompts.json
-
-4. **Graceful model fallback**
-   - If the selected model is unavailable (404/deprecated), auto-select the next best model in the same tier from the same provider
-   - Show a non-blocking notification: "Model X unavailable, using Y instead"
-   - Log the fallback for debugging
-
-5. **Settings UI changes**
-   - Remove static model dropdowns
-   - Show current tier + resolved model name per provider
-   - "Refresh Models" button with last-fetched timestamp
-   - Model list viewer (expandable) showing all available models per provider with tier tags
-
-**Files likely affected**: LLMManager.swift, LLMClient.swift, LLMProviderView.swift, LLMProviderViewModel.swift, PromptItem.swift, PromptService.swift, PromptsSettingsView.swift, PromptEditDialog.swift
+Already fully implemented: live API fetch with 24h TTL cache, `ModelTierClassifier` (name-pattern heuristics), per-prompt tier selector in `PromptEditDialog`, tier pickers + "Refresh Models" button in `LLMProviderView`.
 
 ---
 
-### ~~Remaining Refactoring~~ ✅ DONE
+### ~~Per-Prompt Output Mode (Replace / Append / Prepend)~~ ✅ DONE
+
+`OutputMode` enum on `PromptItem` (.replace / .append / .prepend). Applied in `PotterCore` after streaming completes. Segmented control in `PromptEditDialog`. Backward-compatible decoder. 20 tests.
+
+---
+
+### ~~Processing History Log~~ ✅ DONE
+
+`ProcessingHistoryEntry` + `ProcessingHistoryStore` (serial queue, 500-entry cap, atomic JSON). Written in `PotterCore` after every successful run. "History" Settings tab (`HistorySettingsView`) with split-pane list + detail + Copy + Clear All. 12 tests.
+
+---
+
+### ~~In-Place Selection Processing (Accessibility API)~~ ✅ DONE
+
+`AccessibilityTextProvider` reads selected text via `kAXFocusedUIElementAttribute` + `kAXSelectedTextAttribute`, falls back to clipboard. `writeResult` routes back to AX or clipboard. Integrated into `PotterCore` replacing direct `NSPasteboard` calls. AX write failures silently fall back to clipboard. 9 tests.
+
+---
+
+### ~~Low-Latency UX + Streaming Output~~ ✅ DONE
+
+`streamText` added to `LLMClient` protocol + implemented in all 3 clients (SSE parsing for OpenAI/Anthropic, `alt=sse` for Google). `LLMManager.streamText` exposed. `PotterCore` uses streaming: immediate `setProcessingState()` on hotkey press, progressive clipboard writes for replace mode, accumulate-then-write for append/prepend. 10 tests.
+
+---
+
+### ~~Remaining Refactoring~~ ✅ DONE (prior session)
 
 - ~~Cache invalidation strategy~~ — LLMManager now invalidates on key change + provider switch
 - ~~os.Logger migration~~ — Per-component os.Logger categories, existing API preserved
-- **Remaining singletons** — Documented as acceptable, low ROI (PotterLogger, AutoUpdateManager, LoginItemsManager, ProcessManager, SecuritySanitizer)
+- **Remaining singletons** — Documented as acceptable, low ROI
 
 ---
+
+## Backlog
 
 ### App Store Submission
 
 - ~~CGEvent hotkey provider~~ ✅ — Created `NSEventHotkeyProvider` (sandbox compatible), `HotkeyKeyMapping` shared utility, PotterCore accepts injected provider
 - **Sandbox compliance** — Audit file access, keychain usage, accessibility APIs for sandbox.
+  - File access: `ProcessingHistoryStore`, `ProcessingHistory` both write to `~/Library/Application Support/Potter/` — allowed in sandbox with `com.apple.security.files.user-selected.read-write` or App Container entitlement
+  - Keychain: `APIKeyService` uses `SecItem*` — allowed in sandbox with `com.apple.security.keychain-access-groups` or standard keychain entitlement
+  - Accessibility: `kAXFocusedUIElementAttribute` + `kAXSelectedTextAttribute` — **not allowed in Mac App Store sandbox** (requires `com.apple.security.automation.apple-events` which is rejected). AX provider already falls back to clipboard silently — this is the correct behaviour for sandboxed distribution.
+  - Carbon hotkeys (`HotkeyCoordinator`): use `NSEventHotkeyProvider` for App Store build.
 
 ---
 
@@ -63,3 +58,15 @@
 - **ModernSettingsWindow** — Consider migrating from HSplitView to NavigationSplitView (macOS 13+) for better sidebar behavior.
 - **Prompt editor** — Syntax highlighting or preview for prompt text.
 - **Dark mode polish** — Audit all views for proper dark mode contrast.
+
+---
+
+### Streaming Overlay Window (future enhancement)
+
+The streaming output currently writes directly to clipboard. A floating overlay window would allow users to review and accept/reject the result before it replaces their text. Deferred — current progressive clipboard approach is functional and simpler.
+
+**Proposed**:
+- `OverlayWindow.swift` — floating NSPanel near cursor position
+- Shows streaming text as it arrives
+- ⌘+C to copy, ⌘+V to paste, Esc to dismiss
+- Auto-dismiss 2s after last token
