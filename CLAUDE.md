@@ -5,10 +5,16 @@
 ### Development
 - **Run app**: `cd swift-potter && swift run` or `make run`
 - **Run tests**: `cd swift-potter && swift test --parallel` or `make test`
-- **Build unsigned**: `./scripts/test_build.sh` or `make build-unsigned`
-- **Build signed**: `python scripts/build_app.py --target local` or `make build`
-- **App Store build**: `python scripts/build_app.py --target appstore`
-- **Create release**: `make release`
+
+### Building
+- **Build .app (unsigned)**: `make build` — builds Potter.app to `dist/`
+- **Build signed .app**: `make build` (requires `DEVELOPER_ID_APPLICATION` + `APPLE_TEAM_ID` env vars)
+- **Create DMG**: `make dmg` — builds app + creates distributable DMG in `dist/`
+- **App Store build**: `make build-appstore` — sandboxed build with App Store entitlements
+
+### Release
+- **GitHub release**: `make release` — bump version, build, sign, notarize, create DMG, upload to GitHub
+- **App Store release**: `make release-appstore` — build + prepare for App Store Connect upload
 
 ### Version Management
 - `make version` / `make version-set VERSION=x.y.z`
@@ -117,7 +123,7 @@ swift-potter/
 
 ## Testing
 - **Framework**: XCTest with async/await
-- **258 tests** across 21 files
+- **362 tests** across 21+ files
 - **Test isolation**: TestBase provides UserDefaults suite isolation
 - **Mock infrastructure**: MockPromptRepository, MockKeyValidationService, MockPermissionChecker, StubLLMProcessor, SpyIconDelegate
 - **Integration tests**: Full pipeline tests with mock dependencies
@@ -130,7 +136,31 @@ swift-potter/
 - **Settings**: UserDefaults + `~/Library/Application Support/Potter/`
 - **Lock file**: `~/.potter.pid`
 
-## Build Environment
-- `DEVELOPER_ID_APPLICATION` and `APPLE_TEAM_ID` for code signing
-- GitHub CLI (`gh`) for releases
+## Build & Distribution
+
+### Scripts (in `scripts/`)
+- `build_app.py` — Core build pipeline: swift build → app bundle → sign → notarize → DMG
+- `version_manager.py` — Version get/set/bump (source of truth: Info.plist)
+- `release_manager.py` — Release orchestration: version bump, build, GitHub release, appcast
+- `release_utils.py` — Git analysis + AI-powered release notes (OpenAI)
+- `codename_utils.py` — Deterministic creative version names
+- `test_codesigning.sh` — Diagnostic tool for certificate setup
+
+### Code Signing
+- **Direct distribution**: `DEVELOPER_ID_APPLICATION`, `DEVELOPER_ID_INSTALLER`, `APPLE_TEAM_ID`
+- **Notarization** (optional): `APPLE_ID`, `APPLE_APP_PASSWORD`
+- **App Store**: `MAC_APP_STORE_CERTIFICATE`, `MAC_INSTALLER_CERTIFICATE`
+- **Entitlements**: `entitlements-direct.plist` (no sandbox) / `entitlements-appstore.plist` (sandboxed)
+
+### Distribution Channels
+- **Direct (GitHub)**: Developer ID signed + notarized DMG, Sparkle auto-updates
+- **Mac App Store**: Sandboxed build, NSEvent hotkey (no Carbon), no Sparkle
+
+### CI/CD
+- GitHub Actions (`.github/workflows/release.yml`): triggered on `v*` tags or manual dispatch
+- Imports P12 certs from GitHub Secrets, builds, creates DMG, uploads release
+
+### Requirements
 - Python 3.8+ for build scripts
+- GitHub CLI (`gh`) for releases
+- Xcode Command Line Tools + Swift 5.9+

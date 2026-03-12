@@ -975,100 +975,122 @@ def notarize_dmg(dmg_path, config):
         print(f"❌ DMG notarization error: {e}")
         return False
 
-def build_app(target='local', skip_tests=False, skip_notarization=False):
-    """Main build function"""
-    
+def build_app(target='local', skip_tests=False, skip_notarization=False, unsigned=False, dmg=True):
+    """Main build function.
+
+    Args:
+        target: 'local' (direct distribution) or 'appstore' (Mac App Store)
+        skip_tests: Skip test suite before building
+        skip_notarization: Skip Apple notarization step
+        unsigned: Build without code signing (for local testing/DMG sharing)
+        dmg: Create a DMG (for local target)
+    """
+
     # Run tests first unless skipped
     if not skip_tests:
         if not run_swift_tests():
             return False
-    
-    print(f"🔄 Swift Potter App Builder ({target} target)")
+
+    mode = "unsigned" if unsigned else target
+    print(f"🔄 Swift Potter App Builder ({mode} target)")
     print("=" * 60)
-    
-    # Check signing requirements
-    requirements_ok, message = check_signing_requirements(target)
-    if not requirements_ok:
-        print(f"❌ {message}")
-        print("\n💡 Set up environment variables for code signing:")
-        print("   export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name'")
-        print("   export APPLE_TEAM_ID='YOUR_TEAM_ID'")
-        return False
-    print(f"✅ {message}")
-    
+
     config = get_signing_config()
-    
+
+    # Check signing requirements (skip for unsigned builds)
+    if not unsigned:
+        requirements_ok, message = check_signing_requirements(target)
+        if not requirements_ok:
+            print(f"❌ {message}")
+            print("\n💡 Set up environment variables for code signing:")
+            print("   export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name'")
+            print("   export APPLE_TEAM_ID='YOUR_TEAM_ID'")
+            print("\n💡 Or build unsigned: python3 scripts/build_app.py --unsigned")
+            return False
+        print(f"✅ {message}")
+    else:
+        print("⚠️  Building unsigned (no code signing)")
+
     # Build Swift executable
     if not build_swift_executable(target):
         return False
-    
+
     # Create app bundle
     app_path = create_app_bundle(target)
     if not app_path:
         return False
-    
+
     # Create Info.plist
     if not create_info_plist(app_path, target):
         return False
-    
+
     # Copy app icon
     copy_app_icon(app_path)
-    
+
     # Bundle frameworks
     if not bundle_frameworks(app_path):
         return False
-    
+
     # Embed build ID
     embed_build_id(app_path)
-    
-    # Code signing
-    entitlements_file = get_entitlements_file(target)
-    
-    if target == 'local':
-        signing_identity = config['developer_id_app']
-    else:  # appstore
-        signing_identity = config['mac_app_store']
-    
-    if sign_app(app_path, signing_identity, entitlements_file, target):
-        if verify_signature(app_path):
-            print("✅ App successfully signed and verified")
-            
-            # Notarization (for local distribution)
-            if target == 'local' and not skip_notarization:
-                if notarize_app(app_path, config):
-                    print("✅ App notarized successfully")
-                else:
-                    print("⚠️  Notarization failed - app may trigger security warnings")
-            elif target == 'local' and skip_notarization:
-                print("⚠️  Skipping notarization as requested - app may trigger security warnings")
-            
-            # Create DMG AFTER signing to include signed app
-            if target == 'local':
-                print("📦 Creating professional DMG with signed app...")
-                dmg_path = create_dmg_professional(app_path)
-                if dmg_path:
-                    # Sign and notarize the DMG
-                    if sign_dmg(dmg_path, config['developer_id_app']):
-                        if not skip_notarization and notarize_dmg(dmg_path, config):
-                            print(f"✅ Distribution DMG created and notarized: {dmg_path}")
-                        else:
-                            print(f"✅ Distribution DMG created and signed: {dmg_path}")
-                    else:
-                        print(f"✅ Distribution DMG created (unsigned): {dmg_path}")
-                else:
-                    print("❌ DMG creation failed, but signed app is available")
-                
-        else:
-            print("❌ Signature verification failed")
-            return False
+
+    if unsigned:
+        # Unsigned build — skip signing, optionally create DMG
+        print("✅ Unsigned app bundle created")
+        if dmg and target == 'local':
+            print("📦 Creating DMG (unsigned)...")
+            dmg_path = create_dmg_professional(app_path)
+            if dmg_path:
+                print(f"✅ DMG created: {dmg_path}")
+            else:
+                print("⚠️  DMG creation failed, but app is available")
     else:
-        print("❌ Code signing failed")
-        return False
-    
-    # Note: Keeping entitlements file as it's part of the repository
-    
+        # Signed build
+        entitlements_file = get_entitlements_file(target)
+
+        if target == 'local':
+            signing_identity = config['developer_id_app']
+        else:  # appstore
+            signing_identity = config['mac_app_store']
+
+        if sign_app(app_path, signing_identity, entitlements_file, target):
+            if verify_signature(app_path):
+                print("✅ App successfully signed and verified")
+
+                # Notarization (for local distribution)
+                if target == 'local' and not skip_notarization:
+                    if notarize_app(app_path, config):
+                        print("✅ App notarized successfully")
+                    else:
+                        print("⚠️  Notarization failed - app may trigger security warnings")
+                elif target == 'local' and skip_notarization:
+                    print("⚠️  Skipping notarization as requested - app may trigger security warnings")
+
+                # Create DMG AFTER signing to include signed app
+                if dmg and target == 'local':
+                    print("📦 Creating professional DMG with signed app...")
+                    dmg_path = create_dmg_professional(app_path)
+                    if dmg_path:
+                        # Sign and notarize the DMG
+                        if sign_dmg(dmg_path, config['developer_id_app']):
+                            if not skip_notarization and notarize_dmg(dmg_path, config):
+                                print(f"✅ Distribution DMG created and notarized: {dmg_path}")
+                            else:
+                                print(f"✅ Distribution DMG created and signed: {dmg_path}")
+                        else:
+                            print(f"✅ Distribution DMG created (unsigned): {dmg_path}")
+                    else:
+                        print("❌ DMG creation failed, but signed app is available")
+
+            else:
+                print("❌ Signature verification failed")
+                return False
+        else:
+            print("❌ Code signing failed")
+            return False
+
     print("✅ Swift Potter.app created at:", os.path.abspath(app_path))
-    
+
     return True
 
 def main():
@@ -1080,36 +1102,43 @@ def main():
                        help='Skip running tests before building')
     parser.add_argument('--skip-notarization', action='store_true',
                        help='Skip notarization step (for testing unsigned apps)')
-    
+    parser.add_argument('--unsigned', action='store_true',
+                       help='Build without code signing (creates unsigned .app and DMG)')
+    parser.add_argument('--no-dmg', action='store_true',
+                       help='Skip DMG creation (app bundle only)')
+
     args = parser.parse_args()
-    
-    # Show environment setup instructions if no signing certificates configured
-    config = get_signing_config()
-    if not config.get('developer_id_app') and not config.get('mac_app_store'):
-        print("🔧 **CODE SIGNING SETUP REQUIRED**")
-        print("=" * 60)
-        print("To enable code signing, set these environment variables:")
-        print("")
-        print("For local distribution:")
-        print("  export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (TEAM_ID)'")
-        print("  export APPLE_TEAM_ID='YOUR_TEAM_ID'")
-        print("")
-        print("For notarization (recommended for local distribution):")
-        print("  export APPLE_ID='your@apple.id'")
-        print("  export APPLE_APP_PASSWORD='app-specific-password'")
-        print("")
-        print("For App Store distribution:")
-        print("  export MAC_APP_STORE_CERTIFICATE='3rd Party Mac Developer Application: Your Name (TEAM_ID)'")
-        print("  export MAC_INSTALLER_CERTIFICATE='3rd Party Mac Developer Installer: Your Name (TEAM_ID)'")
-        print("")
-        print("💡 All builds are signed and notarized for security")
-        print("=" * 60)
-        print("")
-    
+
+    # Show environment setup instructions if no signing certificates configured (unless unsigned)
+    if not args.unsigned:
+        config = get_signing_config()
+        if not config.get('developer_id_app') and not config.get('mac_app_store'):
+            print("🔧 **CODE SIGNING SETUP REQUIRED**")
+            print("=" * 60)
+            print("To enable code signing, set these environment variables:")
+            print("")
+            print("For local distribution:")
+            print("  export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (TEAM_ID)'")
+            print("  export APPLE_TEAM_ID='YOUR_TEAM_ID'")
+            print("")
+            print("For notarization (recommended for local distribution):")
+            print("  export APPLE_ID='your@apple.id'")
+            print("  export APPLE_APP_PASSWORD='app-specific-password'")
+            print("")
+            print("For App Store distribution:")
+            print("  export MAC_APP_STORE_CERTIFICATE='3rd Party Mac Developer Application: Your Name (TEAM_ID)'")
+            print("  export MAC_INSTALLER_CERTIFICATE='3rd Party Mac Developer Installer: Your Name (TEAM_ID)'")
+            print("")
+            print("💡 Or build without signing: python3 scripts/build_app.py --unsigned")
+            print("=" * 60)
+            print("")
+
     success = build_app(
         target=args.target,
         skip_tests=args.skip_tests,
-        skip_notarization=args.skip_notarization
+        skip_notarization=args.skip_notarization,
+        unsigned=args.unsigned,
+        dmg=not args.no_dmg,
     )
     
     if success:
