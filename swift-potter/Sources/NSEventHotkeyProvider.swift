@@ -35,7 +35,7 @@ class NSEventHotkeyProvider: HotkeyProvider {
         hotkeyHandler = handler
 
         // Load saved hotkey or use default
-        if let savedHotkey = UserDefaults.standard.array(forKey: HotkeyConstants.userDefaultsKey) as? [String] {
+        if let savedHotkey = UserDefaults.standard.array(forKey: UserDefaultsKeys.globalHotkey) as? [String] {
             currentHotkeyCombo = savedHotkey
         }
 
@@ -50,7 +50,7 @@ class NSEventHotkeyProvider: HotkeyProvider {
         currentHotkeyCombo = newHotkey
         installMonitors(for: newHotkey)
 
-        UserDefaults.standard.set(newHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        UserDefaults.standard.set(newHotkey, forKey: UserDefaultsKeys.globalHotkey)
         PotterLogger.shared.info("hotkeys", "🔄 Updated hotkey to: \(newHotkey.joined(separator: "+"))")
     }
 

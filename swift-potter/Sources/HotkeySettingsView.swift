@@ -108,7 +108,7 @@ struct HotkeyConfigurationView: View {
     // MARK: - Key Handling
 
     private func loadSavedHotkey() {
-        if let savedHotkey = UserDefaults.standard.array(forKey: HotkeyConstants.userDefaultsKey) as? [String] {
+        if let savedHotkey = UserDefaults.standard.array(forKey: UserDefaultsKeys.globalHotkey) as? [String] {
             currentHotkey = savedHotkey
             previousHotkey = savedHotkey
             PotterLogger.shared.debug("settings", "🎹 Loaded saved hotkey: \(savedHotkey.joined(separator: "+"))")
@@ -287,7 +287,7 @@ struct HotkeyConfigurationView: View {
         isKeyCaptureFocused = false
         warningMessage = ""
 
-        UserDefaults.standard.set(currentHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        UserDefaults.standard.set(currentHotkey, forKey: UserDefaultsKeys.globalHotkey)
 
         PotterLogger.shared.info("settings", "🎹 Applied new hotkey: \(currentHotkey.joined(separator: "+"))")
 
@@ -318,7 +318,7 @@ struct HotkeyConfigurationView: View {
         isCapturingHotkey = false
         isKeyCaptureFocused = false
 
-        UserDefaults.standard.set(currentHotkey, forKey: HotkeyConstants.userDefaultsKey)
+        UserDefaults.standard.set(currentHotkey, forKey: UserDefaultsKeys.globalHotkey)
 
         PotterLogger.shared.info("settings", "🎹 Reset hotkey to default: \(currentHotkey.joined(separator: "+"))")
 
