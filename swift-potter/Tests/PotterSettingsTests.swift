@@ -79,7 +79,7 @@ class PotterSettingsTests: TestBase {
         testUserDefaults.synchronize()
         
         // Check UserDefaults persistence
-        let savedProvider = testUserDefaults.string(forKey: "current_provider")
+        let savedProvider = testUserDefaults.string(forKey: UserDefaultsKeys.llmProvider)
         XCTAssertEqual(savedProvider, "anthropic")
     }
     

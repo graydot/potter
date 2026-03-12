@@ -5,7 +5,7 @@ import Carbon
 // MARK: - Hotkey Constants
 struct HotkeyConstants {
     static let defaultHotkey: [String] = ["⌘", "⇧", "9"]
-    static let userDefaultsKey = "global_hotkey"
+    static let userDefaultsKey = UserDefaultsKeys.globalHotkey
 }
 
 // Protocol for menu bar icon updates
@@ -46,6 +46,7 @@ class PotterCore {
     private var settings: PotterSettings
     private var llmManager: LLMManager?
     private var hotkeyCoordinator: (any HotkeyProvider)?
+    private let textProvider: AccessibilityTextProvider
 
     /// The current hotkey combo, delegated to HotkeyCoordinator.
     var currentHotkeyCombo: [String] {
@@ -55,10 +56,14 @@ class PotterCore {
     // Icon state delegate
     weak var iconDelegate: IconStateDelegate?
 
-    init(llmManager: LLMManager? = nil, settings: PotterSettings? = nil, hotkeyProvider: (any HotkeyProvider)? = nil) {
+    init(llmManager: LLMManager? = nil,
+         settings: PotterSettings? = nil,
+         hotkeyProvider: (any HotkeyProvider)? = nil,
+         textProvider: AccessibilityTextProvider = AccessibilityTextProvider()) {
         self.llmManager = llmManager
         self.settings = settings ?? PotterSettings()
         self.hotkeyCoordinator = hotkeyProvider
+        self.textProvider = textProvider
     }
 
     func setup() {
@@ -84,9 +89,11 @@ class PotterCore {
     
     @objc private func handleHotkey() {
         PotterLogger.shared.info("hotkey", "🎯 Global hotkey callback triggered")
+        // Immediate visual feedback — show processing state before any I/O
+        self.iconDelegate?.setProcessingState()
         self.processClipboardText()
     }
-    
+
     func processClipboardText() {
         PotterLogger.shared.info("text_processor", "🔄 Processing clipboard text...")
         
@@ -105,60 +112,50 @@ class PotterCore {
     
     @MainActor
     private func performTextProcessing(with llmManager: LLMManager) {
-        // Step 1: Validate and retrieve clipboard text
-        guard let trimmedText = validateAndGetClipboardText() else {
+        // Step 1: Read text — try AX selection first, fall back to clipboard.
+        guard let (rawText, inputSource) = textProvider.readText() else {
+            handleNoTextAvailable()
             return
         }
-        
+
+        let trimmedText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            handleNoTextAvailable()
+            return
+        }
+
+        // Guard against our own "no text" sentinel appearing in the clipboard.
+        if trimmedText == "No text was in clipboard" {
+            PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
+            iconDelegate?.setErrorState(message: "Still no text in clipboard")
+            return
+        }
+
+        let sourceLabel: String
+        if case .clipboard = inputSource { sourceLabel = "clipboard" } else { sourceLabel = "selection" }
+        PotterLogger.shared.info("text_processor", "📥 Input source: \(sourceLabel) (\(trimmedText.count) chars)")
+
         // Step 2: Prepare for processing
         prepareForProcessing(textLength: trimmedText.count)
-        
+
         // Step 3: Process with LLM asynchronously
         Task {
-            await processTextWithLLM(trimmedText, using: llmManager)
+            await processTextWithLLM(trimmedText, originalText: trimmedText,
+                                     inputSource: inputSource, using: llmManager)
         }
     }
-    
-    // MARK: - Text Processing Steps
-    
-    /// Validates clipboard content and returns processed text if valid
+
+    /// Handles the case where no text is available from either AX or clipboard.
     @MainActor
-    private func validateAndGetClipboardText() -> String? {
+    private func handleNoTextAvailable() {
+        PotterLogger.shared.warning("text_processor", "⚠️ No text found in selection or clipboard")
         let pasteboard = NSPasteboard.general
-        
-        // Check if clipboard has text
-        guard let text = pasteboard.string(forType: .string), 
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            handleNoTextInClipboard(pasteboard)
-            return nil
-        }
-        
-        // Check if it's our own "no text" message
-        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedText == "No text was in clipboard" {
-            handleOwnNoTextMessage()
-            return nil
-        }
-        
-        return trimmedText
-    }
-    
-    /// Handles the case when no text is found in clipboard
-    @MainActor
-    private func handleNoTextInClipboard(_ pasteboard: NSPasteboard) {
-        PotterLogger.shared.warning("text_processor", "⚠️ No text found in clipboard")
-        // Put helpful message in clipboard instead of showing alert
         pasteboard.clearContents()
         pasteboard.setString("No text was in clipboard", forType: .string)
         iconDelegate?.setErrorState(message: "No text in clipboard")
     }
     
-    /// Handles the case when clipboard contains our own "no text" message
-    @MainActor
-    private func handleOwnNoTextMessage() {
-        PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
-        iconDelegate?.setErrorState(message: "Still no text in clipboard")
-    }
+    // MARK: - Text Processing Steps
     
     /// Prepares the UI and logging for text processing
     @MainActor
@@ -168,27 +165,69 @@ class PotterCore {
     }
     
     /// Main LLM processing logic
-    private func processTextWithLLM(_ text: String, using llmManager: LLMManager) async {
+    private func processTextWithLLM(_ text: String, originalText: String,
+                                    inputSource: TextInputSource, using llmManager: LLMManager) async {
         do {
             let promptText = getCurrentPromptText()
             logProcessingStart(promptText: promptText, inputText: text)
 
-            // Check if the current prompt has a per-prompt tier override
+            // Resolve the model to use based on the prompt's tier setting.
+            // - Tier set: use the user's preferred model for that tier on the active provider.
+            // - Tier nil: fall back to the user's preferred Standard model (sensible default).
             let currentPrompt = PromptService.shared.getCurrentPrompt()
-            if let tier = currentPrompt?.modelTier {
-                await MainActor.run {
-                    if let tierModel = ModelRegistry.shared.bestModel(for: tier, provider: llmManager.selectedProvider) {
-                        PotterLogger.shared.info("text_processor", "Using per-prompt tier \(tier.displayName) → \(tierModel.name)")
-                        llmManager.selectModel(tierModel)
+            let tier = currentPrompt?.modelTier ?? .standard
+            let outputMode = currentPrompt?.outputMode ?? .replace
+            let resolvedModelName: String = await MainActor.run {
+                if let tierModel = ModelRegistry.shared.preferredModel(for: tier, provider: llmManager.selectedProvider) {
+                    PotterLogger.shared.info("text_processor", "Using \(tier.displayName) tier → \(tierModel.name) (\(llmManager.selectedProvider.displayName))")
+                    llmManager.selectModel(tierModel)
+                }
+                return llmManager.selectedModel?.name ?? ""
+            }
+
+            let startTime = Date()
+
+            // Use streaming so tokens appear progressively.
+            // For append/prepend modes we accumulate and write once at the end;
+            // for replace mode we write each chunk to clipboard as it arrives.
+            var streamedTokens = ""
+            let processedText = try await llmManager.streamText(text, prompt: promptText) { [weak self] token in
+                guard let self else { return }
+                streamedTokens += token
+                // For replace mode: progressively update clipboard with each chunk.
+                if outputMode == .replace {
+                    let partial = streamedTokens
+                    let src = inputSource
+                    Task { @MainActor [weak self] in
+                        self?.textProvider.writeResult(partial, source: src)
                     }
                 }
             }
+            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
 
-            let processedText = try await llmManager.processText(text, prompt: promptText)
-            
+            // Apply output mode: combine original text + LLM result per the prompt's setting.
+            let finalText = outputMode.apply(original: originalText, result: processedText)
+            if outputMode != .replace {
+                PotterLogger.shared.info("text_processor", "📎 Output mode: \(outputMode.displayName) → \(finalText.count) characters total")
+            }
+
             logProcessingSuccess(outputText: processedText)
-            await handleProcessingSuccess(processedText)
-            
+
+            // Record history entry (async, fire-and-forget)
+            let providerName = await MainActor.run { llmManager.selectedProvider.displayName }
+            let promptName = PromptService.shared.currentPromptName
+            let entry = ProcessingHistoryEntry(
+                inputText: originalText,
+                outputText: processedText,
+                promptName: promptName.isEmpty ? "Default" : promptName,
+                modelName: resolvedModelName,
+                providerName: providerName,
+                durationMs: durationMs
+            )
+            ProcessingHistoryStore.shared.append(entry)
+
+            await handleProcessingSuccess(finalText, inputSource: inputSource)
+
         } catch {
             let potterError = convertToPotterError(error)
             await handleProcessingError(potterError)
@@ -227,12 +266,17 @@ class PotterCore {
         PotterLogger.shared.info("text_processor", "📋 Result copied to clipboard (\(outputText.count) characters)")
     }
     
-    /// Handles successful text processing
+    /// Handles successful text processing — routes output via textProvider.
     @MainActor
-    private func handleProcessingSuccess(_ processedText: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(processedText, forType: .string)
+    private func handleProcessingSuccess(_ processedText: String, inputSource: TextInputSource) {
+        let wrote = textProvider.writeResult(processedText, source: inputSource)
+
+        // If AX write failed, fall back to clipboard so the result isn't lost.
+        if case .accessibility = inputSource, !wrote {
+            PotterLogger.shared.warning("text_processor", "⚠️ AX write failed — falling back to clipboard")
+            textProvider.writeResult(processedText, source: .clipboard)
+        }
+
         iconDelegate?.setSuccessState()
     }
     
