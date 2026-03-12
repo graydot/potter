@@ -12,7 +12,21 @@ extension DateFormatter {
 @available(macOS 14.0, *)
 struct LogsSettingsView: View {
     @StateObject private var logger = PotterLogger.shared
-    @State private var logFilter: PotterLogger.LogEntry.LogLevel? = nil
+    // Persistent: the selected log level filter is remembered across resizes and
+    // section switches via UIStateStore.
+    @EnvironmentObject private var uiState: UIStateStore
+
+    /// Typed accessor — converts the raw string stored in UIStateStore to the
+    /// strongly-typed LogLevel enum and back.
+    private var logFilter: PotterLogger.LogEntry.LogLevel? {
+        get {
+            guard let raw = uiState.logFilterRaw else { return nil }
+            return PotterLogger.LogEntry.LogLevel(rawValue: raw)
+        }
+        nonmutating set {
+            uiState.logFilterRaw = newValue?.rawValue
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -35,10 +49,19 @@ struct LogsSettingsView: View {
         }
     }
 
+    /// A Binding for the Picker that bridges the raw-string UIStateStore property
+    /// to the strongly-typed LogLevel enum.
+    private var logFilterBinding: Binding<PotterLogger.LogEntry.LogLevel?> {
+        Binding(
+            get: { self.logFilter },
+            set: { self.logFilter = $0 }
+        )
+    }
+
     private var controlsSection: some View {
         HStack {
             Text("Filter:")
-            Picker("", selection: $logFilter) {
+            Picker("", selection: logFilterBinding) {
                 Text("All").tag(nil as PotterLogger.LogEntry.LogLevel?)
                 Text("Info").tag(PotterLogger.LogEntry.LogLevel.info as PotterLogger.LogEntry.LogLevel?)
                 Text("Warning").tag(PotterLogger.LogEntry.LogLevel.warning as PotterLogger.LogEntry.LogLevel?)

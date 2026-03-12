@@ -63,26 +63,69 @@ class ModernSettingsWindowController: NSWindowController {
 
 @available(macOS 14.0, *)
 struct ModernSettingsView: View {
-    @State private var selectedSection = 0
+    // UIStateStore owns all persistent UI state (selected section, sidebar width,
+    // scroll positions, list selections).  It is created once here and injected
+    // into every child view via the environment so that state is never lost when
+    // SwiftUI rebuilds the view hierarchy on a window resize.
+    @StateObject private var uiState = UIStateStore.shared
     @Environment(\.colorScheme) var colorScheme
+    @State private var isDraggingDivider = false
 
     let sections = [
         ("General", "gear"),
         ("Prompts", "bubble.left.and.bubble.right"),
         ("Updates", "arrow.down.circle"),
         ("About", "info.circle"),
-        ("Logs", "list.bullet.rectangle")
+        ("Logs", "list.bullet.rectangle"),
+        ("History", "clock.arrow.circlepath")
     ]
 
-    var body: some View {
-        HSplitView {
-            sidebar
-                .frame(minWidth: 200, maxWidth: 250)
+    private let sidebarMinWidth: Double = 180
+    private let sidebarMaxWidth: Double = 300
 
-            mainContent
-                .frame(minWidth: 600)
+    var body: some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: CGFloat(uiState.sidebarWidth))
+
+                // Draggable divider
+                Rectangle()
+                    .fill(isDraggingDivider
+                          ? Color.accentColor.opacity(0.4)
+                          : Color(NSColor.separatorColor))
+                    .frame(width: 1)
+                    .contentShape(Rectangle().inset(by: -4))
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { value in
+                                isDraggingDivider = true
+                                let newWidth = uiState.sidebarWidth + value.translation.width
+                                uiState.sidebarWidth = min(sidebarMaxWidth,
+                                                           max(sidebarMinWidth, newWidth))
+                            }
+                            .onEnded { _ in
+                                isDraggingDivider = false
+                            }
+                    )
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.resizeLeftRight.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+
+                mainContent
+                    .frame(width: max(600,
+                                     geometry.size.width - CGFloat(uiState.sidebarWidth) - 1))
+            }
         }
         .background(Color(NSColor.windowBackgroundColor))
+        // Inject UIStateStore into the entire settings view hierarchy so that
+        // child views (Prompts, Logs, etc.) can access persistent UI state
+        // without needing to pass it through explicit init parameters.
+        .environmentObject(uiState)
     }
 
     private var sidebar: some View {
@@ -104,15 +147,15 @@ struct ModernSettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
                     Button(action: {
-                        selectedSection = index
+                        uiState.selectedSection = index
                     }) {
                         HStack {
                             Image(systemName: section.1)
-                                .foregroundColor(selectedSection == index ? .white : .secondary)
+                                .foregroundColor(uiState.selectedSection == index ? .white : .secondary)
                                 .frame(width: 18)
                                 .font(.system(size: 16))
                             Text(section.0)
-                                .foregroundColor(selectedSection == index ? .white : .primary)
+                                .foregroundColor(uiState.selectedSection == index ? .white : .primary)
                                 .font(.system(size: 15, weight: .medium))
                             Spacer()
                         }
@@ -121,7 +164,7 @@ struct ModernSettingsView: View {
                         .padding(.trailing, 8)
                         .padding(.vertical, 12)
                         .background(
-                            selectedSection == index ?
+                            uiState.selectedSection == index ?
                             Color.accentColor :
                             Color.clear
                         )
@@ -164,7 +207,7 @@ struct ModernSettingsView: View {
 
     private var mainContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            switch selectedSection {
+            switch uiState.selectedSection {
             case 0:
                 GeneralSettingsView()
             case 1:
@@ -175,11 +218,13 @@ struct ModernSettingsView: View {
                 AboutSettingsView()
             case 4:
                 LogsSettingsView()
+            case 5:
+                HistorySettingsView()
             default:
                 GeneralSettingsView()
             }
         }
-        .padding(selectedSection == 0 ? 0 : 20)
+        .padding(uiState.selectedSection == 0 ? 0 : 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

@@ -74,14 +74,14 @@ class LLMProviderViewModel: ObservableObject {
 
     // MARK: - Model Registry
 
-    /// Models for the current provider, grouped by tier for the UI.
-    var modelsByTier: [(tier: ModelTier, models: [LLMModel])] {
-        return modelRegistry.modelsByTier(for: selectedProvider)
+    /// Models for a provider, grouped by tier for the UI.
+    func modelsByTier(for provider: LLMProvider) -> [(tier: ModelTier, models: [LLMModel])] {
+        return modelRegistry.modelsByTier(for: provider)
     }
 
-    /// All models for the current provider (flat list).
-    var availableModels: [LLMModel] {
-        return modelRegistry.getModels(for: selectedProvider)
+    /// All models for a provider (flat list).
+    func availableModels(for provider: LLMProvider) -> [LLMModel] {
+        return modelRegistry.getModels(for: provider)
     }
 
     /// Whether the registry is currently fetching models.
@@ -89,19 +89,41 @@ class LLMProviderViewModel: ObservableObject {
         return modelRegistry.isFetching
     }
 
-    /// Human-readable "last fetched" text for the current provider.
-    var lastFetchedText: String? {
-        guard let date = modelRegistry.lastFetched[selectedProvider] else { return nil }
+    /// Human-readable "last fetched" text for a provider.
+    func lastFetchedText(for provider: LLMProvider) -> String? {
+        guard let date = modelRegistry.lastFetched[provider] else { return nil }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return "Updated \(formatter.localizedString(for: date, relativeTo: Date()))"
     }
 
     /// Refresh models from the provider API.
-    func refreshModels() async throws {
-        let apiKey = llmManager.getAPIKey(for: selectedProvider)
+    func refreshModels(for provider: LLMProvider) async throws {
+        let apiKey = llmManager.getAPIKey(for: provider)
         guard !apiKey.isEmpty else { return }
-        try await modelRegistry.refreshModels(for: selectedProvider, apiKey: apiKey)
+        try await modelRegistry.refreshModels(for: provider, apiKey: apiKey)
+    }
+
+    // MARK: - Per-Provider Tier Config
+
+    /// Returns which providers currently have an API key configured.
+    var configuredProviders: [LLMProvider] {
+        return LLMProvider.allCases.filter { llmManager.isProviderConfigured($0) }
+    }
+
+    /// Returns the saved tier config for a provider.
+    func tierConfig(for provider: LLMProvider) -> ProviderTierConfig {
+        return modelRegistry.getTierConfig(for: provider)
+    }
+
+    /// Updates a single tier's preferred model for a provider.
+    func setPreferredModel(_ modelID: String?, tier: ModelTier, provider: LLMProvider) {
+        modelRegistry.setPreferredModel(modelID, tier: tier, provider: provider)
+    }
+
+    /// Returns whether a provider has a saved API key.
+    func isProviderConfigured(_ provider: LLMProvider) -> Bool {
+        return llmManager.isProviderConfigured(provider)
     }
     
     // MARK: - Public Methods

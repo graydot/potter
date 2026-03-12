@@ -148,7 +148,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func checkAndShowSettingsIfNeeded() {
         // Check if this is the first launch
-        let isFirstLaunch = !UserDefaults.standard.bool(forKey: "onboarding_completed")
+        let isFirstLaunch = !UserDefaults.standard.bool(forKey: UserDefaultsKeys.onboardingCompleted)
         
         if isFirstLaunch {
             PotterLogger.shared.info("startup", "🎉 First launch detected, showing onboarding")
@@ -171,7 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func hasValidProviderConfiguration() -> Bool {
         // Get the currently selected LLM provider
-        guard let selectedProviderString = UserDefaults.standard.string(forKey: "llm_provider"),
+        guard let selectedProviderString = UserDefaults.standard.string(forKey: UserDefaultsKeys.llmProvider),
               let selectedProvider = LLMProvider(rawValue: selectedProviderString.lowercased()) else {
             PotterLogger.shared.debug("startup", "❌ No provider selected or invalid provider")
             return false

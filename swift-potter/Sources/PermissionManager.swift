@@ -164,18 +164,20 @@ class PermissionManager: ObservableObject, PermissionChecker {
         
         // Check every 1 second for 1 minute
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            self?.checkAllPermissions()
-            
-            guard let startTime = self?.checkStartTime else {
-                timer.invalidate()
-                return
-            }
-            
-            let elapsed = Date().timeIntervalSince(startTime)
-            
-            if elapsed >= 60 { // After 1 minute, switch to 10-second intervals
-                timer.invalidate()
-                self?.startSlowMonitoring()
+            MainActor.assumeIsolated {
+                self?.checkAllPermissions()
+
+                guard let startTime = self?.checkStartTime else {
+                    timer.invalidate()
+                    return
+                }
+
+                let elapsed = Date().timeIntervalSince(startTime)
+
+                if elapsed >= 60 { // After 1 minute, switch to 10-second intervals
+                    timer.invalidate()
+                    self?.startSlowMonitoring()
+                }
             }
         }
     }
@@ -185,17 +187,19 @@ class PermissionManager: ObservableObject, PermissionChecker {
         
         // Check every 10 seconds for 5 minutes
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] timer in
-            self?.checkAllPermissions()
-            
-            guard let startTime = self?.checkStartTime else {
-                timer.invalidate()
-                return
-            }
-            
-            let elapsed = Date().timeIntervalSince(startTime)
-            
-            if elapsed >= 360 { // 6 minutes total (1 min fast + 5 min slow)
-                self?.stopPermissionMonitoring()
+            MainActor.assumeIsolated {
+                self?.checkAllPermissions()
+
+                guard let startTime = self?.checkStartTime else {
+                    timer.invalidate()
+                    return
+                }
+
+                let elapsed = Date().timeIntervalSince(startTime)
+
+                if elapsed >= 360 { // 6 minutes total (1 min fast + 5 min slow)
+                    self?.stopPermissionMonitoring()
+                }
             }
         }
     }

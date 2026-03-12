@@ -4,270 +4,28 @@ import AppKit
 // MARK: - LLM Provider Configuration View
 struct LLMProviderView: View {
     @StateObject private var viewModel = LLMProviderViewModel()
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Section Header
             Text("AI Provider Configuration")
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
-            
-            VStack(alignment: .leading, spacing: 16) {
-                // Provider Selection
-                providerSelectionView
-                
-                // Model Selection
-                modelSelectionView
-                
-                // API Key Configuration
-                apiKeyConfigurationView
+
+            Text("Click a provider card to make it active. Expand to configure API key and model tiers.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 12) {
+                ForEach(LLMProvider.allCases, id: \.self) { provider in
+                    ProviderCard(provider: provider, viewModel: viewModel)
+                }
             }
-            .padding(.leading, 8)
         }
         .onChange(of: viewModel.selectedProvider) { newProvider in
             viewModel.onProviderChanged(to: newProvider)
         }
     }
-    
-    
-    // MARK: - Provider Selection
-    private var providerSelectionView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Provider:")
-                    .fontWeight(.medium)
-                    .frame(width: 80, alignment: .leading)
-                
-                Picker("", selection: $viewModel.selectedProvider) {
-                    ForEach(LLMProvider.allCases) { provider in
-                        Text(provider.displayName)
-                            .tag(provider)
-                    }
-                }
-                .pickerStyle(MenuPickerStyle())
-                .frame(width: 200)
-                
-                Spacer()
-            }
-        }
-    }
-    
-    // MARK: - Model Selection
-    private var modelSelectionView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Model:")
-                    .fontWeight(.medium)
-                    .frame(width: 80, alignment: .leading)
-
-                Picker("", selection: $viewModel.selectedModel) {
-                    ForEach(viewModel.modelsByTier, id: \.tier) { group in
-                        Section(header: Text(group.tier.displayName)) {
-                            ForEach(group.models) { model in
-                                Text(model.name)
-                                    .tag(model as LLMModel?)
-                            }
-                        }
-                    }
-                }
-                .pickerStyle(MenuPickerStyle())
-                .frame(width: 200)
-                .help(viewModel.selectedModel?.description ?? "Select a model")
-
-                // Refresh button
-                Button(action: {
-                    Task {
-                        do {
-                            try await viewModel.refreshModels()
-                        } catch {
-                            PotterLogger.shared.error("settings", "Model refresh failed: \(error.localizedDescription)")
-                        }
-                    }
-                }) {
-                    if viewModel.isRefreshingModels {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .frame(width: 16, height: 16)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(viewModel.isRefreshingModels)
-                .help("Refresh available models from provider")
-
-                Spacer()
-            }
-
-            // Description + last fetched
-            HStack {
-                if let selectedModel = viewModel.selectedModel {
-                    Text(selectedModel.description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                if let lastFetched = viewModel.lastFetchedText {
-                    Text(lastFetched)
-                        .font(.caption2)
-                        .foregroundColor(.secondary.opacity(0.7))
-                }
-            }
-            .padding(.leading, 88)
-        }
-    }
-    
-    // MARK: - API Key Configuration
-    private var apiKeyConfigurationView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("API Key:")
-                    .fontWeight(.medium)
-                    .frame(width: 80, alignment: .leading)
-                
-                // API Key Input Field
-                HStack {
-                    apiKeyTextField
-                    
-                    // Validation Status
-                    validationStatusView
-                    
-                    // Test & Save Button with spinner
-                    testAndSaveButtonWithSpinner
-                }
-                
-                Spacer()
-            }
-            
-            // Validation Error Message
-            if case .invalid(let message) = viewModel.currentValidationState {
-                Text(message)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .padding(.leading, 88) // Align with API key field
-            }
-            
-            // Storage Error Message
-            if viewModel.showStorageError {
-                Text(viewModel.storageErrorMessage)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .padding(.leading, 88)
-            }
-            
-            // API Key Link - moved up
-            HStack {
-                Text("Get your API key:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Button(action: {
-                    viewModel.openAPIKeyURL()
-                }) {
-                    Text(viewModel.selectedProvider.displayName + " API Keys")
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                        .underline()
-                }
-                .buttonStyle(.plain)
-                .help("Open \(viewModel.selectedProvider.displayName) API keys page in browser")
-            }
-            .padding(.leading, 88) // Align with API key field
-            
-            // Success Message
-            if viewModel.showingSuccessCheckmark {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.caption)
-                    
-                    Text("API key saved successfully")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                        .transition(.opacity)
-                    
-                    Spacer() // Push everything to the left
-                }
-                .padding(.leading, 88) // Align with API key field
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-    
-    private var apiKeyTextField: some View {
-        HStack {
-            if viewModel.showAPIKey {
-                TextField(viewModel.selectedProvider.apiKeyPlaceholder, text: $viewModel.apiKeyText)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(viewModel.textFieldBorderColor, lineWidth: 2)
-                    )
-            } else {
-                SecureField(viewModel.selectedProvider.apiKeyPlaceholder, text: $viewModel.apiKeyText)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(viewModel.textFieldBorderColor, lineWidth: 2)
-                    )
-            }
-            
-            Button(action: {
-                viewModel.toggleAPIKeyVisibility()
-            }) {
-                Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help(viewModel.showAPIKey ? "Hide API key" : "Show API key")
-        }
-        .frame(width: 300)
-        .onChange(of: viewModel.apiKeyText) { newValue in
-            viewModel.onAPIKeyTextChanged(newValue)
-        }
-    }
-    
-    
-    private var validationStatusView: some View {
-        Group {
-            switch viewModel.currentValidationState {
-            case .some(.validating):
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .frame(width: 20, height: 20)
-                
-            default:
-                EmptyView()
-            }
-        }
-        .frame(width: 24, height: 20)
-    }
-    
-    private var testAndSaveButtonWithSpinner: some View {
-        HStack(spacing: 8) {
-            Button("Test & Save") {
-                Task {
-                    await viewModel.testAndSaveAPIKey()
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(viewModel.isTestAndSaveButtonDisabled)
-            
-            if viewModel.isValidating {
-                ProgressView()
-                    .scaleEffect(0.6)
-                    .frame(width: 16, height: 16)
-                    .transition(.opacity)
-            }
-        }
-    }
-    
-    
 }
 
 // MARK: - Custom Secure Text Field with Paste Support
@@ -396,6 +154,331 @@ struct CustomAPIKeyField: NSViewRepresentable {
             // Allow all commands (including paste)
             return false
         }
+    }
+}
+
+// MARK: - Provider Card
+
+/// A selectable card for a single provider.
+/// - Clicking the header selects this provider as active.
+/// - The active provider has an accent border and is auto-expanded.
+/// - Inside: API key entry + Fast / Standard / Thinking model pickers.
+struct ProviderCard: View {
+    let provider: LLMProvider
+    @ObservedObject var viewModel: LLMProviderViewModel
+
+    @State private var isExpanded: Bool
+
+    private var isActive: Bool { viewModel.selectedProvider == provider }
+
+    init(provider: LLMProvider, viewModel: LLMProviderViewModel) {
+        self.provider = provider
+        self.viewModel = viewModel
+        // Active provider starts expanded; others start collapsed.
+        _isExpanded = State(initialValue: viewModel.selectedProvider == provider)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Card header — tapping selects this provider
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    viewModel.selectedProvider = provider
+                    isExpanded = true
+                }
+            }) {
+                HStack(spacing: 10) {
+                    // Active indicator dot
+                    Circle()
+                        .fill(isActive ? Color.accentColor : Color.clear)
+                        .frame(width: 8, height: 8)
+                        .overlay(Circle().stroke(isActive ? Color.accentColor : Color(NSColor.separatorColor), lineWidth: 1.5))
+
+                    Text(provider.displayName)
+                        .fontWeight(isActive ? .semibold : .regular)
+                        .foregroundColor(isActive ? .primary : .secondary)
+
+                    Spacer()
+
+                    if isActive {
+                        Text("Active")
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.15))
+                            .foregroundColor(.accentColor)
+                            .clipShape(Capsule())
+                    }
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Divider()
+
+                let isConfigured = viewModel.isProviderConfigured(provider)
+
+                VStack(spacing: 14) {
+                    // API Key row — always shown
+                    apiKeySection
+
+                    Divider()
+
+                    // Tier model pickers — always shown, disabled when no API key
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !isConfigured {
+                            Text("Enter your API key above to enable model selection.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.bottom, 4)
+                        }
+                        tierSection
+                    }
+                    .disabled(!isConfigured)
+                    .opacity(isConfigured ? 1.0 : 0.45)
+
+                    // Refresh row — only when configured
+                    if isConfigured {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                Task {
+                                    do {
+                                        try await viewModel.refreshModels(for: provider)
+                                    } catch {
+                                        PotterLogger.shared.error("settings", "Model refresh failed for \(provider.displayName): \(error.localizedDescription)")
+                                    }
+                                }
+                            }) {
+                                if viewModel.isRefreshingModels {
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                        .frame(width: 14, height: 14)
+                                } else {
+                                    Label("Refresh models", systemImage: "arrow.clockwise")
+                                        .font(.caption)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                            .disabled(viewModel.isRefreshingModels)
+
+                            if let lastFetched = viewModel.lastFetchedText(for: provider) {
+                                Text(lastFetched)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary.opacity(0.7))
+                            }
+                        }
+                    }
+                }
+                .padding(12)
+            }
+        }
+        .background(Color(NSColor.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isActive ? Color.accentColor : Color(NSColor.separatorColor),
+                        lineWidth: isActive ? 2 : 1)
+        )
+        // Keep expansion in sync when active provider changes externally
+        .onChange(of: viewModel.selectedProvider) { newProvider in
+            if newProvider == provider && !isExpanded {
+                withAnimation(.easeInOut(duration: 0.2)) { isExpanded = true }
+            }
+        }
+    }
+
+    // MARK: - API Key Section
+
+    private var apiKeySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("API Key")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .frame(width: 60, alignment: .leading)
+
+                apiKeyField
+
+                validationIndicator
+
+                testSaveButton
+
+                Spacer()
+            }
+
+            // Validation error
+            if isActive, case .invalid(let msg) = viewModel.currentValidationState {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.leading, 68)
+            }
+
+            // Storage error
+            if isActive && viewModel.showStorageError {
+                Text(viewModel.storageErrorMessage)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.leading, 68)
+            }
+
+            // Success
+            if isActive && viewModel.showingSuccessCheckmark {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    Text("Saved").foregroundColor(.green)
+                }
+                .font(.caption)
+                .padding(.leading, 68)
+            }
+
+            // Get API key link
+            HStack(spacing: 4) {
+                Text("Get key:")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Button(action: { viewModel.openAPIKeyURL() }) {
+                    Text(provider.apiKeyURL)
+                        .font(.caption2)
+                        .foregroundColor(.accentColor)
+                        .underline()
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 68)
+        }
+    }
+
+    @ViewBuilder
+    private var apiKeyField: some View {
+        if isActive {
+            // Only show editable field for the active (selected) provider
+            HStack {
+                Group {
+                    if viewModel.showAPIKey {
+                        TextField(provider.apiKeyPlaceholder, text: $viewModel.apiKeyText)
+                    } else {
+                        SecureField(provider.apiKeyPlaceholder, text: $viewModel.apiKeyText)
+                    }
+                }
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(viewModel.textFieldBorderColor, lineWidth: 2)
+                )
+                .onChange(of: viewModel.apiKeyText) { viewModel.onAPIKeyTextChanged($0) }
+
+                Button(action: { viewModel.toggleAPIKeyVisibility() }) {
+                    Image(systemName: viewModel.showAPIKey ? "eye.slash" : "eye")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(width: 260)
+        } else {
+            // Non-active providers: show masked placeholder if configured
+            let configured = viewModel.isProviderConfigured(provider)
+            Text(configured ? "••••••••••••" : "Not configured")
+                .font(.system(.body, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 260, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var validationIndicator: some View {
+        if isActive {
+            Group {
+                switch viewModel.currentValidationState {
+                case .some(.validating):
+                    ProgressView().scaleEffect(0.7).frame(width: 20, height: 20)
+                default:
+                    EmptyView()
+                }
+            }
+            .frame(width: 24, height: 20)
+        }
+    }
+
+    @ViewBuilder
+    private var testSaveButton: some View {
+        if isActive {
+            HStack(spacing: 6) {
+                Button("Test & Save") {
+                    Task { await viewModel.testAndSaveAPIKey() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isTestAndSaveButtonDisabled)
+
+                if viewModel.isValidating {
+                    ProgressView().scaleEffect(0.6).frame(width: 14, height: 14)
+                }
+            }
+        }
+    }
+
+    // MARK: - Tier Section
+
+    private var tierSection: some View {
+        VStack(spacing: 8) {
+            ForEach(ModelTier.allCases, id: \.self) { tier in
+                tierRow(for: tier)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tierRow(for tier: ModelTier) -> some View {
+        let config = viewModel.tierConfig(for: provider)
+        let models = viewModel.availableModels(for: provider).filter { $0.tier == tier }
+        let currentModelID = config.modelID(for: tier)
+        let firstModel = viewModel.modelsByTier(for: provider).first(where: { $0.tier == tier })?.models.first
+
+        HStack(alignment: .top, spacing: 12) {
+            // Tier label + description stacked vertically
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tier.displayName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text(tier.description)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .frame(width: 130, alignment: .leading)
+
+            if models.isEmpty {
+                Text("No models available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Picker("", selection: Binding(
+                    get: { currentModelID ?? firstModel?.id ?? "" },
+                    set: { viewModel.setPreferredModel($0, tier: tier, provider: provider) }
+                )) {
+                    ForEach(models) { model in
+                        Text(model.name).tag(model.id)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                .frame(width: 200)
+                .help(models.first(where: { $0.id == currentModelID })?.description ?? firstModel?.description ?? "")
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
     }
 }
 

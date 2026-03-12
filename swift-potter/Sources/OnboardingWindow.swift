@@ -185,7 +185,7 @@ struct OnboardingView: View {
     
     private func completeOnboarding() {
         // Mark onboarding as completed
-        UserDefaults.standard.set(true, forKey: "onboarding_completed")
+        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.onboardingCompleted)
         
         // Close onboarding window
         OnboardingWindowController.shared.window?.close()
