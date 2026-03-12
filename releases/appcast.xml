@@ -66,5 +66,33 @@ This release brings continued improvements to Potter's AI-powered text processin
       <pubDate>Wed, 11 Mar 2026 18:09:02 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.1/Potter-2.1.1-AI-Resonance.dmg" length="4594326" type="application/octet-stream" ns0:version="2.1.1" ns0:shortVersionString="2.1.1" ns0:edSignature="nMULqaNBCZeHHuC+sVrGnGYyLmbfaQYnIHi4nrVkkanNWRI8/s775gVaSNNuL6+bQHuNjiqASRlG10vcQhUfBQ==" />
     </item>
+    <item>
+      <title>Potter 2.1.0</title>
+      <description>&lt;![CDATA[## Potter 2.1.0 - AI Resonance
+
+### What's New
+- Dynamic model registry with live model fetching from providers
+- Processing history with searchable log of all text transformations
+- Streaming support for real-time LLM responses
+- Accessibility text provider for direct text capture
+- Output modes (replace, prepend) per prompt
+- Model tier system (Budget/Standard/Premium) per prompt
+- Hotkey platform abstraction for App Store compatibility
+
+### Architecture Improvements
+- Full dependency injection with protocol abstractions
+- Settings window split into 9 focused view files
+- Extracted HotkeyCoordinator, IconFactory, MenuBuilder, BaseLLMClient
+- 298+ tests with parallel execution support
+
+### Bug Fixes
+- Fixed flaky clipboard-dependent tests in headless environments
+- Fixed hotkey display truncation
+- Fixed cache invalidation for LLM clients on key/provider change
+- System instruction added to LLM prompts to suppress commentary
+]]&gt;</description>
+      <pubDate>Wed, 11 Mar 2026 18:18:14 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.0/Potter-2.1.0-AI-Resonance.dmg" length="4597433" type="application/octet-stream" ns0:version="2.1.0" ns0:shortVersionString="2.1.0" ns0:edSignature="W+bVfP+TrUBRTNE4LMjJwfrGZ3XxJUDahtSqJ0bqNJc+LzXJd1SBY4zg0eR45+jCj7HZ7t1G8jLG47tbM5sQDQ==" />
+    </item>
   </channel>
 </rss>
