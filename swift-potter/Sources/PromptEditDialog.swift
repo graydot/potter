@@ -1,6 +1,69 @@
 import AppKit
 import Foundation
 
+// MARK: - Drag Handle View
+
+/// A subtle horizontal bar below the prompt text area that the user can drag
+/// to resize the text area. Shows a resize cursor on hover.
+private final class DragHandleView: NSView {
+
+    /// Called continuously during drag with the new desired height for the scroll view.
+    var onHeightChange: ((CGFloat) -> Void)?
+    /// Called once when the drag ends so the final value can be persisted.
+    var onHeightCommit: ((CGFloat) -> Void)?
+
+    private var dragStartY: CGFloat = 0
+    private var dragStartHeight: CGFloat = 0
+
+    /// The current height of the scroll view at the time the drag begins.
+    var currentScrollViewHeight: CGFloat = 150
+
+    // MARK: Appearance
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        // Subtle pill / grip indicator centred in the handle strip
+        let pillW: CGFloat = 32
+        let pillH: CGFloat = 4
+        let pillX = (bounds.width - pillW) / 2
+        let pillY = (bounds.height - pillH) / 2
+        let pill = NSBezierPath(roundedRect: NSRect(x: pillX, y: pillY, width: pillW, height: pillH),
+                                xRadius: 2, yRadius: 2)
+        NSColor.tertiaryLabelColor.setFill()
+        pill.fill()
+    }
+
+    // MARK: Cursor
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .resizeUpDown)
+    }
+
+    // MARK: Drag
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartY = convert(event.locationInWindow, from: nil).y
+        dragStartHeight = currentScrollViewHeight
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let currentY = convert(event.locationInWindow, from: nil).y
+        // Dragging down (negative delta in flipped coords) makes the view taller.
+        // NSView uses bottom-left origin, so moving down = smaller Y = taller text area.
+        let delta = dragStartY - currentY
+        let newHeight = max(80, dragStartHeight + delta)
+        onHeightChange?(newHeight)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let currentY = convert(event.locationInWindow, from: nil).y
+        let delta = dragStartY - currentY
+        let finalHeight = max(80, dragStartHeight + delta)
+        onHeightCommit?(finalHeight)
+    }
+}
+
 // MARK: - Custom Window for Key Handling
 class PromptEditWindow: NSWindow {
     weak var dialogController: PromptEditDialogController?
@@ -53,15 +116,18 @@ class PromptEditDialogController: NSWindowController {
     private var nameCharCountLabel: NSTextField!
     private var promptCharCountLabel: NSTextField!
     private var tierPopUp: NSPopUpButton!
+    private var outputModeSegment: NSSegmentedControl!
     private var validationLabel: NSTextField!
     private var saveButton: NSButton!
     private var cancelButton: NSButton!
-    
+    private var dragHandle: DragHandleView!
+    private var scrollViewHeightConstraint: NSLayoutConstraint!
+
     // Validation state
     private var isValidInput: Bool = false
-    
-    // Callback: name, prompt, modelTier
-    var onSave: ((String, String, ModelTier?) -> Void)?
+
+    // Callback: name, prompt, modelTier, outputMode
+    var onSave: ((String, String, ModelTier?, OutputMode) -> Void)?
     
     // Event monitor for proper cleanup
     private var eventMonitor: Any?
@@ -196,33 +262,60 @@ class PromptEditDialogController: NSWindowController {
             tierPopUp.lastItem?.tag = ModelTier.allCases.firstIndex(of: tier)!
         }
 
+        // Output mode section
+        outputModeSegment = NSSegmentedControl(
+            labels: OutputMode.allCases.map { $0.displayName },
+            trackingMode: .selectOne,
+            target: nil,
+            action: nil
+        )
+        outputModeSegment.selectedSegment = 0  // default: Replace
+
+        // Drag handle
+        dragHandle = DragHandleView()
+        dragHandle.wantsLayer = true
+        dragHandle.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+
+        // Wire drag handle callbacks
+        dragHandle.onHeightChange = { [weak self] newHeight in
+            guard let self = self else { return }
+            self.scrollViewHeightConstraint.constant = newHeight
+            self.dragHandle.currentScrollViewHeight = newHeight
+            // Grow/shrink the window to accommodate the new text area size.
+            self.resizeWindowForCurrentConstraints()
+        }
+        dragHandle.onHeightCommit = { finalHeight in
+            UIStateStore.shared.promptTextAreaHeight = finalHeight
+            print("📐 Prompt text area height committed: \(finalHeight)pt")
+        }
+
         // Validation label
         validationLabel = NSTextField(labelWithString: "")
         validationLabel.font = NSFont.systemFont(ofSize: 11)
         validationLabel.textColor = .systemRed
         validationLabel.isHidden = true
-        
+
         // Buttons
         cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked(_:)))
         cancelButton.bezelStyle = .rounded
-        
+
         saveButton = NSButton(title: "Save", target: self, action: #selector(saveClicked(_:)))
         saveButton.bezelStyle = .rounded
         saveButton.isEnabled = false
-        
+
         // Debug button setup
         print("🔘 Button setup - Cancel target: \(String(describing: cancelButton.target)), action: \(String(describing: cancelButton.action))")
         print("🔘 Button setup - Save target: \(String(describing: saveButton.target)), action: \(String(describing: saveButton.action))")
-        
+
         // Test if buttons are responsive
         cancelButton.isEnabled = true
-        
+
         // Make save button prominent
         if #available(macOS 11.0, *) {
             saveButton.hasDestructiveAction = false
             saveButton.controlSize = .regular
         }
-        
+
         // Layout using Auto Layout
         contentView.addSubview(titleLabel)
         contentView.addSubview(nameLabel)
@@ -231,70 +324,115 @@ class PromptEditDialogController: NSWindowController {
         contentView.addSubview(promptLabel)
         contentView.addSubview(promptCharCountLabel)
         contentView.addSubview(scrollView)
+        contentView.addSubview(dragHandle)
         contentView.addSubview(tierLabel)
         contentView.addSubview(tierPopUp)
+        contentView.addSubview(outputModeSegment)
         contentView.addSubview(validationLabel)
         contentView.addSubview(cancelButton)
         contentView.addSubview(saveButton)
 
         // Disable autoresizing masks
-        [titleLabel, nameLabel, nameCharCountLabel, nameTextField, promptLabel, promptCharCountLabel, scrollView, tierLabel, tierPopUp, validationLabel, cancelButton, saveButton].forEach {
+        [titleLabel, nameLabel, nameCharCountLabel, nameTextField, promptLabel, promptCharCountLabel,
+         scrollView, dragHandle, tierLabel, tierPopUp, outputModeSegment, validationLabel,
+         cancelButton, saveButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
-        
+
+        // Determine initial text area height:
+        //   • If the user previously set a height, use it.
+        //   • Otherwise default to 25% of the window's content height (~400pt window → 100pt).
+        let stored = UIStateStore.shared.promptTextAreaHeight
+        let initialHeight: CGFloat = stored > 0 ? CGFloat(stored) : max(80, window.contentView!.bounds.height * 0.25)
+        dragHandle.currentScrollViewHeight = initialHeight
+
+        // Create the mutable height constraint so the drag handle can update it live.
+        scrollViewHeightConstraint = scrollView.heightAnchor.constraint(equalToConstant: initialHeight)
+
         // Setup constraints
         NSLayoutConstraint.activate([
             // Title
             titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
             titleLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            
+
             // Name section
             nameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
             nameLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            
+
             nameCharCountLabel.topAnchor.constraint(equalTo: nameLabel.topAnchor),
             nameCharCountLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            
+
             nameTextField.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 5),
             nameTextField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             nameTextField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            
+
             // Prompt section
             promptLabel.topAnchor.constraint(equalTo: nameTextField.bottomAnchor, constant: 20),
             promptLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            
+
             promptCharCountLabel.topAnchor.constraint(equalTo: promptLabel.topAnchor),
             promptCharCountLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            
+
             scrollView.topAnchor.constraint(equalTo: promptLabel.bottomAnchor, constant: 5),
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            scrollView.heightAnchor.constraint(equalToConstant: 150),
-            
+            scrollViewHeightConstraint,
+
+            // Drag handle — 12pt tall strip immediately below the scroll view
+            dragHandle.topAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            dragHandle.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            dragHandle.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            dragHandle.heightAnchor.constraint(equalToConstant: 12),
+
             // Model tier
-            tierLabel.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 15),
+            tierLabel.topAnchor.constraint(equalTo: dragHandle.bottomAnchor, constant: 12),
             tierLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
 
             tierPopUp.centerYAnchor.constraint(equalTo: tierLabel.centerYAnchor),
             tierPopUp.leadingAnchor.constraint(equalTo: tierLabel.trailingAnchor, constant: 8),
             tierPopUp.widthAnchor.constraint(equalToConstant: 250),
 
+            // Output mode
+            outputModeSegment.topAnchor.constraint(equalTo: tierLabel.bottomAnchor, constant: 12),
+            outputModeSegment.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+
             // Validation label
-            validationLabel.topAnchor.constraint(equalTo: tierLabel.bottomAnchor, constant: 5),
+            validationLabel.topAnchor.constraint(equalTo: outputModeSegment.bottomAnchor, constant: 5),
             validationLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             validationLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            
+
             // Buttons
             cancelButton.topAnchor.constraint(equalTo: validationLabel.bottomAnchor, constant: 20),
             cancelButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             cancelButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
-            
+
             saveButton.topAnchor.constraint(equalTo: cancelButton.topAnchor),
             saveButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             saveButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20)
         ])
     }
     
+    // MARK: - Window Resize Helpers
+
+    /// Re-sizes the window so that all Auto Layout constraints are satisfied after
+    /// the drag-handle changes the text area height. The window expands or contracts
+    /// from its top edge so that on-screen position feels stable.
+    private func resizeWindowForCurrentConstraints() {
+        guard let window = window, let contentView = window.contentView else { return }
+
+        // Ask Auto Layout what size the content view needs right now.
+        let fittingSize = contentView.fittingSize
+        let newContentHeight = max(fittingSize.height, 300)
+
+        var frame = window.frame
+        let oldHeight = frame.height
+        let newWindowHeight = newContentHeight + (window.frame.height - (window.contentView?.frame.height ?? 0))
+        // Adjust origin.y to keep the window's top edge fixed.
+        frame.origin.y += (oldHeight - newWindowHeight)
+        frame.size.height = newWindowHeight
+        window.setFrame(frame, display: true, animate: false)
+    }
+
     // MARK: - Data Loading
     private func loadExistingData() {
         if let existing = existingPrompt {
@@ -308,6 +446,11 @@ class PromptEditDialogController: NSWindowController {
                 tierPopUp.selectItem(at: idx + 1)  // +1 because index 0 is "Default"
             } else {
                 tierPopUp.selectItem(at: 0)  // Default
+            }
+
+            // Set output mode segment
+            if let modeIdx = OutputMode.allCases.firstIndex(of: existing.outputMode) {
+                outputModeSegment.selectedSegment = modeIdx
             }
             
             // Force layout and refresh
@@ -403,8 +546,14 @@ class PromptEditDialogController: NSWindowController {
             ? ModelTier.allCases[selectedTierIndex - 1]
             : nil
 
-        print("💾 Saving prompt: '\(trimmedName)' with \(trimmedPrompt.count) characters, tier: \(selectedTier?.displayName ?? "Default")")
-        onSave?(trimmedName, trimmedPrompt, selectedTier)
+        // Resolve selected output mode
+        let modeIdx = outputModeSegment.selectedSegment
+        let selectedOutputMode: OutputMode = (modeIdx >= 0 && modeIdx < OutputMode.allCases.count)
+            ? OutputMode.allCases[modeIdx]
+            : .replace
+
+        print("💾 Saving prompt: '\(trimmedName)' with \(trimmedPrompt.count) characters, tier: \(selectedTier?.displayName ?? "Default"), output: \(selectedOutputMode.displayName)")
+        onSave?(trimmedName, trimmedPrompt, selectedTier, selectedOutputMode)
         close()
     }
     

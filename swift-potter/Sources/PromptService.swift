@@ -250,13 +250,13 @@ class PromptService: ObservableObject, PromptRepository, PromptProviding {
         }
         
         currentPromptName = name
-        UserDefaults.standard.set(name, forKey: "current_prompt")
+        UserDefaults.standard.set(name, forKey: UserDefaultsKeys.currentPrompt)
         PotterLogger.shared.info("prompts", "📋 Current prompt set to: \(name)")
     }
     
     /// Load the current prompt from UserDefaults, with fallback to first prompt
     private func loadCurrentPrompt() {
-        let savedPromptName = UserDefaults.standard.string(forKey: "current_prompt")
+        let savedPromptName = UserDefaults.standard.string(forKey: UserDefaultsKeys.currentPrompt)
         
         if let savedPromptName = savedPromptName {
             // Check if the saved prompt still exists
@@ -283,7 +283,7 @@ class PromptService: ObservableObject, PromptRepository, PromptProviding {
         }
         
         currentPromptName = firstPrompt.name
-        UserDefaults.standard.set(firstPrompt.name, forKey: "current_prompt")
+        UserDefaults.standard.set(firstPrompt.name, forKey: UserDefaultsKeys.currentPrompt)
         PotterLogger.shared.info("prompts", "📋 Set current prompt to first: \(firstPrompt.name)")
     }
     
