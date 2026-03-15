@@ -245,8 +245,16 @@ class PotterCore {
         return (promptProvider ?? PromptService.shared).getCurrentPromptText() ?? currentMode.prompt
     }
     
-    /// Helper function to truncate text for secure logging
-    private func truncateTextForLogging(_ text: String) -> String {
+    /// Whether debug clipboard logging is enabled (logs full text instead of redacting)
+    private var isDebugClipboardLogging: Bool {
+        UserDefaults.standard.bool(forKey: UserDefaultsKeys.debugLogClipboard)
+    }
+
+    /// Formats text for logging — full text when debug enabled, truncated otherwise
+    private func textForLogging(_ text: String) -> String {
+        if isDebugClipboardLogging {
+            return text
+        }
         if text.count <= 10 {
             return text
         }
@@ -254,21 +262,29 @@ class PotterCore {
         let end = String(text.suffix(5))
         return "\(start)...\(end)"
     }
-    
+
     /// Logs the start of LLM processing
     private func logProcessingStart(promptText: String, inputText: String) {
         let currentPromptName = (promptProvider ?? PromptService.shared).currentPromptName
         PotterLogger.shared.info("text_processor", "🤖 Using prompt: \(currentPromptName)")
         PotterLogger.shared.info("text_processor", "📝 Text being sent to LLM:")
-        PotterLogger.shared.info("text_processor", "||||| \(truncateTextForLogging(inputText)) |||||")
+        if isDebugClipboardLogging {
+            PotterLogger.shared.info("text_processor", "📝 INPUT: \(inputText)")
+        } else {
+            PotterLogger.shared.info("text_processor", "||||| \(textForLogging(inputText)) |||||")
+        }
         PotterLogger.shared.info("text_processor", "🔄 Calling LLM API...")
     }
-    
+
     /// Logs successful LLM processing
     private func logProcessingSuccess(outputText: String) {
         PotterLogger.shared.info("text_processor", "✅ LLM processing complete")
         PotterLogger.shared.info("text_processor", "📝 Text returned from LLM:")
-        PotterLogger.shared.info("text_processor", "||||| \(truncateTextForLogging(outputText)) |||||")
+        if isDebugClipboardLogging {
+            PotterLogger.shared.info("text_processor", "📝 OUTPUT: \(outputText)")
+        } else {
+            PotterLogger.shared.info("text_processor", "||||| \(textForLogging(outputText)) |||||")
+        }
         PotterLogger.shared.info("text_processor", "📋 Result copied to clipboard (\(outputText.count) characters)")
     }
     

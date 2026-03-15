@@ -83,4 +83,9 @@ enum UserDefaultsKeys {
 
     /// Raw string for the selected log filter level (nil = "All").
     static let uiLogFilterRaw = "ui_log_filter_raw"
+
+    // MARK: - Debug
+
+    /// Bool flag — when true, logs full clipboard/text content instead of redacting.
+    static let debugLogClipboard = "debug_log_clipboard"
 }
