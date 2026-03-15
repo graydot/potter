@@ -117,13 +117,13 @@ class PotterSettingsTests: TestBase {
     }
     
     func testEmptyStringAPIKey() {
-        potterSettings.openaiAPIKey = ""
-        
-        XCTAssertEqual(potterSettings.openaiAPIKey, "")
-        
+        potterSettings.anthropicAPIKey = ""
+
+        XCTAssertEqual(potterSettings.anthropicAPIKey, "")
+
         // Check UserDefaults persistence - when setting an empty string,
         // UserDefaults may return nil when reading string(forKey:)
-        let savedKey = testUserDefaults.string(forKey: "api_key_openai")
+        let savedKey = testUserDefaults.string(forKey: "api_key_anthropic")
         // Empty string may be read back as nil from UserDefaults
         XCTAssertTrue(savedKey == "" || savedKey == nil)
     }

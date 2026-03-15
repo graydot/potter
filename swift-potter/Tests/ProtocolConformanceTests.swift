@@ -194,31 +194,31 @@ class ProtocolExistenceTests: TestBase {
 
     func testKeyValidationServiceHasGetAPIKeyMethod() {
         let service: any KeyValidationService = MockKeyValidationService()
-        let result: String? = service.getAPIKey(for: .openAI)
+        let result: String? = service.getAPIKey(for: .anthropic)
         XCTAssertNil(result)
     }
 
     func testKeyValidationServiceHasIsProviderConfiguredMethod() {
         let service: any KeyValidationService = MockKeyValidationService()
-        let result: Bool = service.isProviderConfigured(.openAI)
+        let result: Bool = service.isProviderConfigured(.anthropic)
         XCTAssertFalse(result)
     }
 
     func testKeyValidationServiceHasSaveAPIKeyMethod() {
         let service: any KeyValidationService = MockKeyValidationService()
-        let result: Result<Void, APIKeyServiceError> = service.saveAPIKey("test-key", for: .openAI)
+        let result: Result<Void, APIKeyServiceError> = service.saveAPIKey("test-key", for: .anthropic)
         XCTAssertNoThrow(try result.get())
     }
 
     func testKeyValidationServiceHasValidateAndSaveAPIKeyMethod() async {
         let service: any KeyValidationService = MockKeyValidationService()
-        let result: ValidationResult = await service.validateAndSaveAPIKey("test-key", for: .openAI, using: nil)
+        let result: ValidationResult = await service.validateAndSaveAPIKey("test-key", for: .anthropic, using: nil)
         XCTAssertTrue(result.isSuccess)
     }
 
     func testKeyValidationServiceHasGetValidationStateMethod() {
         let service: any KeyValidationService = MockKeyValidationService()
-        let result: ValidationState = service.getValidationState(for: .openAI)
+        let result: ValidationState = service.getValidationState(for: .anthropic)
         XCTAssertEqual(result, .notValidated)
     }
 
@@ -353,7 +353,7 @@ class MockBehaviorTests: TestBase {
     func testMockKeyValidationServiceReturnsConfiguredAPIKey() {
         let mock = MockKeyValidationService()
         mock.getAPIKeyResult = "sk-test-key-123"
-        let result = mock.getAPIKey(for: .openAI)
+        let result = mock.getAPIKey(for: .anthropic)
         XCTAssertEqual(result, "sk-test-key-123")
     }
 
@@ -367,7 +367,7 @@ class MockBehaviorTests: TestBase {
     func testMockKeyValidationServiceReturnsConfiguredSaveResult() {
         let mock = MockKeyValidationService()
         mock.saveAPIKeyResult = .failure(.storageError(NSError(domain: "test", code: 1)))
-        let result = mock.saveAPIKey("key", for: .openAI)
+        let result = mock.saveAPIKey("key", for: .anthropic)
         if case .failure = result {
             // Expected
         } else {
@@ -378,7 +378,7 @@ class MockBehaviorTests: TestBase {
     func testMockKeyValidationServiceReturnsConfiguredValidationResult() async {
         let mock = MockKeyValidationService()
         mock.validateAndSaveAPIKeyResult = .failure(.invalidKey("Bad key"))
-        let result = await mock.validateAndSaveAPIKey("bad", for: .openAI, using: nil)
+        let result = await mock.validateAndSaveAPIKey("bad", for: .anthropic, using: nil)
         XCTAssertFalse(result.isSuccess)
         XCTAssertTrue(mock.validateAndSaveAPIKeyCalled)
     }
@@ -479,13 +479,13 @@ class PolymorphismTests: TestBase {
     func testMockKeyValidationServiceWorksInProtocolTypedFunction() {
         let mock = MockKeyValidationService()
         mock.isProviderConfiguredResult = true
-        let ready = checkProviderReady(.openAI, service: mock)
+        let ready = checkProviderReady(.anthropic, service: mock)
         XCTAssertTrue(ready)
     }
 
     func testRealAPIKeyServiceWorksInProtocolTypedFunction() {
         // APIKeyService.shared should also work in the same function
-        let ready = checkProviderReady(.openAI, service: APIKeyService.shared)
+        let ready = checkProviderReady(.anthropic, service: APIKeyService.shared)
         // Just verify it compiles and runs - don't assert specific value
         _ = ready
     }
@@ -529,11 +529,11 @@ class PolymorphismTests: TestBase {
         let mock = MockKeyValidationService()
         mock.isProviderConfiguredResult = true
         service = mock
-        XCTAssertTrue(service.isProviderConfigured(.openAI))
+        XCTAssertTrue(service.isProviderConfigured(.anthropic))
 
         // Swap to real implementation
         service = APIKeyService.shared
-        _ = service.isProviderConfigured(.openAI)
+        _ = service.isProviderConfigured(.anthropic)
     }
 
     @MainActor

@@ -130,10 +130,10 @@ struct EDModelRegistryErrorTests {
 
     @Test("multipleFetchesFailed errorDescription contains all description strings")
     func multipleFetchesFailedContainsDescriptions() {
-        let descriptions = ["OpenAI: timeout", "Google: unauthorized"]
+        let descriptions = ["Anthropic: timeout", "Google: unauthorized"]
         let err = ModelRegistryError.multipleFetchesFailed(descriptions: descriptions)
         let desc = err.errorDescription ?? ""
-        #expect(desc.contains("OpenAI: timeout"))
+        #expect(desc.contains("Anthropic: timeout"))
         #expect(desc.contains("Google: unauthorized"))
     }
 
@@ -152,7 +152,7 @@ struct EDModelRegistryErrorTests {
 
     @Test("fetchFailed and multipleFetchesFailed have distinct error descriptions")
     func distinctDescriptions() {
-        let single = ModelRegistryError.fetchFailed(provider: .openAI).errorDescription
+        let single = ModelRegistryError.fetchFailed(provider: .anthropic).errorDescription
         let multi = ModelRegistryError.multipleFetchesFailed(descriptions: ["x"]).errorDescription
         #expect(single != multi)
     }
@@ -163,11 +163,11 @@ struct EDModelRegistryErrorTests {
         #expect(err.errorDescription != nil)
     }
 
-    @Test("fetchFailed for openAI errorDescription does not mention anthropic")
-    func fetchFailedOpenAIDoesNotMentionAnthropic() {
-        let err = ModelRegistryError.fetchFailed(provider: .openAI)
+    @Test("fetchFailed for anthropic errorDescription does not mention google")
+    func fetchFailedAnthropicDoesNotMentionGoogle() {
+        let err = ModelRegistryError.fetchFailed(provider: .anthropic)
         let desc = err.errorDescription ?? ""
-        #expect(!desc.contains("Anthropic"))
+        #expect(!desc.contains("Google"))
     }
 }
 

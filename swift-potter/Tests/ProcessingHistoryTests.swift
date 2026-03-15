@@ -8,10 +8,10 @@ final class ProcessingHistoryEntryTests: XCTestCase {
     func testDefaultIDIsUnique() {
         let a = ProcessingHistoryEntry(inputText: "x", outputText: "y",
                                        promptName: "P", modelName: "M",
-                                       providerName: "OpenAI", durationMs: 100)
+                                       providerName: "Anthropic", durationMs: 100)
         let b = ProcessingHistoryEntry(inputText: "x", outputText: "y",
                                        promptName: "P", modelName: "M",
-                                       providerName: "OpenAI", durationMs: 100)
+                                       providerName: "Anthropic", durationMs: 100)
         XCTAssertNotEqual(a.id, b.id)
     }
 
@@ -19,7 +19,7 @@ final class ProcessingHistoryEntryTests: XCTestCase {
         let id = UUID()
         let a = ProcessingHistoryEntry(id: id, inputText: "x", outputText: "y",
                                        promptName: "P", modelName: "M",
-                                       providerName: "OpenAI", durationMs: 100)
+                                       providerName: "Anthropic", durationMs: 100)
         let b = ProcessingHistoryEntry(id: id, inputText: "different", outputText: "also different",
                                        promptName: "Q", modelName: "N",
                                        providerName: "Anthropic", durationMs: 999)
@@ -33,8 +33,8 @@ final class ProcessingHistoryEntryTests: XCTestCase {
             inputText: "hello world",
             outputText: "HELLO WORLD",
             promptName: "Shout",
-            modelName: "gpt-4o",
-            providerName: "OpenAI",
+            modelName: "claude-haiku-4-5-20251001",
+            providerName: "Anthropic",
             durationMs: 350
         )
 

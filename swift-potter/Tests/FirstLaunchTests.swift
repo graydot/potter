@@ -35,7 +35,7 @@ class FirstLaunchTests: TestBase {
         XCTAssertNotNil(permissionManager)
         
         // Verify default state
-        XCTAssertEqual(llmManager.selectedProvider, .openAI)
+        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
         XCTAssertNotNil(llmManager.selectedModel)
         XCTAssertFalse(llmManager.hasValidProvider())
     }
@@ -61,9 +61,9 @@ class FirstLaunchTests: TestBase {
     
     func testDefaultSettingsOnFirstLaunch() {
         // Verify default settings are properly initialized
-        XCTAssertEqual(llmManager.selectedProvider, .openAI)
+        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
         XCTAssertNotNil(llmManager.selectedModel)
-        XCTAssertEqual(llmManager.selectedModel?.provider, .openAI)
+        XCTAssertEqual(llmManager.selectedModel?.provider, .anthropic)
         
         // Check default prompt is available
         let currentPrompt = UserDefaults.standard.string(forKey: "current_prompt") ?? "summarize"
@@ -108,9 +108,9 @@ class FirstLaunchTests: TestBase {
     
     func testAPIKeyValidationWithEmptyKey() async {
         // Test validation with empty API key
-        await llmManager.validateAndSaveAPIKey("", for: .openAI)
+        await llmManager.validateAndSaveAPIKey("", for: .anthropic)
         
-        let validationState = llmManager.validationStates[.openAI]
+        let validationState = llmManager.validationStates[.anthropic]
         XCTAssertFalse(validationState?.isValid ?? true)
         XCTAssertEqual(validationState?.errorMessage, "API key cannot be empty")
         XCTAssertFalse(llmManager.isValidating)
@@ -126,9 +126,9 @@ class FirstLaunchTests: TestBase {
         ]
         
         for invalidKey in invalidKeys {
-            await llmManager.validateAndSaveAPIKey(invalidKey, for: .openAI)
+            await llmManager.validateAndSaveAPIKey(invalidKey, for: .anthropic)
             
-            let validationState = llmManager.validationStates[.openAI]
+            let validationState = llmManager.validationStates[.anthropic]
             XCTAssertFalse(validationState?.isValid ?? true, "Key '\(invalidKey)' should be invalid")
         }
     }
@@ -145,7 +145,6 @@ class FirstLaunchTests: TestBase {
     func testMultipleProviderConfiguration() {
         // Test configuring multiple providers
         let testKeys = [
-            LLMProvider.openAI: "sk-openai-test-key",
             LLMProvider.anthropic: "sk-ant-test-key",
             LLMProvider.google: "google-test-key"
         ]
@@ -172,17 +171,17 @@ class FirstLaunchTests: TestBase {
         XCTAssertEqual(llmManager.selectedProvider, .google)
         XCTAssertEqual(llmManager.selectedModel?.provider, .google)
         
-        llmManager.selectProvider(.openAI)
-        XCTAssertEqual(llmManager.selectedProvider, .openAI)
-        XCTAssertEqual(llmManager.selectedModel?.provider, .openAI)
+        llmManager.selectProvider(.anthropic)
+        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
+        XCTAssertEqual(llmManager.selectedModel?.provider, .anthropic)
     }
     
     func testModelSelection() {
         // Test model selection within provider
-        let openAIModels = LLMProvider.openAI.models
-        guard let firstModel = openAIModels.first,
-              let secondModel = openAIModels.dropFirst().first else {
-            XCTFail("OpenAI should have at least 2 models")
+        let anthropicModels = LLMProvider.anthropic.models
+        guard let firstModel = anthropicModels.first,
+              let secondModel = anthropicModels.dropFirst().first else {
+            XCTFail("Anthropic should have at least 2 models")
             return
         }
         

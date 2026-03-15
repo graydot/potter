@@ -131,8 +131,8 @@ struct LLMManagerKeyValidationTests {
         let (manager, mock) = makeSUT()
         defer { tearDownSUT() }
 
-        mock.setKey("injected-key", for: LLMProvider.openAI)
-        let key = manager.getAPIKey(for: LLMProvider.openAI)
+        mock.setKey("injected-key", for: LLMProvider.anthropic)
+        let key = manager.getAPIKey(for: LLMProvider.anthropic)
 
         #expect(key == "injected-key", "getAPIKey should route through the injected mock")
         #expect(mock.getAPIKeyCallCount > 0, "Mock's getAPIKey should have been called")
@@ -145,12 +145,12 @@ struct LLMManagerKeyValidationTests {
         let (manager, mock) = makeSUT()
         defer { tearDownSUT() }
 
-        mock.setValidationState(ValidationState.valid, for: LLMProvider.openAI)
+        mock.setValidationState(ValidationState.valid, for: LLMProvider.anthropic)
 
-        #expect(manager.isProviderConfigured(LLMProvider.openAI) == true,
+        #expect(manager.isProviderConfigured(LLMProvider.anthropic) == true,
                 "isProviderConfigured should return true when mock has a valid state")
         #expect(manager.hasValidProvider() == true,
-                "hasValidProvider should return true for the selected (openAI) provider")
+                "hasValidProvider should return true for the selected (anthropic) provider")
     }
 
     // MARK: - Test 3: LLMManager correctly handles invalid/missing API key from mock
@@ -161,14 +161,14 @@ struct LLMManagerKeyValidationTests {
         defer { tearDownSUT() }
 
         // Default mock state: notValidated, no stored key
-        #expect(manager.isProviderConfigured(LLMProvider.openAI) == false,
+        #expect(manager.isProviderConfigured(LLMProvider.anthropic) == false,
                 "isProviderConfigured should return false when no key or valid state in mock")
         #expect(manager.hasValidProvider() == false,
                 "hasValidProvider should return false when provider is not configured")
 
         // Explicitly mark as invalid
-        mock.setValidationState(ValidationState.invalid("bad key"), for: LLMProvider.openAI)
-        #expect(manager.isProviderConfigured(LLMProvider.openAI) == false,
+        mock.setValidationState(ValidationState.invalid("bad key"), for: LLMProvider.anthropic)
+        #expect(manager.isProviderConfigured(LLMProvider.anthropic) == false,
                 "isProviderConfigured should return false when validation state is invalid")
     }
 
@@ -224,13 +224,13 @@ struct LLMManagerKeyValidationTests {
         let (manager, mock) = makeSUT()
         defer { tearDownSUT() }
 
-        manager.setAPIKey("sk-test-123", for: LLMProvider.openAI)
+        manager.setAPIKey("sk-test-123", for: LLMProvider.anthropic)
 
         #expect(mock.saveAPIKeyCallCount == 1,
                 "Mock's saveAPIKey should be called exactly once")
         #expect(mock.lastSaveAPIKeyKey == "sk-test-123",
                 "Mock should receive the exact key string")
-        #expect(mock.lastSaveAPIKeyProvider == LLMProvider.openAI,
+        #expect(mock.lastSaveAPIKeyProvider == LLMProvider.anthropic,
                 "Mock should receive the correct provider")
     }
 
@@ -245,9 +245,9 @@ struct LLMManagerKeyValidationTests {
         // configure it to return failure (reflecting that an empty key should fail).
         mock.validateAndSaveResult = ValidationResult.failure(APIKeyValidationError.invalidKey("empty key"))
 
-        await manager.validateAndSaveAPIKey("", for: LLMProvider.openAI)
+        await manager.validateAndSaveAPIKey("", for: LLMProvider.anthropic)
 
-        let state = manager.validationStates[LLMProvider.openAI]
+        let state = manager.validationStates[LLMProvider.anthropic]
         #expect(state?.isValid == false,
                 "Empty key should not result in a valid state")
     }
@@ -261,15 +261,15 @@ struct LLMManagerKeyValidationTests {
 
         mock.validateAndSaveResult = ValidationResult.success
 
-        await manager.validateAndSaveAPIKey("sk-valid-key", for: LLMProvider.openAI)
+        await manager.validateAndSaveAPIKey("sk-valid-key", for: LLMProvider.anthropic)
 
         #expect(mock.validateAndSaveCallCount == 1,
                 "Mock's validateAndSaveAPIKey should be called once")
         #expect(mock.lastValidateAndSaveKey == "sk-valid-key",
                 "Mock should receive the correct key")
-        #expect(mock.lastValidateAndSaveProvider == LLMProvider.openAI,
+        #expect(mock.lastValidateAndSaveProvider == LLMProvider.anthropic,
                 "Mock should receive the correct provider")
-        #expect(manager.validationStates[LLMProvider.openAI] == ValidationState.valid,
+        #expect(manager.validationStates[LLMProvider.anthropic] == ValidationState.valid,
                 "Validation state should be .valid after a successful mock validation")
     }
 
@@ -282,9 +282,9 @@ struct LLMManagerKeyValidationTests {
 
         mock.validateAndSaveResult = ValidationResult.failure(APIKeyValidationError.invalidKey("bad key"))
 
-        await manager.validateAndSaveAPIKey("sk-bad-key", for: LLMProvider.openAI)
+        await manager.validateAndSaveAPIKey("sk-bad-key", for: LLMProvider.anthropic)
 
-        let state = manager.validationStates[LLMProvider.openAI]
+        let state = manager.validationStates[LLMProvider.anthropic]
         #expect(state?.isValid == false,
                 "Validation state should not be valid after a failed mock validation")
     }
@@ -299,8 +299,8 @@ struct LLMManagerKeyValidationTests {
             StorageAdapter.shared.testUserDefaults = nil
         }
         let manager = LLMManager()
-        #expect(manager.selectedProvider == LLMProvider.openAI,
-                "Default init should set selectedProvider to .openAI")
+        #expect(manager.selectedProvider == LLMProvider.anthropic,
+                "Default init should set selectedProvider to .anthropic")
         #expect(manager.selectedModel != nil,
                 "Default init should select a default model")
     }

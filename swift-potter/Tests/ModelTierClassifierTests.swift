@@ -5,11 +5,6 @@ class ModelTierClassifierTests: TestBase {
 
     // MARK: - Fast Tier
 
-    func testMiniModelsClassifyAsFast() {
-        XCTAssertEqual(ModelTierClassifier.classify("gpt-4o-mini", provider: .openAI), .fast)
-        XCTAssertEqual(ModelTierClassifier.classify("o4-mini", provider: .openAI), .fast)
-    }
-
     func testFlashModelsClassifyAsFast() {
         XCTAssertEqual(ModelTierClassifier.classify("gemini-2.0-flash", provider: .google), .fast)
         XCTAssertEqual(ModelTierClassifier.classify("gemini-1.5-flash", provider: .google), .fast)
@@ -24,25 +19,13 @@ class ModelTierClassifierTests: TestBase {
 
     func testThinkingModelsClassifyAsThinking() {
         XCTAssertEqual(ModelTierClassifier.classify("gemini-2.5-flash-thinking", provider: .google), .thinking)
-        XCTAssertEqual(ModelTierClassifier.classify("o1-preview", provider: .openAI), .thinking)
-        XCTAssertEqual(ModelTierClassifier.classify("o3-pro", provider: .openAI), .thinking)
-    }
-
-    func testO4ModelClassifiesAsThinking() {
-        // Plain o4 (not o4-mini which is fast)
-        XCTAssertEqual(ModelTierClassifier.classify("o4-preview", provider: .openAI), .thinking)
     }
 
     func testReasonModelClassifiesAsThinking() {
-        XCTAssertEqual(ModelTierClassifier.classify("some-reason-model", provider: .openAI), .thinking)
+        XCTAssertEqual(ModelTierClassifier.classify("some-reason-model", provider: .anthropic), .thinking)
     }
 
     // MARK: - Standard Tier (default)
-
-    func testGpt4oClassifiesAsStandard() {
-        let result = ModelTierClassifier.classify("gpt-4o", provider: .openAI)
-        XCTAssertEqual(result, .standard, "gpt-4o classified as \(result) instead of standard")
-    }
 
     func testClaudeSonnetClassifiesAsStandard() {
         let result = ModelTierClassifier.classify("claude-sonnet-4-20250514", provider: .anthropic)
@@ -55,18 +38,12 @@ class ModelTierClassifierTests: TestBase {
     }
 
     func testUnknownModelDefaultsToStandard() {
-        XCTAssertEqual(ModelTierClassifier.classify("some-new-unknown-model", provider: .openAI), .standard)
+        XCTAssertEqual(ModelTierClassifier.classify("some-new-unknown-model", provider: .anthropic), .standard)
     }
 
     // MARK: - Edge Cases
 
-    func testMiniTakesPriorityOverThinking() {
-        // "o4-mini" has both "o4" (thinking) and "mini" (fast) — fast wins
-        XCTAssertEqual(ModelTierClassifier.classify("o4-mini", provider: .openAI), .fast)
-    }
-
     func testCaseInsensitivity() {
-        XCTAssertEqual(ModelTierClassifier.classify("GPT-4O-MINI", provider: .openAI), .fast)
         XCTAssertEqual(ModelTierClassifier.classify("Gemini-Flash", provider: .google), .fast)
     }
 
@@ -108,7 +85,7 @@ class ModelTierClassifierTests: TestBase {
     // MARK: - Static Model Tiers
 
     func testAllStaticModelsHaveTiers() {
-        let allModels = LLMModel.openAIModels + LLMModel.anthropicModels + LLMModel.googleModels
+        let allModels = LLMModel.anthropicModels + LLMModel.googleModels
         for model in allModels {
             XCTAssertNotNil(model.tier, "Model \(model.id) should have a tier")
         }

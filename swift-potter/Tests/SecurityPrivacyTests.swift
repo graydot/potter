@@ -104,7 +104,7 @@ class SecurityPrivacyTests: TestBase {
     func disabled_testAPIKeyRemovalSecurity() {
         // Test that API key removal actually removes the key
         let testKey = "sk-removal-security-test-\(UUID().uuidString.prefix(8))"
-        let provider = LLMProvider.openAI
+        let provider = LLMProvider.anthropic
         
         // Clear any existing data first
         UserDefaults.standard.removeObject(forKey: "api_key_\(provider.rawValue)")
@@ -148,10 +148,10 @@ class SecurityPrivacyTests: TestBase {
         let testKey = "sk-validation-security-test"
         
         // Validation should not expose the key in any logs or errors
-        await llmManager.validateAndSaveAPIKey(testKey, for: .openAI)
+        await llmManager.validateAndSaveAPIKey(testKey, for: .anthropic)
         
         // Even if validation fails, the key shouldn't be exposed
-        let validationState = llmManager.validationStates[.openAI]
+        let validationState = llmManager.validationStates[.anthropic]
         if let errorMessage = validationState?.errorMessage {
             XCTAssertFalse(errorMessage.contains(testKey),
                           "Validation error should not contain the actual API key")
@@ -175,7 +175,7 @@ class SecurityPrivacyTests: TestBase {
         
         for (maliciousInput, testCase) in maliciousInputs {
             // Should handle malicious input safely
-            let saveResult = storageAdapter.setAPIKey(maliciousInput, for: LLMProvider.openAI)
+            let saveResult = storageAdapter.setAPIKey(maliciousInput, for: LLMProvider.anthropic)
             
             if maliciousInput.isEmpty {
                 // Empty strings should be rejected by validation
@@ -185,7 +185,7 @@ class SecurityPrivacyTests: TestBase {
                 XCTAssertTrue(saveResult.isSuccess, "Storage should succeed for \(testCase)")
             }
             
-            let loadResult = storageAdapter.getAPIKey(for: LLMProvider.openAI)
+            let loadResult = storageAdapter.getAPIKey(for: LLMProvider.anthropic)
             switch loadResult {
             case .success(let retrievedKey):
                 // Should store input safely - exact storage depends on sanitization policy
@@ -203,9 +203,9 @@ class SecurityPrivacyTests: TestBase {
             }
             
             // Clean up - ensure complete removal
-            _ = storageAdapter.removeAPIKey(for: .openAI)
+            _ = storageAdapter.removeAPIKey(for: .anthropic)
             // Also clean up UserDefaults directly to ensure clean state
-            UserDefaults.standard.removeObject(forKey: "api_key_openai")
+            UserDefaults.standard.removeObject(forKey: "api_key_anthropic")
             UserDefaults.standard.synchronize()
         }
     }
@@ -214,11 +214,10 @@ class SecurityPrivacyTests: TestBase {
     
     func testLLMClientSecurityProperties() {
         // Test that LLM clients are configured securely
-        let openAIClient = OpenAIClient(apiKey: "test-key")
         let anthropicClient = AnthropicClient(apiKey: "test-key")
         let googleClient = GoogleClient(apiKey: "test-key")
-        
-        let clients: [LLMClient] = [openAIClient, anthropicClient, googleClient]
+
+        let clients: [LLMClient] = [anthropicClient, googleClient]
         
         for client in clients {
             // Verify provider is correctly set
@@ -256,12 +255,11 @@ class SecurityPrivacyTests: TestBase {
         let sensitiveKey = "sk-should-not-appear-in-urls"
         
         // Create clients with the sensitive key
-        let openAIClient = OpenAIClient(apiKey: sensitiveKey)
         let anthropicClient = AnthropicClient(apiKey: sensitiveKey)
         let googleClient = GoogleClient(apiKey: sensitiveKey)
-        
+
         // Verify clients don't expose the key in their string representation
-        let clients: [any LLMClient] = [openAIClient, anthropicClient, googleClient]
+        let clients: [any LLMClient] = [anthropicClient, googleClient]
         for client in clients {
             let description = String(describing: client)
             XCTAssertFalse(description.contains(sensitiveKey),
@@ -271,28 +269,22 @@ class SecurityPrivacyTests: TestBase {
     
     func testRequestStructureSecurity() {
         // Test that request structures don't expose sensitive data
-        let openAIMessage = OpenAIMessage(role: "user", content: "test message")
-        let openAIRequest = OpenAIRequest(model: "gpt-4", messages: [openAIMessage])
-        
         let anthropicMessage = AnthropicMessage(role: "user", content: "test message")
-        let anthropicRequest = AnthropicRequest(model: "claude-3-5-sonnet-20241022", max_tokens: 1000, messages: [anthropicMessage])
-        
+        let anthropicRequest = AnthropicRequest(model: "claude-haiku-4-5-20251001", max_tokens: 1000, messages: [anthropicMessage])
+
         let googlePart = GooglePart(text: "test message")
         let googleContent = GoogleContent(parts: [googlePart])
         let googleRequest = GoogleRequest(contents: [googleContent])
-        
+
         // Request structures should be properly formed
-        XCTAssertEqual(openAIRequest.model, "gpt-4")
-        XCTAssertEqual(anthropicRequest.model, "claude-3-5-sonnet-20241022")
+        XCTAssertEqual(anthropicRequest.model, "claude-haiku-4-5-20251001")
         XCTAssertEqual(googleRequest.contents.count, 1)
-        
+
         // No sensitive data should be in the structures
-        let openAIDescription = String(describing: openAIRequest)
         let anthropicDescription = String(describing: anthropicRequest)
         let googleDescription = String(describing: googleRequest)
-        
+
         // Should not contain obvious security issues
-        XCTAssertFalse(openAIDescription.contains("password"))
         XCTAssertFalse(anthropicDescription.contains("secret"))
         XCTAssertFalse(googleDescription.contains("token"))
     }
@@ -325,10 +317,10 @@ class SecurityPrivacyTests: TestBase {
         let sensitiveKey = "sk-sensitive-error-test"
         
         // Cause various error conditions
-        llmManager.setAPIKey(sensitiveKey, for: .openAI)
+        llmManager.setAPIKey(sensitiveKey, for: .anthropic)
         
         // Error states should not expose the key
-        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error message"), for: .openAI)
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error message"), for: .anthropic)
         
         let errorState = llmManager.getCurrentValidationState()
         if let errorMessage = errorState.errorMessage {
@@ -370,10 +362,10 @@ class SecurityPrivacyTests: TestBase {
     private func clearTestSettings() {
         // Use a comprehensive list to ensure all test data is cleared
         let keysToRemove = [
-            "api_key_openai",
+            "api_key_anthropic",
             "api_key_anthropic", 
             "api_key_google",
-            "api_key_storage_method_openai",
+            "api_key_storage_method_anthropic",
             "api_key_storage_method_anthropic",
             "api_key_storage_method_google",
             "llm_provider",

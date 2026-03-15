@@ -22,8 +22,8 @@ class ModelRegistryTests: TestBase {
     // MARK: - Static Fallback
 
     func testGetModelsReturnsFallbackWhenEmpty() {
-        let models = registry.getModels(for: .openAI)
-        XCTAssertEqual(models, LLMModel.openAIModels)
+        let models = registry.getModels(for: .anthropic)
+        XCTAssertEqual(models, LLMModel.anthropicModels)
     }
 
     func testGetModelsReturnsFallbackForAllProviders() {
@@ -43,45 +43,45 @@ class ModelRegistryTests: TestBase {
     // MARK: - Cache TTL
 
     func testIsStaleWhenNoFetchRecord() {
-        XCTAssertTrue(registry.isStale(for: .openAI))
+        XCTAssertTrue(registry.isStale(for: .anthropic))
     }
 
     func testIsNotStaleAfterFetch() {
-        registry.lastFetched[.openAI] = Date()
-        XCTAssertFalse(registry.isStale(for: .openAI))
+        registry.lastFetched[.anthropic] = Date()
+        XCTAssertFalse(registry.isStale(for: .anthropic))
     }
 
     func testIsStaleAfterTTLExpired() {
-        registry.lastFetched[.openAI] = Date(timeIntervalSinceNow: -7200) // 2h ago, TTL is 1h
-        XCTAssertTrue(registry.isStale(for: .openAI))
+        registry.lastFetched[.anthropic] = Date(timeIntervalSinceNow: -7200) // 2h ago, TTL is 1h
+        XCTAssertTrue(registry.isStale(for: .anthropic))
     }
 
     // MARK: - Tier Filtering
 
     func testModelsForTier() {
         // Use static fallbacks
-        let fastModels = registry.modelsForTier(.fast, provider: .openAI)
+        let fastModels = registry.modelsForTier(.fast, provider: .anthropic)
         XCTAssertTrue(fastModels.allSatisfy { $0.tier == .fast })
         XCTAssertFalse(fastModels.isEmpty)
     }
 
     func testBestModelForTier() {
-        let best = registry.bestModel(for: .fast, provider: .openAI)
+        let best = registry.bestModel(for: .fast, provider: .anthropic)
         XCTAssertNotNil(best)
         XCTAssertEqual(best?.tier, .fast)
     }
 
     func testBestModelReturnsNilForEmptyTier() {
         // Create registry with custom models that have no thinking tier
-        registry.models[.openAI] = [
-            LLMModel(id: "test", name: "Test", description: "Test", provider: .openAI, tier: .standard)
+        registry.models[.anthropic] = [
+            LLMModel(id: "test", name: "Test", description: "Test", provider: .anthropic, tier: .standard)
         ]
-        let best = registry.bestModel(for: .thinking, provider: .openAI)
+        let best = registry.bestModel(for: .thinking, provider: .anthropic)
         XCTAssertNil(best)
     }
 
     func testModelsByTier() {
-        let grouped = registry.modelsByTier(for: .openAI)
+        let grouped = registry.modelsByTier(for: .anthropic)
         XCTAssertFalse(grouped.isEmpty)
         // Each group should have at least one model
         for group in grouped {
@@ -94,11 +94,11 @@ class ModelRegistryTests: TestBase {
 
     func testGetModelsReturnsCachedWhenAvailable() {
         let customModels = [
-            LLMModel(id: "custom-model", name: "Custom", description: "Custom model", provider: .openAI, tier: .standard)
+            LLMModel(id: "custom-model", name: "Custom", description: "Custom model", provider: .anthropic, tier: .standard)
         ]
-        registry.models[.openAI] = customModels
+        registry.models[.anthropic] = customModels
 
-        let result = registry.getModels(for: .openAI)
+        let result = registry.getModels(for: .anthropic)
         XCTAssertEqual(result, customModels)
     }
 
@@ -106,10 +106,10 @@ class ModelRegistryTests: TestBase {
 
     func testSaveAndLoadCache() {
         let customModels = [
-            LLMModel(id: "cached-model", name: "Cached", description: "Cached model", provider: .openAI, tier: .fast)
+            LLMModel(id: "cached-model", name: "Cached", description: "Cached model", provider: .anthropic, tier: .fast)
         ]
-        registry.models[.openAI] = customModels
-        registry.lastFetched[.openAI] = Date()
+        registry.models[.anthropic] = customModels
+        registry.lastFetched[.anthropic] = Date()
 
         // Create a new registry that loads from the same directory
         let registry2 = ModelRegistry(cacheTTL: 3600, cacheDirectory: tempDir)
@@ -118,8 +118,8 @@ class ModelRegistryTests: TestBase {
     }
 
     func testClearCache() {
-        registry.models[.openAI] = LLMModel.openAIModels
-        registry.lastFetched[.openAI] = Date()
+        registry.models[.anthropic] = LLMModel.anthropicModels
+        registry.lastFetched[.anthropic] = Date()
 
         registry.clearCache()
 
@@ -148,14 +148,14 @@ class ModelRegistryTests: TestBase {
     // MARK: - LLMModel Codable
 
     func testLLMModelEncodeDecode() throws {
-        let model = LLMModel(id: "test", name: "Test", description: "Desc", provider: .openAI, tier: .standard)
+        let model = LLMModel(id: "test", name: "Test", description: "Desc", provider: .anthropic, tier: .standard)
         let data = try JSONEncoder().encode(model)
         let decoded = try JSONDecoder().decode(LLMModel.self, from: data)
         XCTAssertEqual(model, decoded)
     }
 
     func testLLMModelArrayEncodeDecode() throws {
-        let models = LLMModel.openAIModels
+        let models = LLMModel.anthropicModels
         let data = try JSONEncoder().encode(models)
         let decoded = try JSONDecoder().decode([LLMModel].self, from: data)
         XCTAssertEqual(models, decoded)

@@ -139,7 +139,7 @@ class ThreadingModelTests: TestBase {
         // would require `await MainActor.run { ... }`.
         let manager = LLMManager()
         XCTAssertNotNil(manager)
-        XCTAssertEqual(manager.selectedProvider, .openAI)
+        XCTAssertEqual(manager.selectedProvider, .anthropic)
         XCTAssertNotNil(manager.selectedModel)
     }
 
@@ -152,24 +152,24 @@ class ThreadingModelTests: TestBase {
         let service = APIKeyService.shared
 
         // Reset state to a known starting point (singleton may carry state from other tests)
-        service.setValidationStateForTesting(.notValidated, for: .openAI)
-        let initialState = service.getValidationState(for: .openAI)
+        service.setValidationStateForTesting(.notValidated, for: .anthropic)
+        let initialState = service.getValidationState(for: .anthropic)
         XCTAssertEqual(initialState, .notValidated)
 
         // Validate with an empty key — should fail synchronously before network call
-        let result = await service.validateAndSaveAPIKey("", for: .openAI, using: nil)
+        let result = await service.validateAndSaveAPIKey("", for: .anthropic, using: nil)
         XCTAssertFalse(result.isSuccess)
 
         // After validation completes, state should be updated on main actor
         // The empty-key path sets the state to invalid via MainActor.run
-        let stateAfter = service.getValidationState(for: .openAI)
+        let stateAfter = service.getValidationState(for: .anthropic)
         XCTAssertFalse(stateAfter.isValid, "Empty key should result in invalid state")
 
         // isValidating should be false after completion
         XCTAssertFalse(service.isValidating, "Should not be validating after completion")
 
         // Reset for other tests
-        service.setValidationStateForTesting(.notValidated, for: .openAI)
+        service.setValidationStateForTesting(.notValidated, for: .anthropic)
     }
 
     // MARK: - 5. PotterCore can be created off MainActor

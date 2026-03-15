@@ -141,13 +141,12 @@ class PerformanceReliabilityTests: TestBase {
             // Create and release objects repeatedly
             autoreleasepool {
                 let manager = LLMManager()
-                manager.setAPIKey("test-key-\(i)", for: .openAI)
-                manager.selectProvider(.anthropic)
+                manager.setAPIKey("test-key-\(i)", for: .anthropic)
                 manager.selectProvider(.google)
-                manager.selectProvider(.openAI)
+                manager.selectProvider(.anthropic)
                 
-                let _ = manager.getAPIKey(for: .openAI)
-                let _ = manager.isProviderConfigured(.openAI)
+                let _ = manager.getAPIKey(for: .anthropic)
+                let _ = manager.isProviderConfigured(.anthropic)
                 let _ = manager.getCurrentValidationState()
             }
         }
@@ -166,7 +165,7 @@ class PerformanceReliabilityTests: TestBase {
         let hugeKey = "sk-" + String(repeating: "extremelyhugeapikey", count: 1000) // ~18KB
         
         let keys = [normalKey, largeKey, hugeKey]
-        let providers: [LLMProvider] = [.openAI, .anthropic, .google]
+        let providers: [LLMProvider] = [.anthropic, .google, .anthropic]
         
         for (key, provider) in zip(keys, providers) {
             let startTime = CFAbsoluteTimeGetCurrent()
@@ -198,8 +197,8 @@ class PerformanceReliabilityTests: TestBase {
                         
                         for j in 1...20 {
                             let key = "concurrent-test-key-\(i)-\(j)"
-                            manager.setAPIKey(key, for: .openAI)
-                            let _ = manager.getAPIKey(for: .openAI)
+                            manager.setAPIKey(key, for: .anthropic)
+                            let _ = manager.getAPIKey(for: .anthropic)
                         }
                         
                         // Create and process prompts
@@ -387,8 +386,8 @@ class PerformanceReliabilityTests: TestBase {
                         case 0:
                             // API key operations
                             let manager = LLMManager()
-                            manager.setAPIKey("stress-test-\(i)", for: .openAI)
-                            let _ = manager.getAPIKey(for: .openAI)
+                            manager.setAPIKey("stress-test-\(i)", for: .anthropic)
+                            let _ = manager.getAPIKey(for: .anthropic)
                             
                         case 1:
                             // Prompt operations
@@ -485,9 +484,9 @@ class PerformanceReliabilityTests: TestBase {
         for i in 1...iterations {
             autoreleasepool {
                 // Mix of operations that should be reliable
-                llmManager.setAPIKey("reliability-test-\(i)", for: .openAI)
-                let _ = llmManager.getAPIKey(for: .openAI)
-                let _ = llmManager.isProviderConfigured(.openAI)
+                llmManager.setAPIKey("reliability-test-\(i)", for: .anthropic)
+                let _ = llmManager.getAPIKey(for: .anthropic)
+                let _ = llmManager.isProviderConfigured(.anthropic)
                 
                 let prompts = [PromptItem(name: "reliability_\(i)", prompt: "Reliability test \(i)")]
                 promptManager.savePrompts(prompts)
@@ -508,7 +507,7 @@ class PerformanceReliabilityTests: TestBase {
     func testErrorRecoveryReliability() {
         // Test reliability of error recovery
         let invalidOperations = [
-            { self.llmManager.setAPIKey("", for: .openAI) },
+            { self.llmManager.setAPIKey("", for: .anthropic) },
             { self.llmManager.selectModel(LLMModel.anthropicModels.first!) }, // Wrong provider
             { self.potterCore.updateHotkey([]) }, // Invalid hotkey
             { self.potterCore.updateHotkey(["invalid"]) }, // Invalid hotkey
@@ -524,8 +523,8 @@ class PerformanceReliabilityTests: TestBase {
         }
         
         // System should still work after error conditions
-        llmManager.setAPIKey("valid-key", for: .openAI)
-        XCTAssertEqual(llmManager.getAPIKey(for: .openAI), "valid-key")
+        llmManager.setAPIKey("valid-key", for: .anthropic)
+        XCTAssertEqual(llmManager.getAPIKey(for: .anthropic), "valid-key")
     }
     
     func testLongRunningOperationSimulation() async {

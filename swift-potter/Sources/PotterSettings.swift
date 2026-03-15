@@ -47,7 +47,7 @@ class PotterSettings: ObservableObject {
         self.openaiAPIKey = userDefaults.string(forKey: UserDefaultsKeys.apiKeyOpenAI)
         self.anthropicAPIKey = userDefaults.string(forKey: UserDefaultsKeys.apiKeyAnthropic)
         self.googleAPIKey = userDefaults.string(forKey: UserDefaultsKeys.apiKeyGoogle)
-        self.currentProvider = userDefaults.string(forKey: UserDefaultsKeys.llmProvider) ?? "openai"
+        self.currentProvider = userDefaults.string(forKey: UserDefaultsKeys.llmProvider) ?? "anthropic"
         self.currentPrompt = userDefaults.string(forKey: UserDefaultsKeys.currentPrompt) ?? "formal"
     }
     
@@ -61,7 +61,7 @@ class PotterSettings: ObservableObject {
         self.openaiAPIKey = nil
         self.anthropicAPIKey = nil
         self.googleAPIKey = nil
-        self.currentProvider = "openai"
+        self.currentProvider = "anthropic"
         self.currentPrompt = "formal"
         
         // Force synchronization

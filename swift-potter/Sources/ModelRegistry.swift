@@ -152,7 +152,6 @@ class ModelRegistry: ObservableObject {
 
     static func staticModels(for provider: LLMProvider) -> [LLMModel] {
         switch provider {
-        case .openAI: return LLMModel.openAIModels
         case .anthropic: return LLMModel.anthropicModels
         case .google: return LLMModel.googleModels
         }
@@ -162,40 +161,11 @@ class ModelRegistry: ObservableObject {
 
     private func fetchModels(for provider: LLMProvider, apiKey: String) async throws -> [LLMModel] {
         switch provider {
-        case .openAI:
-            return try await fetchOpenAIModels(apiKey: apiKey)
         case .anthropic:
             return try await fetchAnthropicModels(apiKey: apiKey)
         case .google:
             return try await fetchGoogleModels(apiKey: apiKey)
         }
-    }
-
-    private func fetchOpenAIModels(apiKey: String) async throws -> [LLMModel] {
-        let url = URL(string: "https://api.openai.com/v1/models")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw ModelRegistryError.fetchFailed(provider: .openAI)
-        }
-
-        let decoded = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-
-        // Filter to chat-capable models only
-        let chatModels = decoded.data.filter { isChatModel($0.id) }
-
-        return chatModels.map { raw in
-            let tier = ModelTierClassifier.classify(raw.id, provider: .openAI)
-            return LLMModel(
-                id: raw.id,
-                name: formatModelName(raw.id, provider: .openAI),
-                description: descriptionForTier(tier),
-                provider: .openAI,
-                tier: tier
-            )
-        }.sorted { $0.tier.sortOrder < $1.tier.sortOrder }
     }
 
     private func fetchAnthropicModels(apiKey: String) async throws -> [LLMModel] {

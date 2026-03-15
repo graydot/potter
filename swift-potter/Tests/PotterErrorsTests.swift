@@ -36,8 +36,8 @@ struct PEConfigurationErrorTests {
 
     @Test("invalidAPIKey userMessage mentions provider")
     func invalidAPIKeyUserMessage() {
-        let err = ConfigurationError.invalidAPIKey(provider: "OpenAI")
-        #expect(err.userMessage.contains("OpenAI"))
+        let err = ConfigurationError.invalidAPIKey(provider: "Anthropic")
+        #expect(err.userMessage.contains("Anthropic"))
     }
 
     @Test("missingAPIKey userMessage mentions provider")
@@ -67,9 +67,9 @@ struct PEConfigurationErrorTests {
 
     @Test("invalidModel userMessage mentions modelId and provider")
     func invalidModelUserMessage() {
-        let err = ConfigurationError.invalidModel(modelId: "gpt-99", provider: "OpenAI")
-        #expect(err.userMessage.contains("gpt-99"))
-        #expect(err.userMessage.contains("OpenAI"))
+        let err = ConfigurationError.invalidModel(modelId: "claude-99", provider: "Anthropic")
+        #expect(err.userMessage.contains("claude-99"))
+        #expect(err.userMessage.contains("Anthropic"))
     }
 
     @Test("corruptedSettings userMessage mentions reason")
@@ -123,14 +123,14 @@ struct PEConfigurationErrorTests {
 
     @Test("Equatable — identical cases are equal")
     func equatableIdentical() {
-        let a = ConfigurationError.invalidAPIKey(provider: "OpenAI")
-        let b = ConfigurationError.invalidAPIKey(provider: "OpenAI")
+        let a = ConfigurationError.invalidAPIKey(provider: "Anthropic")
+        let b = ConfigurationError.invalidAPIKey(provider: "Anthropic")
         #expect(a == b)
     }
 
     @Test("Equatable — different providers make cases unequal")
     func equatableDifferentProvider() {
-        let a = ConfigurationError.invalidAPIKey(provider: "OpenAI")
+        let a = ConfigurationError.invalidAPIKey(provider: "Anthropic")
         let b = ConfigurationError.invalidAPIKey(provider: "Google")
         #expect(a != b)
     }
@@ -250,7 +250,7 @@ struct PENetworkErrorTests {
     @Test("Equatable — different providers make unauthorized unequal")
     func equatableDifferentProvider() {
         let a = NetworkError.unauthorized(provider: "Google")
-        let b = NetworkError.unauthorized(provider: "OpenAI")
+        let b = NetworkError.unauthorized(provider: "Anthropic")
         #expect(a != b)
     }
 }
@@ -589,8 +589,8 @@ struct PEPotterErrorTests {
 
     @Test("errorDescription delegates to each sub-error userMessage")
     func errorDescriptionDelegates() {
-        let configErr = PotterError.configuration(.missingAPIKey(provider: "OpenAI"))
-        #expect(configErr.errorDescription?.contains("OpenAI") == true)
+        let configErr = PotterError.configuration(.missingAPIKey(provider: "Anthropic"))
+        #expect(configErr.errorDescription?.contains("Anthropic") == true)
 
         let netErr = PotterError.network(.unauthorized(provider: "Anthropic"))
         #expect(netErr.errorDescription?.contains("Anthropic") == true)
@@ -662,10 +662,10 @@ struct PEResultExtensionTests {
 
     @Test("configurationError factory produces correct failure")
     func configurationErrorFactory() {
-        let result: Result<Int, PotterError> = .configurationError(.invalidAPIKey(provider: "OpenAI"))
+        let result: Result<Int, PotterError> = .configurationError(.invalidAPIKey(provider: "Anthropic"))
         #expect(result.isFailure)
         if case .failure(.configuration(.invalidAPIKey(let provider))) = result {
-            #expect(provider == "OpenAI")
+            #expect(provider == "Anthropic")
         } else {
             Issue.record("Expected .failure(.configuration(.invalidAPIKey))")
         }

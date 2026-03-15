@@ -144,17 +144,17 @@ class CoreFunctionalityTests: TestBase {
     
     func testProviderSwitching() {
         // Test switching between different LLM providers
-        llmManager.selectProvider(.openAI)
-        XCTAssertEqual(llmManager.selectedProvider, .openAI)
-        XCTAssertEqual(llmManager.selectedModel?.provider, .openAI)
-        
         llmManager.selectProvider(.anthropic)
         XCTAssertEqual(llmManager.selectedProvider, .anthropic)
         XCTAssertEqual(llmManager.selectedModel?.provider, .anthropic)
-        
+
         llmManager.selectProvider(.google)
         XCTAssertEqual(llmManager.selectedProvider, .google)
         XCTAssertEqual(llmManager.selectedModel?.provider, .google)
+
+        llmManager.selectProvider(.anthropic)
+        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
+        XCTAssertEqual(llmManager.selectedModel?.provider, .anthropic)
     }
     
     func testProviderModelsAvailability() {
@@ -186,22 +186,22 @@ class CoreFunctionalityTests: TestBase {
     
     func testModelSelectionPersistence() {
         // Test that model selection persists when switching providers
-        let openAIModel = LLMProvider.openAI.models.first!
         let anthropicModel = LLMProvider.anthropic.models.first!
-        
-        // Select OpenAI model
-        llmManager.selectProvider(.openAI)
-        llmManager.selectModel(openAIModel)
-        
-        // Switch to Anthropic
+        let googleModel = LLMProvider.google.models.first!
+
+        // Select Anthropic model
         llmManager.selectProvider(.anthropic)
         llmManager.selectModel(anthropicModel)
-        
-        // Switch back to OpenAI
-        llmManager.selectProvider(.openAI)
-        
-        // Should default to first OpenAI model (not necessarily the one we selected before)
-        XCTAssertEqual(llmManager.selectedModel?.provider, .openAI)
+
+        // Switch to Google
+        llmManager.selectProvider(.google)
+        llmManager.selectModel(googleModel)
+
+        // Switch back to Anthropic
+        llmManager.selectProvider(.anthropic)
+
+        // Should default to first Anthropic model (not necessarily the one we selected before)
+        XCTAssertEqual(llmManager.selectedModel?.provider, .anthropic)
     }
     
     // MARK: - T2.3: Custom Prompts

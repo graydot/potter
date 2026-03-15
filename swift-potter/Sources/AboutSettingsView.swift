@@ -80,7 +80,7 @@ struct AboutSettingsView: View {
                         .fontWeight(.semibold)
                 }
 
-                Text("This app processes your text using external AI services (OpenAI, Anthropic, Google). Potter and the app author do not store your text or keystrokes, but the AI providers will have access to any text you process. Avoid using this app with sensitive, confidential, or private information.")
+                Text("This app processes your text using external AI services (Anthropic, Google). Potter and the app author do not store your text or keystrokes, but the AI providers will have access to any text you process. Avoid using this app with sensitive, confidential, or private information.")
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

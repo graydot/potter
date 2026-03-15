@@ -6,7 +6,7 @@ import SwiftUI
 class LLMManager: ObservableObject, LLMProcessing {
     static let shared = LLMManager()
 
-    @Published var selectedProvider: LLMProvider = .openAI
+    @Published var selectedProvider: LLMProvider = .anthropic
     @Published var selectedModel: LLMModel?
 
     private var clients: [LLMProvider: LLMClient] = [:]
@@ -163,8 +163,6 @@ class LLMManager: ObservableObject, LLMProcessing {
     
     private func createClient(for provider: LLMProvider, apiKey: String) -> LLMClient {
         switch provider {
-        case .openAI:
-            return OpenAIClient(apiKey: apiKey)
         case .anthropic:
             return AnthropicClient(apiKey: apiKey)
         case .google:

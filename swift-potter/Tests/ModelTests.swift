@@ -9,20 +9,18 @@ struct STLLMProviderTests {
 
     @Test("raw values match expected strings")
     func rawValues() {
-        #expect(LLMProvider.openAI.rawValue == "openai")
         #expect(LLMProvider.anthropic.rawValue == "anthropic")
         #expect(LLMProvider.google.rawValue == "google")
     }
 
-    @Test("allCases contains exactly three providers")
+    @Test("allCases contains exactly two providers")
     func allCasesCount() {
-        #expect(LLMProvider.allCases.count == 3)
+        #expect(LLMProvider.allCases.count == 2)
     }
 
     @Test("allCases contains all known providers")
     func allCasesContents() {
         let cases = LLMProvider.allCases
-        #expect(cases.contains(.openAI))
         #expect(cases.contains(.anthropic))
         #expect(cases.contains(.google))
     }
@@ -36,7 +34,6 @@ struct STLLMProviderTests {
 
     @Test("displayName is correct for all providers")
     func displayNames() {
-        #expect(LLMProvider.openAI.displayName == "OpenAI")
         #expect(LLMProvider.anthropic.displayName == "Anthropic")
         #expect(LLMProvider.google.displayName == "Google")
     }
@@ -68,10 +65,10 @@ struct STLLMProviderTests {
 
     @Test("decodes from known JSON string values")
     func decodeFromJSON() throws {
-        let json = #""openai""#
+        let json = #""anthropic""#
         let data = json.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(LLMProvider.self, from: data)
-        #expect(decoded == .openAI)
+        #expect(decoded == .anthropic)
     }
 
     @Test("encodes to expected JSON string value")
@@ -87,15 +84,14 @@ struct STLLMProviderTests {
         for provider in LLMProvider.allCases {
             dict[provider] = provider.displayName
         }
-        #expect(dict.count == 3)
-        #expect(dict[.openAI] == "OpenAI")
+        #expect(dict.count == 2)
         #expect(dict[.anthropic] == "Anthropic")
         #expect(dict[.google] == "Google")
     }
 
     @Test("Hashable — usable in Set, deduplicates same case")
     func hashableSet() {
-        let set: Set<LLMProvider> = [.openAI, .openAI, .anthropic]
+        let set: Set<LLMProvider> = [.anthropic, .anthropic, .google]
         #expect(set.count == 2)
     }
 
@@ -195,13 +191,6 @@ struct STModelTierTests {
 @Suite("LLMModel")
 struct STLLMModelTests {
 
-    @Test("static openAI models all have expected provider")
-    func openAIModelsProvider() {
-        for model in LLMModel.openAIModels {
-            #expect(model.provider == .openAI)
-        }
-    }
-
     @Test("static anthropic models all have expected provider")
     func anthropicModelsProvider() {
         for model in LLMModel.anthropicModels {
@@ -218,14 +207,13 @@ struct STLLMModelTests {
 
     @Test("static model lists are non-empty")
     func staticModelListsNonEmpty() {
-        #expect(!LLMModel.openAIModels.isEmpty)
         #expect(!LLMModel.anthropicModels.isEmpty)
         #expect(!LLMModel.googleModels.isEmpty)
     }
 
     @Test("every static model has non-empty id, name, and description")
     func staticModelsHaveNonEmptyFields() {
-        let allModels = LLMModel.openAIModels + LLMModel.anthropicModels + LLMModel.googleModels
+        let allModels = LLMModel.anthropicModels + LLMModel.googleModels
         for model in allModels {
             #expect(!model.id.isEmpty, "Model id should not be empty: \(model.id)")
             #expect(!model.name.isEmpty, "Model name should not be empty: \(model.id)")
@@ -262,15 +250,15 @@ struct STLLMModelTests {
 
     @Test("Hashable — usable in Set, deduplicates identical models")
     func hashableSetDedup() {
-        let model = LLMModel(id: "gpt-4o", name: "GPT-4o", description: "test", provider: .openAI, tier: .standard)
+        let model = LLMModel(id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "test", provider: .anthropic, tier: .fast)
         let set: Set<LLMModel> = [model, model]
         #expect(set.count == 1)
     }
 
     @Test("Hashable — two models with different ids are distinct in a Set")
     func hashableDistinctModels() {
-        let a = LLMModel(id: "model-a", name: "A", description: "desc", provider: .openAI, tier: .fast)
-        let b = LLMModel(id: "model-b", name: "B", description: "desc", provider: .openAI, tier: .fast)
+        let a = LLMModel(id: "model-a", name: "A", description: "desc", provider: .anthropic, tier: .fast)
+        let b = LLMModel(id: "model-b", name: "B", description: "desc", provider: .anthropic, tier: .fast)
         let set: Set<LLMModel> = [a, b]
         #expect(set.count == 2)
     }
@@ -285,7 +273,7 @@ struct STLLMModelTests {
 
     @Test("all static models across providers have unique ids")
     func allStaticModelIdsUnique() {
-        let allModels = LLMModel.openAIModels + LLMModel.anthropicModels + LLMModel.googleModels
+        let allModels = LLMModel.anthropicModels + LLMModel.googleModels
         let ids = allModels.map(\.id)
         let uniqueIds = Set(ids)
         #expect(uniqueIds.count == ids.count, "All static model ids should be unique")
@@ -545,8 +533,8 @@ struct STProviderTierConfigTests {
     @Test("setting(_:for:) updates fast tier and is non-mutating")
     func settingFastTier() {
         let config = ProviderTierConfig()
-        let updated = config.setting("gpt-4o-mini", for: .fast)
-        #expect(updated.fast == "gpt-4o-mini")
+        let updated = config.setting("claude-3-5-haiku-20241022", for: .fast)
+        #expect(updated.fast == "claude-3-5-haiku-20241022")
         #expect(updated.standard == nil)
         #expect(updated.thinking == nil)
         // original should be unchanged
@@ -556,8 +544,8 @@ struct STProviderTierConfigTests {
     @Test("setting(_:for:) updates standard tier")
     func settingStandardTier() {
         let config = ProviderTierConfig()
-        let updated = config.setting("gpt-4o", for: .standard)
-        #expect(updated.standard == "gpt-4o")
+        let updated = config.setting("claude-sonnet-4-20250514", for: .standard)
+        #expect(updated.standard == "claude-sonnet-4-20250514")
         #expect(updated.fast == nil)
         #expect(updated.thinking == nil)
     }
@@ -565,15 +553,15 @@ struct STProviderTierConfigTests {
     @Test("setting(_:for:) updates thinking tier")
     func settingThinkingTier() {
         let config = ProviderTierConfig()
-        let updated = config.setting("o4-mini", for: .thinking)
-        #expect(updated.thinking == "o4-mini")
+        let updated = config.setting("claude-opus-4-20250514", for: .thinking)
+        #expect(updated.thinking == "claude-opus-4-20250514")
         #expect(updated.fast == nil)
         #expect(updated.standard == nil)
     }
 
     @Test("setting(_:for:) with nil clears a previously set model ID")
     func settingNilClearsTier() {
-        let config = ProviderTierConfig(fast: "gpt-4o-mini", standard: nil, thinking: nil)
+        let config = ProviderTierConfig(fast: "claude-3-5-haiku-20241022", standard: nil, thinking: nil)
         let updated = config.setting(nil, for: .fast)
         #expect(updated.fast == nil)
     }
@@ -591,12 +579,12 @@ struct STProviderTierConfigTests {
 
     @Test("Codable round-trip preserves partial config with nil fields")
     func codableRoundTripWithNils() throws {
-        let config = ProviderTierConfig(fast: "gpt-4o-mini", standard: nil, thinking: "o4-mini")
+        let config = ProviderTierConfig(fast: "claude-3-5-haiku-20241022", standard: nil, thinking: "claude-opus-4-20250514")
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(ProviderTierConfig.self, from: data)
-        #expect(decoded.fast == "gpt-4o-mini")
+        #expect(decoded.fast == "claude-3-5-haiku-20241022")
         #expect(decoded.standard == nil)
-        #expect(decoded.thinking == "o4-mini")
+        #expect(decoded.thinking == "claude-opus-4-20250514")
     }
 
     @Test("Codable round-trip preserves all-nil default config")
@@ -641,16 +629,16 @@ struct STProcessingHistoryEntryTests {
             inputText: "in",
             outputText: "out",
             promptName: "formal",
-            modelName: "gpt-4o",
-            providerName: "OpenAI",
+            modelName: "claude-sonnet-4-20250514",
+            providerName: "Anthropic",
             durationMs: 500
         )
         let after = Date()
         #expect(entry.inputText == "in")
         #expect(entry.outputText == "out")
         #expect(entry.promptName == "formal")
-        #expect(entry.modelName == "gpt-4o")
-        #expect(entry.providerName == "OpenAI")
+        #expect(entry.modelName == "claude-sonnet-4-20250514")
+        #expect(entry.providerName == "Anthropic")
         #expect(entry.durationMs == 500)
         #expect(entry.timestamp >= before)
         #expect(entry.timestamp <= after)

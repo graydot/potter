@@ -178,8 +178,6 @@ class APIKeyService: ObservableObject, KeyValidationService {
         // Create appropriate LLM client for validation
         let client: LLMClient
         switch provider {
-        case .openAI:
-            client = OpenAIClient(apiKey: key)
         case .anthropic:
             client = AnthropicClient(apiKey: key)
         case .google:

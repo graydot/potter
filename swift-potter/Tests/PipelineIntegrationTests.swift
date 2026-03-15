@@ -132,14 +132,14 @@ class PipelineIntegrationTests: TestBase {
     func testPipelineErrorPropagation_NetworkError() async {
         // Given
         stubPrompt.promptText = "Fix grammar"
-        stubLLM.errorToThrow = PotterError.network(.unauthorized(provider: "OpenAI"))
+        stubLLM.errorToThrow = PotterError.network(.unauthorized(provider: "Anthropic"))
 
         // When / Then
         do {
             _ = try await processor.processText("some text")
             XCTFail("Expected unauthorized error to propagate")
         } catch let error as PotterError {
-            XCTAssertEqual(error, PotterError.network(.unauthorized(provider: "OpenAI")))
+            XCTAssertEqual(error, PotterError.network(.unauthorized(provider: "Anthropic")))
         } catch {
             XCTFail("Expected PotterError, got \(type(of: error)): \(error)")
         }

@@ -113,7 +113,7 @@ struct OnboardingView: View {
             stepView(
                 icon: "key.fill",
                 title: "1. Add Your API Key",
-                description: "Choose your AI provider (OpenAI, Anthropic, or Google) and add your API key in Settings.",
+                description: "Choose your AI provider (Anthropic or Google) and add your API key in Settings.",
                 note: "Potter works with multiple AI providers - pick your favorite!"
             )
             

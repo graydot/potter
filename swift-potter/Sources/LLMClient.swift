@@ -33,12 +33,6 @@ struct LLMModel: Identifiable, Hashable, Codable {
     let provider: LLMProvider
     let tier: ModelTier
 
-    static let openAIModels = [
-        LLMModel(id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast, intelligent, and cost-effective for most tasks", provider: .openAI, tier: .fast),
-        LLMModel(id: "gpt-4o", name: "GPT-4o", description: "Versatile model for a wide range of tasks", provider: .openAI, tier: .standard),
-        LLMModel(id: "o4-mini", name: "o4 Mini", description: "Fast reasoning model", provider: .openAI, tier: .thinking),
-    ]
-
     static let anthropicModels = [
         LLMModel(id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic, tier: .fast),
         LLMModel(id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Excellent for creative writing and complex analysis", provider: .anthropic, tier: .standard),
@@ -53,39 +47,34 @@ struct LLMModel: Identifiable, Hashable, Codable {
 }
 
 enum LLMProvider: String, CaseIterable, Identifiable, Hashable, Codable {
-    case openAI = "openai"
     case anthropic = "anthropic"
     case google = "google"
-    
+
     var id: String { return self.rawValue }
-    
+
     var displayName: String {
         switch self {
-        case .openAI: return "OpenAI"
         case .anthropic: return "Anthropic"
         case .google: return "Google"
         }
     }
-    
+
     var models: [LLMModel] {
         switch self {
-        case .openAI: return LLMModel.openAIModels
         case .anthropic: return LLMModel.anthropicModels
         case .google: return LLMModel.googleModels
         }
     }
-    
+
     var apiKeyPlaceholder: String {
         switch self {
-        case .openAI: return "sk-..."
         case .anthropic: return "sk-ant-..."
         case .google: return "AIza..."
         }
     }
-    
+
     var apiKeyURL: String {
         switch self {
-        case .openAI: return "https://platform.openai.com/api-keys"
         case .anthropic: return "https://console.anthropic.com/settings/keys"
         case .google: return "https://aistudio.google.com/app/apikey"
         }
@@ -101,116 +90,6 @@ protocol LLMClient {
     func streamText(_ text: String, prompt: String, model: String,
                     onToken: @Sendable @escaping (String) -> Void) async throws -> String
     func validateAPIKey(_ apiKey: String) async throws -> Bool
-}
-
-// MARK: - OpenAI Client
-class OpenAIClient: LLMClient {
-    let provider: LLMProvider = .openAI
-    private let apiKey: String
-    
-    init(apiKey: String) {
-        self.apiKey = apiKey
-    }
-    
-    func validateAPIKey(_ apiKey: String) async throws -> Bool {
-        let url = URL(string: "https://api.openai.com/v1/models")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        PotterLogger.shared.info("validation", "🔍 OpenAI validation URL: \(url.absoluteString)")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let httpResponse = response as? HTTPURLResponse
-        let statusCode = httpResponse?.statusCode ?? 0
-
-        PotterLogger.shared.info("validation", "📡 OpenAI response status: \(statusCode)")
-
-        if statusCode != 200 {
-            let errorBody = String(data: data, encoding: .utf8) ?? "No response body"
-            PotterLogger.shared.error("validation", "❌ OpenAI validation failed - Response: \(errorBody)")
-            throw LLMHTTPClient.createLLMError(for: statusCode, message: errorBody, provider: "OpenAI")
-        }
-
-        return true
-    }
-
-    func processText(_ text: String, prompt: String, model: String) async throws -> String {
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        let body = OpenAIRequest(
-            model: model,
-            messages: [
-                OpenAIMessage(role: "system", content: prompt),
-                OpenAIMessage(role: "user", content: text)
-            ]
-        )
-        let headers = ["Authorization": "Bearer \(apiKey)"]
-
-        PotterLogger.shared.debug("llm_client", "🌐 Making OpenAI API request...")
-        let request: URLRequest
-        do {
-            request = try LLMHTTPClient.makeJSONRequest(url: url, headers: headers, body: body)
-        } catch {
-            throw LLMHTTPClient.createResponseError(reason: "Failed to encode request: \(error.localizedDescription)")
-        }
-
-        let response: OpenAIResponse
-        do {
-            response = try await LLMHTTPClient.performRequest(request, responseType: OpenAIResponse.self, provider: "OpenAI")
-        } catch {
-            if let potterError = error as? PotterError {
-                throw potterError
-            }
-            PotterLogger.shared.error("llm_client", "🚫 OpenAI Network Error: \(error)")
-            throw LLMHTTPClient.createResponseError(reason: "Network error: \(error.localizedDescription)")
-        }
-
-        guard let firstChoice = response.choices.first else {
-            throw LLMHTTPClient.createResponseError(reason: "OpenAI API returned no response choices")
-        }
-
-        return firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    func streamText(_ text: String, prompt: String, model: String,
-                    onToken: @Sendable @escaping (String) -> Void) async throws -> String {
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
-        var bodyDict: [String: Any] = [
-            "model": model,
-            "stream": true,
-            "messages": [
-                ["role": "system", "content": prompt],
-                ["role": "user", "content": text]
-            ]
-        ]
-        let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 60
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = bodyData
-
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw LLMHTTPClient.createLLMError(for: http.statusCode,
-                                                message: "OpenAI streaming error",
-                                                provider: "OpenAI")
-        }
-
-        var assembled = ""
-        for try await line in bytes.lines {
-            guard line.hasPrefix("data: ") else { continue }
-            let jsonStr = String(line.dropFirst(6))
-            guard jsonStr != "[DONE]" else { break }
-            guard let data = jsonStr.data(using: .utf8),
-                  let chunk = try? JSONDecoder().decode(OpenAIStreamChunk.self, from: data),
-                  let delta = chunk.choices.first?.delta.content,
-                  !delta.isEmpty else { continue }
-            assembled += delta
-            onToken(delta)
-        }
-        return assembled.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 // MARK: - Anthropic Client
@@ -425,17 +304,6 @@ class GoogleClient: LLMClient {
 
 // MARK: - Streaming Response Types
 
-// OpenAI streaming chunk
-struct OpenAIStreamChunk: Codable {
-    let choices: [OpenAIStreamChoice]
-}
-struct OpenAIStreamChoice: Codable {
-    let delta: OpenAIStreamDelta
-}
-struct OpenAIStreamDelta: Codable {
-    let content: String?
-}
-
 // Anthropic streaming event
 struct AnthropicStreamDelta: Codable {
     let type: String
@@ -448,26 +316,7 @@ struct AnthropicStreamDeltaContent: Codable {
 
 // MARK: - API Models
 
-// OpenAI Models
-struct OpenAIRequest: Codable {
-    let model: String
-    let messages: [OpenAIMessage]
-}
-
-struct OpenAIMessage: Codable {
-    let role: String
-    let content: String
-}
-
-struct OpenAIResponse: Codable {
-    let choices: [OpenAIChoice]
-}
-
-struct OpenAIChoice: Codable {
-    let message: OpenAIMessage
-}
-
-// Anthropic Models  
+// Anthropic Models
 struct AnthropicRequest: Codable {
     let model: String
     let max_tokens: Int  // Required for Anthropic

@@ -116,7 +116,7 @@ class SettingsConfigurationTests: TestBase {
     func disabled_testAPIKeySaveAndLoadWithDifferentMethods() {
         // Test saving and loading with StorageAdapter
         let testKey = "sk-test-storage-method-key"
-        let provider = LLMProvider.openAI
+        let provider = LLMProvider.anthropic
         
         // Test saving and loading via StorageAdapter
         let saveResult = storageAdapter.setAPIKey(testKey, for: provider)
@@ -162,7 +162,7 @@ class SettingsConfigurationTests: TestBase {
     
     func testValidationStateManagement() {
         // Test validation state management
-        APIKeyService.shared.setValidationStateForTesting(.valid, for: .openAI)
+        APIKeyService.shared.setValidationStateForTesting(.valid, for: .anthropic)
         XCTAssertTrue(llmManager.getCurrentValidationState().isValid)
         
         llmManager.selectProvider(.anthropic)
@@ -193,16 +193,16 @@ class SettingsConfigurationTests: TestBase {
     
     func testModelSelectionWithinProvider() {
         // Test selecting different models within a provider
-        llmManager.selectProvider(.openAI)
-        let openAIModels = LLMProvider.openAI.models
+        llmManager.selectProvider(.anthropic)
+        let anthropicModels = LLMProvider.anthropic.models
         
-        guard openAIModels.count >= 2 else {
-            XCTFail("OpenAI should have at least 2 models for this test")
+        guard anthropicModels.count >= 2 else {
+            XCTFail("Anthropic should have at least 2 models for this test")
             return
         }
         
-        let firstModel = openAIModels[0]
-        let secondModel = openAIModels[1]
+        let firstModel = anthropicModels[0]
+        let secondModel = anthropicModels[1]
         
         llmManager.selectModel(firstModel)
         XCTAssertEqual(llmManager.selectedModel?.id, firstModel.id)
@@ -211,7 +211,7 @@ class SettingsConfigurationTests: TestBase {
         XCTAssertEqual(llmManager.selectedModel?.id, secondModel.id)
         
         // Provider should remain unchanged
-        XCTAssertEqual(llmManager.selectedProvider, .openAI)
+        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
     }
     
     
@@ -225,21 +225,21 @@ class SettingsConfigurationTests: TestBase {
         // Simulate concurrent settings changes
         queue.async {
             Task { @MainActor in
-                self.llmManager.selectProvider(.openAI)
+                self.llmManager.selectProvider(.anthropic)
                 expectation.fulfill()
             }
         }
         
         queue.async {
             Task { @MainActor in
-                self.llmManager.setAPIKey("test-key-1", for: .openAI)
+                self.llmManager.setAPIKey("test-key-1", for: .anthropic)
                 expectation.fulfill()
             }
         }
         
         queue.async {
             Task { @MainActor in
-                if let model = LLMProvider.openAI.models.first {
+                if let model = LLMProvider.anthropic.models.first {
                     self.llmManager.selectModel(model)
                 }
                 expectation.fulfill()
@@ -249,7 +249,7 @@ class SettingsConfigurationTests: TestBase {
         waitForExpectations(timeout: 5.0)
         
         // Should not crash and should have consistent state
-        XCTAssertEqual(llmManager.selectedProvider, .openAI)
+        XCTAssertEqual(llmManager.selectedProvider, .anthropic)
         XCTAssertNotNil(llmManager.selectedModel)
     }
     

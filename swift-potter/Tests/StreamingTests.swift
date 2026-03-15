@@ -9,32 +9,6 @@ import XCTest
 
 final class StreamingChunkDecodingTests: XCTestCase {
 
-    // MARK: OpenAI streaming chunk
-
-    func testOpenAIStreamChunkDecodesContent() throws {
-        let json = """
-        {"choices":[{"delta":{"content":"Hello"}}]}
-        """.data(using: .utf8)!
-        let chunk = try JSONDecoder().decode(OpenAIStreamChunk.self, from: json)
-        XCTAssertEqual(chunk.choices.first?.delta.content, "Hello")
-    }
-
-    func testOpenAIStreamChunkDecodesNilContent() throws {
-        let json = """
-        {"choices":[{"delta":{}}]}
-        """.data(using: .utf8)!
-        let chunk = try JSONDecoder().decode(OpenAIStreamChunk.self, from: json)
-        XCTAssertNil(chunk.choices.first?.delta.content)
-    }
-
-    func testOpenAIStreamChunkDecodesEmptyChoices() throws {
-        let json = """
-        {"choices":[]}
-        """.data(using: .utf8)!
-        let chunk = try JSONDecoder().decode(OpenAIStreamChunk.self, from: json)
-        XCTAssertTrue(chunk.choices.isEmpty)
-    }
-
     // MARK: Anthropic streaming delta
 
     func testAnthropicStreamDeltaDecodesContentBlockDelta() throws {

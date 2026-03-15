@@ -60,7 +60,7 @@ class ErrorHandlingEdgeCasesTests: TestBase {
     
     func testProcessTextWithoutAPIKey() async {
         // Test processing without API key (simulates network issues)
-        llmManager.selectedModel = LLMModel.openAIModels.first
+        llmManager.selectedModel = LLMModel.anthropicModels.first
         
         do {
             _ = try await llmManager.processText("test", prompt: "test prompt")
@@ -84,7 +84,7 @@ class ErrorHandlingEdgeCasesTests: TestBase {
     func testProcessTextWithoutSelectedModel() async {
         // Test processing without selected model
         llmManager.selectedModel = nil
-        llmManager.setAPIKey("test-key", for: .openAI)
+        llmManager.setAPIKey("test-key", for: .anthropic)
         
         do {
             _ = try await llmManager.processText("test", prompt: "test prompt")
@@ -136,7 +136,7 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         // Test handling of network timeout scenarios
         // Note: This is a simulation since we can't easily mock network calls
         
-        llmManager.selectedModel = LLMModel.openAIModels.first
+        llmManager.selectedModel = LLMModel.anthropicModels.first
         
         // Test with empty API key (simulates network failure)
         do {
@@ -165,9 +165,9 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         ]
         
         for invalidKey in invalidKeys {
-            await llmManager.validateAndSaveAPIKey(invalidKey, for: .openAI)
+            await llmManager.validateAndSaveAPIKey(invalidKey, for: .anthropic)
             
-            let validationState = llmManager.validationStates[.openAI]
+            let validationState = llmManager.validationStates[.anthropic]
             XCTAssertFalse(validationState?.isValid ?? true, 
                           "Key '\(invalidKey)' should be invalid")
             
@@ -283,21 +283,21 @@ class ErrorHandlingEdgeCasesTests: TestBase {
         
         queue.async {
             Task { @MainActor in
-                self.llmManager.setAPIKey("test-key-1", for: .openAI)
+                self.llmManager.setAPIKey("test-key-1", for: .anthropic)
                 expectation.fulfill()
             }
         }
         
         queue.async {
             Task { @MainActor in
-                let _ = self.llmManager.getAPIKey(for: .openAI)
+                let _ = self.llmManager.getAPIKey(for: .anthropic)
                 expectation.fulfill()
             }
         }
         
         queue.async {
             Task { @MainActor in
-                let _ = self.llmManager.isProviderConfigured(.openAI)
+                let _ = self.llmManager.isProviderConfigured(.anthropic)
                 expectation.fulfill()
             }
         }
@@ -310,37 +310,32 @@ class ErrorHandlingEdgeCasesTests: TestBase {
     
     func testInvalidModelSelection() {
         // Test selecting invalid models
-        let openAIModel = LLMModel.openAIModels.first!
-        
-        // Select Anthropic provider but try to use OpenAI model
+        let googleModel = LLMModel.googleModels.first!
+
+        // Select Anthropic provider but try to use Google model
         llmManager.selectProvider(.anthropic)
-        llmManager.selectModel(openAIModel) // This should work but be inconsistent
-        
+        llmManager.selectModel(googleModel) // This should work but be inconsistent
+
         // The model should still be set (even if inconsistent)
-        XCTAssertEqual(llmManager.selectedModel?.id, openAIModel.id)
+        XCTAssertEqual(llmManager.selectedModel?.id, googleModel.id)
         XCTAssertEqual(llmManager.selectedProvider, .anthropic)
-        
+
         // But the provider doesn't match the model
         XCTAssertNotEqual(llmManager.selectedModel?.provider, llmManager.selectedProvider)
     }
     
     func testValidationStateConsistency() {
         // Test validation state consistency
-        APIKeyService.shared.setValidationStateForTesting(.valid, for: .openAI)
-        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error"), for: .anthropic)
-        APIKeyService.shared.setValidationStateForTesting(.validating, for: .google)
-        
+        APIKeyService.shared.setValidationStateForTesting(.valid, for: .anthropic)
+        APIKeyService.shared.setValidationStateForTesting(.invalid("Test error"), for: .google)
+
         // Switch providers and check states
-        llmManager.selectProvider(.openAI)
-        XCTAssertTrue(llmManager.getCurrentValidationState().isValid)
-        
         llmManager.selectProvider(.anthropic)
-        XCTAssertFalse(llmManager.getCurrentValidationState().isValid)
-        XCTAssertEqual(llmManager.getCurrentValidationState().errorMessage, "Test error")
-        
+        XCTAssertTrue(llmManager.getCurrentValidationState().isValid)
+
         llmManager.selectProvider(.google)
         XCTAssertFalse(llmManager.getCurrentValidationState().isValid)
-        XCTAssertNil(llmManager.getCurrentValidationState().errorMessage)
+        XCTAssertEqual(llmManager.getCurrentValidationState().errorMessage, "Test error")
     }
     
     // MARK: - Helper Methods
