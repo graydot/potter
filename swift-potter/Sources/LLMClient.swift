@@ -185,6 +185,7 @@ class OpenAIClient: LLMClient {
         let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 60
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
@@ -294,6 +295,7 @@ class AnthropicClient: LLMClient {
         let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 60
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -387,14 +389,16 @@ class GoogleClient: LLMClient {
 
     func streamText(_ text: String, prompt: String, model: String,
                     onToken: @Sendable @escaping (String) -> Void) async throws -> String {
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(model):streamGenerateContent?alt=sse&key=\(apiKey)")!
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models/\(model):streamGenerateContent?alt=sse")!
         let bodyDict: [String: Any] = [
             "contents": [["parts": [["text": "\(prompt)\n\n\(text)"]]]]
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: bodyDict)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.httpBody = bodyData
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)

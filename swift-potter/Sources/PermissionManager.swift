@@ -164,7 +164,7 @@ class PermissionManager: ObservableObject, PermissionChecker {
         
         // Check every 1 second for 1 minute
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.checkAllPermissions()
 
                 guard let startTime = self?.checkStartTime else {
@@ -187,7 +187,7 @@ class PermissionManager: ObservableObject, PermissionChecker {
         
         // Check every 10 seconds for 5 minutes
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] timer in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.checkAllPermissions()
 
                 guard let startTime = self?.checkStartTime else {

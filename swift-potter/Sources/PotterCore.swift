@@ -93,8 +93,15 @@ class PotterCore {
         PotterLogger.shared.info("core", "✅ Potter Core initialized")
     }
     
+    private var isProcessing = false
+
     @objc private func handleHotkey() {
+        guard !isProcessing else {
+            PotterLogger.shared.warning("hotkey", "⚠️ Hotkey ignored — already processing")
+            return
+        }
         PotterLogger.shared.info("hotkey", "🎯 Global hotkey callback triggered")
+        isProcessing = true
         // Immediate visual feedback — show processing state before any I/O
         self.iconDelegate?.setProcessingState()
         self.processClipboardText()
@@ -107,7 +114,7 @@ class PotterCore {
         Task { @MainActor in
             guard let llmManager = self.llmManager, llmManager.hasValidProvider() else {
                 PotterLogger.shared.error("text_processor", "❌ No valid LLM provider configured")
-                // Configuration error handled by icon state
+                self.isProcessing = false
                 self.iconDelegate?.setErrorState(message: "No API key configured")
                 return
             }
@@ -130,10 +137,11 @@ class PotterCore {
             return
         }
 
-        // Guard against our own "no text" sentinel appearing in the clipboard.
-        if trimmedText == "No text was in clipboard" {
-            PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
-            iconDelegate?.setErrorState(message: "Still no text in clipboard")
+        let maxChars = 100_000
+        if trimmedText.count > maxChars {
+            isProcessing = false
+            PotterLogger.shared.warning("text_processor", "⚠️ Text too large: \(trimmedText.count) chars (max \(maxChars))")
+            iconDelegate?.setErrorState(message: "Text too large (\(trimmedText.count / 1000)k chars). Max \(maxChars / 1000)k.")
             return
         }
 
@@ -154,10 +162,8 @@ class PotterCore {
     /// Handles the case where no text is available from either AX or clipboard.
     @MainActor
     private func handleNoTextAvailable() {
-        PotterLogger.shared.warning("text_processor", "⚠️ No text found in selection or clipboard")
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString("No text was in clipboard", forType: .string)
+        isProcessing = false
+        PotterLogger.shared.warning("text_processor", "⚠️ No text available in clipboard or selection")
         iconDelegate?.setErrorState(message: "No text in clipboard")
     }
     
@@ -291,6 +297,7 @@ class PotterCore {
     /// Handles successful text processing — routes output via textProvider.
     @MainActor
     private func handleProcessingSuccess(_ processedText: String, inputSource: TextInputSource) {
+        isProcessing = false
         let wrote = textProvider.writeResult(processedText, source: inputSource)
 
         // If AX write failed, fall back to clipboard so the result isn't lost.
@@ -314,6 +321,7 @@ class PotterCore {
     /// Handles processing errors
     @MainActor
     private func handleProcessingError(_ error: PotterError) {
+        isProcessing = false
         GlobalErrorHandler.handle(error, context: "text_processing", showUser: false)
         iconDelegate?.setErrorState(message: error.localizedDescription)
     }

@@ -71,6 +71,11 @@ struct HotkeyConfigurationView: View {
         .onAppear {
             loadSavedHotkey()
         }
+        .onDisappear {
+            if isCapturingHotkey {
+                cancelHotkeyCapture()
+            }
+        }
     }
 
     // MARK: - Hotkey Pill

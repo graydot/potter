@@ -224,8 +224,9 @@ class ModelRegistry: ObservableObject {
     }
 
     private func fetchGoogleModels(apiKey: String) async throws -> [LLMModel] {
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models?key=\(apiKey)")!
-        let request = URLRequest(url: url)
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1/models")!
+        var request = URLRequest(url: url)
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

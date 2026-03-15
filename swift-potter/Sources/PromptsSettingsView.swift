@@ -36,7 +36,7 @@ struct PromptsSettingsView: View {
                 .buttonStyle(.bordered)
 
                 Button("-") {
-                    deleteSelectedPrompt()
+                    showingDeleteConfirmation = true
                 }
                 .buttonStyle(.bordered)
                 .disabled(uiState.selectedPromptID == nil || promptService.prompts.count <= 1)
