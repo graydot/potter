@@ -94,5 +94,18 @@ This release brings continued improvements to Potter's AI-powered text processin
       <pubDate>Wed, 11 Mar 2026 18:18:14 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.1.0/Potter-2.1.0-AI-Resonance.dmg" length="4597433" type="application/octet-stream" ns0:version="2.1.0" ns0:shortVersionString="2.1.0" ns0:edSignature="W+bVfP+TrUBRTNE4LMjJwfrGZ3XxJUDahtSqJ0bqNJc+LzXJd1SBY4zg0eR45+jCj7HZ7t1G8jLG47tbM5sQDQ==" />
     </item>
+    <item>
+      <title>Potter 2.2.0</title>
+      <description>&lt;![CDATA[## What's new
+
+- New app icons with refreshed design
+- Programmatic menu bar icon (wand-and-sparkles drawn via code)
+- Debug clipboard logging toggle in Settings
+- Auto-select newly created prompts
+- Stable DMG naming for reliable download URLs
+- Standalone product page at potter.graydot.ai]]&gt;</description>
+      <pubDate>Sat, 14 Mar 2026 23:11:22 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.2.0/Potter.dmg" length="2105013" type="application/octet-stream" ns0:version="2.2.0" ns0:shortVersionString="2.2.0" ns0:edSignature="yv0/zSg6MjbytxzFFlZOzJCloU3n7iEtjslvg6ZN0G7AWBC7nbKx0yonWGoX1fslJO6EHpnEwUpEn2yH6GuICQ==" />
+    </item>
   </channel>
 </rss>

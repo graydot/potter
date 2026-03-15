@@ -213,23 +213,17 @@ class AppcastManager:
     def __init__(self, config: ReleaseConfig):
         self.config = config
     
-    def calculate_file_signature(self, file_path: str) -> str:
+    def calculate_file_signature(self, file_path: str, version: str) -> str:
         """Calculate EdDSA signature using Sparkle's generate_appcast tool"""
         if not os.path.exists(self.config.sparkle_tool):
             raise FileNotFoundError(f"❌ Sparkle generate_appcast tool not found at {self.config.sparkle_tool}")
-        
+
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Copy DMG to temp directory with version in filename
+            # Copy DMG to temp directory with version in filename (Sparkle needs it)
             import shutil
-            
-            original_name = Path(file_path).stem
-            version_match = re.search(r'(\d+\.\d+(?:\.\d+)?)', original_name)
-            if not version_match:
-                raise ValueError(f"❌ Could not extract version from DMG filename: {original_name}")
-            
-            version_str = version_match.group(1)
-            temp_dmg = os.path.join(temp_dir, f"Potter-{version_str}.dmg")
+
+            temp_dmg = os.path.join(temp_dir, f"Potter-{version}.dmg")
             shutil.copy2(file_path, temp_dmg)
             
             # Run generate_appcast
@@ -272,7 +266,7 @@ class AppcastManager:
         
         # Create appcast entry
         file_size = os.path.getsize(dmg_path)
-        signature = self.calculate_file_signature(dmg_path)
+        signature = self.calculate_file_signature(dmg_path, version)
         pub_date = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
         
         # Load existing appcast or create new one
