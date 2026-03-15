@@ -13,12 +13,22 @@ struct BuildInfo {
     static func current() -> BuildInfo {
         let creativeNames = CreativeBuildNames.generate()
         
-        // Read version from Info.plist instead of hardcoding
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        // Read version from Info.plist, falling back to bundled plist for swift run
+        var version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        if version == nil || version == "Unknown" {
+            // When running via `swift run`, Bundle.main has no Info.plist.
+            // Read directly from the resource file.
+            if let plistURL = Bundle.module.url(forResource: "Resources/Info", withExtension: "plist"),
+               let plistData = try? Data(contentsOf: plistURL),
+               let plistDict = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any] {
+                version = plistDict["CFBundleShortVersionString"] as? String
+            }
+        }
+        let resolvedVersion = version ?? "Unknown"
         
         return BuildInfo(
             buildId: creativeNames.buildName,  // Use build name as build ID
-            version: version,
+            version: resolvedVersion,
             buildDate: DateFormatter.buildDateFormatter.string(from: Date()),
             processId: getpid(),
             buildName: creativeNames.buildName,
