@@ -727,7 +727,7 @@ def create_dmg_professional(app_path):
             print(f"🎭 Using enhanced DMG name: {dmg_name}")
         except Exception as e:
             print(f"⚠️  Could not get codename, using standard naming: {e}")
-            dmg_name = f"{APP_NAME}-{version}.dmg"
+            dmg_name = "Potter.dmg"
         # Get the correct dist directory from app_path
         app_dir = os.path.dirname(app_path)  # Get dist or dist-appstore
         dmg_path = f"{app_dir}/{dmg_name}"

@@ -263,10 +263,8 @@ def sanitize_for_filename(name):
     return sanitized
 
 def get_enhanced_dmg_name(version):
-    """Get DMG filename with version codename"""
-    codename = get_current_codename()
-    sanitized_codename = sanitize_for_filename(codename)
-    return f"Potter-{version}-{sanitized_codename}.dmg"
+    """Get DMG filename — always Potter.dmg for stable download URLs"""
+    return "Potter.dmg"
 
 def get_enhanced_release_title(version):
     """Get GitHub release title with version codename"""
