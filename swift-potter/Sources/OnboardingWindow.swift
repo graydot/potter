@@ -25,9 +25,9 @@ class OnboardingWindowController: NSWindowController {
     }
     
     func showOnboarding() {
-        // Reset to first step when reopened
+        // Replace with a fresh view so @State resets to step 0
         if let hostingView = window?.contentView as? NSHostingView<OnboardingView> {
-            hostingView.rootView.resetToFirstStep()
+            hostingView.rootView = OnboardingView()
         }
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -193,8 +193,5 @@ struct OnboardingView: View {
         // Open settings to start API key setup
         ModernSettingsWindowController.shared.showWindow(nil)
     }
-    
-    func resetToFirstStep() {
-        currentStep = 0
-    }
+
 }
