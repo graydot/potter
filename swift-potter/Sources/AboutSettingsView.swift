@@ -7,26 +7,30 @@ struct AboutSettingsView: View {
     @StateObject private var settings = PotterSettings()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("About")
-                .font(.title)
-                .fontWeight(.semibold)
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("About")
+                    .font(.title)
+                    .fontWeight(.semibold)
 
-            buildInfoSection
-            environmentSection
-            privacyWarningSection
+                buildInfoSection
+                environmentSection
+                privacyWarningSection
 
-            HStack(alignment: .top, spacing: 20) {
-                aboutLinksSection
-                Spacer()
-                dataManagementSection
-                    .frame(maxWidth: 200)
+                HStack(alignment: .top, spacing: 20) {
+                    aboutLinksSection
+                    Spacer()
+                    dataManagementSection
+                        .frame(maxWidth: 200)
+                }
+
+                helpSection
+
+                Color.clear
+                    .frame(height: 50)
             }
-
-            helpSection
-
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Sections
