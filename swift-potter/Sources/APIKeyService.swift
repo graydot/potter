@@ -192,8 +192,12 @@ class APIKeyService: ObservableObject, KeyValidationService {
                 do {
                     try await registry.refreshModels(for: provider, apiKey: key)
                     let freshModels = await registry.getModels(for: provider)
-                    modelId = freshModels.first?.id
-                    PotterLogger.shared.info("api_key", "📋 Fetched \(freshModels.count) models from \(provider.displayName)")
+                    // Pick the cheapest current-gen model for validation.
+                    // Filter out deprecated models (e.g. claude-3-5-*) to prefer latest.
+                    let preferredModel = freshModels.first(where: { !$0.id.contains("claude-3-5-") && !$0.id.contains("claude-3-") })
+                        ?? freshModels.first
+                    modelId = preferredModel?.id
+                    PotterLogger.shared.info("api_key", "📋 Fetched \(freshModels.count) models from \(provider.displayName), using \(modelId ?? "none") for validation")
                 } catch {
                     PotterLogger.shared.warning("api_key", "⚠️ Could not fetch models, falling back to static list: \(error.localizedDescription)")
                     modelId = provider.models.first?.id
