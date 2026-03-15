@@ -145,13 +145,6 @@ class PotterCore {
             return
         }
 
-        // Guard against our own "no text" sentinel appearing in the clipboard.
-        if trimmedText == "No text was in clipboard" {
-            PotterLogger.shared.warning("text_processor", "⚠️ Ignoring our own 'no text' message")
-            iconDelegate?.setErrorState(message: "Still no text in clipboard")
-            return
-        }
-
         let sourceLabel: String
         if case .clipboard = inputSource { sourceLabel = "clipboard" } else { sourceLabel = "selection" }
         PotterLogger.shared.info("text_processor", "📥 Input source: \(sourceLabel) (\(trimmedText.count) chars)")
@@ -170,10 +163,7 @@ class PotterCore {
     @MainActor
     private func handleNoTextAvailable() {
         isProcessing = false
-        PotterLogger.shared.warning("text_processor", "⚠️ No text found in selection or clipboard")
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString("No text was in clipboard", forType: .string)
+        PotterLogger.shared.warning("text_processor", "⚠️ No text available in clipboard or selection")
         iconDelegate?.setErrorState(message: "No text in clipboard")
     }
     
