@@ -192,9 +192,10 @@ class APIKeyService: ObservableObject, KeyValidationService {
                 do {
                     try await registry.refreshModels(for: provider, apiKey: key)
                     let freshModels = await registry.getModels(for: provider)
-                    // Pick the cheapest current-gen model for validation.
-                    // Filter out deprecated models (e.g. claude-3-5-*) to prefer latest.
-                    let preferredModel = freshModels.first(where: { !$0.id.contains("claude-3-5-") && !$0.id.contains("claude-3-") })
+                    // Prefer a model from our known static list (verified to work).
+                    // This avoids picking old/deprecated models that the API still returns.
+                    let knownIds = Set(provider.models.map { $0.id })
+                    let preferredModel = freshModels.first(where: { knownIds.contains($0.id) })
                         ?? freshModels.first
                     modelId = preferredModel?.id
                     PotterLogger.shared.info("api_key", "📋 Fetched \(freshModels.count) models from \(provider.displayName), using \(modelId ?? "none") for validation")
