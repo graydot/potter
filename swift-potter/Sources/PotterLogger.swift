@@ -9,9 +9,12 @@ class PotterLogger: ObservableObject {
     private let maxLogEntries = 500
     private static let subsystem = "com.potter.app"
     private var loggers: [String: Logger] = [:]
+    private let loggersLock = NSLock()
 
     /// Returns a cached os.Logger for the given component category.
     private func osLogger(for component: String) -> Logger {
+        loggersLock.lock()
+        defer { loggersLock.unlock() }
         if let cached = loggers[component] { return cached }
         let logger = Logger(subsystem: Self.subsystem, category: component)
         loggers[component] = logger
