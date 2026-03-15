@@ -174,7 +174,7 @@ class APIKeyService: ObservableObject, KeyValidationService {
     
     private func performValidation(key: String, provider: LLMProvider, model: LLMModel?) async -> ValidationResult {
         PotterLogger.shared.info("api_key", "🔍 Validating API key for \(provider.displayName)")
-        
+
         // Create appropriate LLM client for validation
         let client: LLMClient
         switch provider {
@@ -185,16 +185,33 @@ class APIKeyService: ObservableObject, KeyValidationService {
         case .google:
             client = GoogleClient(apiKey: key)
         }
-        
+
         do {
+            // Fetch live models first so we never rely on hardcoded model IDs
+            let registry = await ModelRegistry.shared
+            var modelId = model?.id
+            if modelId == nil {
+                do {
+                    try await registry.refreshModels(for: provider, apiKey: key)
+                    let freshModels = await registry.getModels(for: provider)
+                    modelId = freshModels.first?.id
+                    PotterLogger.shared.info("api_key", "📋 Fetched \(freshModels.count) models from \(provider.displayName)")
+                } catch {
+                    PotterLogger.shared.warning("api_key", "⚠️ Could not fetch models, falling back to static list: \(error.localizedDescription)")
+                    modelId = provider.models.first?.id
+                }
+            }
+
+            guard let validModelId = modelId, !validModelId.isEmpty else {
+                return .failure(.networkError(PotterError.configuration(.missingConfiguration(key: "No models available for \(provider.displayName)"))))
+            }
+
             // Perform a simple validation request
             let testPrompt = "Hello"
             let testMessage = "Say 'API key is valid' if you can read this."
-            
-            // Use the selected model if provided, otherwise use the first model as fallback
-            let modelId = model?.id ?? provider.models.first?.id ?? ""
-            PotterLogger.shared.debug("api_key", "🎯 Using model for validation: \(modelId) (selected: \(model?.name ?? "none"), provider: \(provider.displayName))")
-            _ = try await client.processText(testPrompt, prompt: testMessage, model: modelId)
+
+            PotterLogger.shared.debug("api_key", "🎯 Using model for validation: \(validModelId) (selected: \(model?.name ?? "fetched"), provider: \(provider.displayName))")
+            _ = try await client.processText(testPrompt, prompt: testMessage, model: validModelId)
             
             PotterLogger.shared.info("api_key", "✅ API key validation successful for \(provider.displayName)")
             return .success

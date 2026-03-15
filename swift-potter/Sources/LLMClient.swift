@@ -40,7 +40,7 @@ struct LLMModel: Identifiable, Hashable, Codable {
     ]
 
     static let anthropicModels = [
-        LLMModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic, tier: .fast),
+        LLMModel(id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", description: "Fast and efficient, perfect for quick tasks", provider: .anthropic, tier: .fast),
         LLMModel(id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "Excellent for creative writing and complex analysis", provider: .anthropic, tier: .standard),
         LLMModel(id: "claude-opus-4-20250514", name: "Claude Opus 4", description: "Most capable model for demanding tasks", provider: .anthropic, tier: .thinking),
     ]

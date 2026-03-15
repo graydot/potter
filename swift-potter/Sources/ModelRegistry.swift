@@ -16,7 +16,7 @@ class ModelRegistry: ObservableObject {
     private let session: URLSession
 
     /// Injectable for testing. Production uses shared singleton.
-    init(cacheTTL: TimeInterval = 86400, cacheDirectory: URL? = nil, session: URLSession = .shared) {
+    init(cacheTTL: TimeInterval = 604800, cacheDirectory: URL? = nil, session: URLSession = .shared) {
         self.cacheTTL = cacheTTL
         self.session = session
 
