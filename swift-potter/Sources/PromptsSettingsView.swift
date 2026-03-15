@@ -226,7 +226,12 @@ struct PromptsSettingsView: View {
 
         switch result {
         case .success:
-            if wasEditingSelectedPrompt {
+            if editIndex == nil {
+                // New prompt: set it as the current prompt so it's immediately usable
+                UserDefaults.standard.set(name, forKey: UserDefaultsKeys.currentPrompt)
+                promptService.setCurrentPrompt(name)
+                PotterLogger.shared.info("settings", "📌 Set newly created prompt as current: \(name)")
+            } else if wasEditingSelectedPrompt {
                 UserDefaults.standard.set(name, forKey: UserDefaultsKeys.currentPrompt)
                 PotterLogger.shared.info("settings", "🔄 Updated global selection to renamed prompt: \(name)")
             }
