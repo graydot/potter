@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Potter.ai - Rewrite Any Text with AI from Your Mac Menu Bar</title>
+    <meta name="description" content="macOS menu bar app that rewrites your text with AI. Select text, press Cmd+Shift+9, get polished results in-place. Works with OpenAI, Anthropic, and Gemini. Open source.">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Potter.ai - Rewrite Any Text with AI from Your Mac Menu Bar">
+    <meta property="og:description" content="Select text anywhere on macOS, press Cmd+Shift+9, get AI-rewritten text back in-place. Works with OpenAI, Anthropic, and Gemini. Open source, bring your own API key.">
+    <meta property="og:image" content="https://graydot.ai/images/favicon.png">
+    <meta property="og:url" content="https://potter.graydot.ai">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Potter.ai - Rewrite Any Text with AI from Your Mac Menu Bar">
+    <meta name="twitter:description" content="Select text, Cmd+Shift+9, done. AI-powered text rewriting from your macOS menu bar. Open source, bring your own API key.">
+    <meta name="twitter:image" content="https://graydot.ai/images/favicon.png">
+
+    <style>
+        /* Base styles */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #2e2e2e;
+            color: #c5c5c5;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .content {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        a { color: #007acc; }
+        a:focus, button:focus { outline: 2px solid #007acc; outline-offset: 2px; }
+
+        .sr-only {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+
+        /* Terminal box */
+        .terminal-box {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            color: #333;
+        }
+
+        .menu-bar {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            background-color: #f6f6f6;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 5px;
+            opacity: 0.7;
+        }
+
+        .menu-bar .icon { width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; }
+        .close { background-color: #ff5f56; }
+        .minimize { background-color: #ffbd2e; }
+        .maximize { background-color: #27c93f; }
+
+        .terminal-command { margin: 10px 0; }
+        .hostname { color: #b0b0b0; }
+        .command { color: #b0b0b0; }
+        .command-output { font-weight: bold; font-size: 1.2em; color: #005f99; }
+
+        /* Potter hero */
+        .potter-hero {
+            background: linear-gradient(135deg, #40916c 0%, #2d6a4f 100%);
+            padding: 60px 20px;
+            text-align: center;
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .potter-hero h1 { font-size: 3rem; margin-bottom: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .potter-hero p { font-size: 1.2rem; margin-bottom: 30px; opacity: 0.9; max-width: 600px; margin-left: auto; margin-right: auto; }
+
+        /* Simple 3-step flow */
+        .simple-flow { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 30px 0; flex-wrap: wrap; }
+        .flow-step { display: flex; flex-direction: column; align-items: center; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; min-width: 100px; transition: all 0.3s ease; opacity: 0.8; }
+        .flow-step:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+        .flow-icon { font-size: 1.8rem; margin-bottom: 8px; opacity: 0.9; }
+        .flow-title { font-size: 1rem; font-weight: 600; margin-bottom: 3px; }
+        .flow-subtitle { font-size: 0.8rem; opacity: 0.7; text-align: center; }
+        .flow-arrow { font-size: 1.5rem; opacity: 0.4; }
+
+        /* Examples / carousel */
+        .examples-section { max-width: 800px; margin: 40px auto; padding: 20px; }
+        .progress-dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: all 0.3s ease; }
+        .dot.active { background: rgba(255,255,255,0.8); transform: scale(1.2); }
+
+        .example-container { background: rgba(255,255,255,0.1); border-radius: 15px; padding: 0; margin-bottom: 20px; overflow: hidden; position: relative; height: 280px; }
+        .carousel-wrapper { display: flex; width: 400%; height: 100%; transition: transform 0.5s ease-in-out; }
+        .carousel-slide { width: 25%; flex-shrink: 0; padding: 25px; box-sizing: border-box; }
+        .example-type { text-align: center; margin-bottom: 25px; font-size: 1.1rem; font-weight: 600; opacity: 0.9; }
+
+        .before-after { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; }
+        .text-box { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 20px; position: relative; transition: all 0.3s ease; min-height: 120px; display: flex; flex-direction: column; }
+        .text-box:hover { background: rgba(0,0,0,0.25); }
+        .text-label { position: absolute; top: -10px; left: 15px; background: #2d6a4f; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+        .after-box .text-label { background: #28a745; }
+        .text-content { margin-top: 10px; line-height: 1.5; font-size: 0.95rem; flex: 1; display: flex; align-items: center; }
+
+        .magic-arrow { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .magic-icon { font-size: 2rem; animation: sparkle 2s ease-in-out infinite; }
+        .magic-text { font-size: 0.8rem; font-weight: 600; opacity: 0.8; }
+        @keyframes sparkle { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.1) rotate(5deg); } }
+
+        .copy-button { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.2); border: none; border-radius: 6px; color: white; padding: 6px 10px; font-size: 0.7rem; cursor: pointer; opacity: 0; transition: all 0.3s ease; }
+        .text-box:hover .copy-button { opacity: 1; }
+        .copy-button:hover { background: rgba(255,255,255,0.3); }
+        .copy-button.copied { background: #28a745; opacity: 1; }
+
+        /* Download section */
+        .mac-cta-container { max-width: 600px; margin: 0 auto; }
+        .mac-visual { margin-bottom: 30px; padding: 25px; background: rgba(255,255,255,0.1); border-radius: 12px; backdrop-filter: blur(10px); }
+        .mac-text { text-align: left; }
+        .mac-title { font-size: 1.4rem; font-weight: bold; margin-bottom: 5px; color: white; }
+        .mac-subtitle { font-size: 1rem; opacity: 0.9; color: white; margin-bottom: 20px; }
+
+        .download-buttons { display: flex; gap: 15px; justify-content: flex-start; flex-wrap: wrap; }
+        .download-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #24292f; border: 2px solid #30363d; border-radius: 8px; color: #f6f8fa; text-decoration: none; font-weight: 600; transition: all 0.3s ease; }
+        .download-btn:hover { background: #30363d; border-color: #484f58; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .download-btn.primary { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border-color: #28a745; color: white; font-size: 1.1rem; padding: 14px 28px; }
+        .download-btn.primary:hover { background: linear-gradient(135deg, #218838 0%, #1ea085 100%); border-color: #218838; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(40,167,69,0.3); }
+
+        /* Features grid */
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 20px 0; }
+        .feature-item { text-align: center; padding: 20px; background: rgba(64,145,108,0.1); border-radius: 8px; border: 2px solid rgba(64,145,108,0.4); }
+        .feature-icon { font-size: 2.5rem; margin-bottom: 15px; display: block; }
+        .feature-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; color: #2d6a4f; }
+        .feature-description { line-height: 1.5; opacity: 0.9; }
+
+        /* Demo grid */
+        .demo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; text-align: center; }
+        .demo-step { padding: 20px; background: rgba(45,106,79,0.1); border-radius: 8px; border: 2px solid rgba(45,106,79,0.4); }
+        .step-number { display: inline-block; width: 40px; height: 40px; background: #2d6a4f; color: white; border-radius: 50%; line-height: 40px; font-weight: bold; margin-bottom: 15px; }
+        .step-title { font-weight: bold; margin-bottom: 10px; color: #2d6a4f; }
+
+        /* Requirements */
+        .requirements-list { list-style: none; padding: 0; }
+        .requirements-list li { padding: 8px 0; border-bottom: 2px solid rgba(64,145,108,0.3); display: flex; align-items: center; gap: 10px; }
+        .requirements-list li:last-child { border-bottom: none; }
+        .check-icon { color: #28a745; font-weight: bold; }
+
+        /* Success message */
+        .success-message { background: rgba(40,167,69,0.1); border: 2px solid #28a745; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; color: #28a745; font-weight: bold; }
+
+        /* Footer */
+        .site-footer { text-align: center; padding: 30px 20px; margin-top: 40px; opacity: 0.6; font-size: 0.9rem; }
+        .site-footer a { color: #c5c5c5; text-decoration: none; }
+        .site-footer a:hover { color: #fff; text-decoration: underline; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .potter-hero h1 { font-size: 2.2rem; }
+            .potter-hero p { font-size: 1.1rem; }
+            .simple-flow { gap: 15px; }
+            .flow-step { min-width: 100px; padding: 15px; }
+            .flow-icon { font-size: 2rem; }
+            .before-after { grid-template-columns: 1fr; gap: 15px; }
+            .magic-arrow { transform: rotate(90deg); }
+            .text-box { min-height: 100px; }
+            .example-container { height: 240px; padding: 0; }
+            .carousel-slide { padding: 20px; }
+            .progress-dots { gap: 6px; }
+            .dot { width: 6px; height: 6px; }
+            .mac-visual { padding: 20px; }
+            .mac-title { font-size: 1.2rem; }
+            .mac-subtitle { font-size: 0.9rem; }
+            .features-grid, .demo-grid { grid-template-columns: 1fr; }
+            .download-buttons { flex-direction: column; align-items: flex-start; }
+            .download-btn.primary { font-size: 1rem; padding: 12px 24px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="content">
+
+<div class="potter-hero">
+    <h1>Potter.ai</h1>
+    <p>Your macOS menu bar's secret weapon for perfect text. Select, hotkey, done &mdash; no browser tabs, no copy-paste dance. Potter shapes your words like clay into something worth reading.</p>
+
+    <!-- Simple 3-step flow -->
+    <div class="simple-flow">
+        <div class="flow-step">
+            <div class="flow-icon">📋</div>
+            <div class="flow-title">Select</div>
+            <div class="flow-subtitle">Highlight any text</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+            <div class="flow-icon">✨</div>
+            <div class="flow-title">Cmd+Shift+9</div>
+            <div class="flow-subtitle">AI rewrites it</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+            <div class="flow-icon">✅</div>
+            <div class="flow-title">Done</div>
+            <div class="flow-subtitle">Text replaced in-place</div>
+        </div>
+    </div>
+
+    <!-- Interactive examples section -->
+    <div class="examples-section">
+        <div class="progress-dots">
+            <div class="dot active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+
+        <div class="example-container">
+            <div class="carousel-wrapper" id="carousel-wrapper">
+                <div class="carousel-slide">
+                    <div class="example-type">Slack Polish</div>
+                    <div class="before-after">
+                        <div class="text-box before-box">
+                            <div class="text-label">Before</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">hey team can someone help me figure out this bug? its super annoying and breaking everything lol</div>
+                        </div>
+                        <div class="magic-arrow">
+                            <div class="magic-icon">✨</div>
+                            <div class="magic-text">AI Magic</div>
+                        </div>
+                        <div class="text-box after-box">
+                            <div class="text-label">After</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">Hi team! Could someone assist with debugging this issue? It's causing significant problems in the current build. Thanks!</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-slide">
+                    <div class="example-type">Social Media Post</div>
+                    <div class="before-after">
+                        <div class="text-box before-box">
+                            <div class="text-label">Before</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">omg just had the best coffee ever!!! this place is sooo good you guys have to try it!! #coffee #amazing</div>
+                        </div>
+                        <div class="magic-arrow">
+                            <div class="magic-icon">✨</div>
+                            <div class="magic-text">AI Magic</div>
+                        </div>
+                        <div class="text-box after-box">
+                            <div class="text-label">After</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">Just discovered an incredible coffee shop! The quality is exceptional and I highly recommend checking it out. #CoffeeLovers #Recommendation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-slide">
+                    <div class="example-type">Formal Writing</div>
+                    <div class="before-after">
+                        <div class="text-box before-box">
+                            <div class="text-label">Before</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">i think we should maybe consider changing our approach because the current one isnt working great and customers are complaining</div>
+                        </div>
+                        <div class="magic-arrow">
+                            <div class="magic-icon">✨</div>
+                            <div class="magic-text">AI Magic</div>
+                        </div>
+                        <div class="text-box after-box">
+                            <div class="text-label">After</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">I recommend we evaluate our current approach, as it appears to be underperforming and generating customer concerns that warrant our immediate attention.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-slide">
+                    <div class="example-type">Creative Writing</div>
+                    <div class="before-after">
+                        <div class="text-box before-box">
+                            <div class="text-label">Before</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">the sun was bright and it was a nice day. birds were singing and everything looked pretty good.</div>
+                        </div>
+                        <div class="magic-arrow">
+                            <div class="magic-icon">✨</div>
+                            <div class="magic-text">AI Magic</div>
+                        </div>
+                        <div class="text-box after-box">
+                            <div class="text-label">After</div>
+                            <button class="copy-button" onclick="copyText(this)">📋 Copy</button>
+                            <div class="text-content">Golden sunlight painted the morning sky as melodious birdsong filled the air, creating a symphony of natural beauty that lifted the spirits of all who witnessed it.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mac-cta-container">
+        <div class="mac-visual">
+            <div class="mac-text">
+                <div class="mac-title">For macOS</div>
+                <div class="mac-subtitle">Works on Intel & Apple Silicon</div>
+
+                <div class="download-buttons">
+                    <a href="https://github.com/graydot/potter/releases/latest/download/Potter.dmg" target="_blank" rel="noopener noreferrer" class="download-btn primary mac-download" id="potter-download-link">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M13 5v6h1.17L12 13.17 9.83 11H11V5h2m2-2H9v6H5l7 7 7-7h-4V3zm4 15H5v2h14v-2z"/>
+                        </svg>
+                        Download Potter.ai.app
+                    </a>
+                    <a href="https://github.com/graydot/potter" target="_blank" rel="noopener noreferrer" class="download-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5 0-.23-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A10.013 10.013 0 0022 12c0-5.52-4.48-10-10-10z"/>
+                        </svg>
+                        View Source
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="terminal-box" aria-labelledby="features-heading">
+    <div class="menu-bar" role="presentation">
+        <div class="icon close" aria-hidden="true"></div>
+        <div class="icon minimize" aria-hidden="true"></div>
+        <div class="icon maximize" aria-hidden="true"></div>
+    </div>
+    <h2 id="features-heading" class="sr-only">Features</h2>
+    <p class="terminal-command"><span class="hostname">potter.ai</span>:~$ <span class="command">cat <span class="command-output">Features</span></span></p>
+
+    <div class="features-grid">
+        <div class="feature-item">
+            <span class="feature-icon">⚡</span>
+            <h3 class="feature-title">One Hotkey, Zero Friction</h3>
+            <p class="feature-description">Cmd+Shift+9 from any app. Your selected text gets rewritten in-place &mdash; no clipboard gymnastics, no browser tabs.</p>
+        </div>
+        <div class="feature-item">
+            <span class="feature-icon">🎯</span>
+            <h3 class="feature-title">Lives in Your Menu Bar</h3>
+            <p class="feature-description">A tiny icon that stays out of your way until you need it. Switch prompts, check status, or configure &mdash; all from the menu bar.</p>
+        </div>
+        <div class="feature-item">
+            <span class="feature-icon">🧠</span>
+            <h3 class="feature-title">Bring Your Own AI</h3>
+            <p class="feature-description">Works with OpenAI, Anthropic, and Google Gemini. Use your own API key &mdash; no middleman, no subscription, no data harvesting.</p>
+        </div>
+        <div class="feature-item">
+            <span class="feature-icon">⚙️</span>
+            <h3 class="feature-title">Custom Prompts</h3>
+            <p class="feature-description">Create your own prompts for different situations: polish Slack messages, formalize emails, simplify technical writing, or anything you can describe.</p>
+        </div>
+    </div>
+</section>
+
+<section class="terminal-box" aria-labelledby="demo-heading">
+    <div class="menu-bar" role="presentation">
+        <div class="icon close" aria-hidden="true"></div>
+        <div class="icon minimize" aria-hidden="true"></div>
+        <div class="icon maximize" aria-hidden="true"></div>
+    </div>
+    <h2 id="demo-heading" class="sr-only">How It Works</h2>
+    <p class="terminal-command"><span class="hostname">potter.ai</span>:~$ <span class="command">cat <span class="command-output">How It Works</span></span></p>
+
+    <p style="margin-bottom: 20px;">No workflow changes required. Potter works wherever you type:</p>
+
+    <div class="demo-grid">
+        <div class="demo-step">
+            <div class="step-number">1</div>
+            <div class="step-title">Select</div>
+            <p>Highlight text in any app &mdash; Slack, Mail, Notes, your IDE, anywhere</p>
+        </div>
+        <div class="demo-step">
+            <div class="step-number">2</div>
+            <div class="step-title">Hotkey</div>
+            <p>Press Cmd+Shift+9. Potter captures your text, sends it to your chosen AI model, and waits</p>
+        </div>
+        <div class="demo-step">
+            <div class="step-number">3</div>
+            <div class="step-title">Replaced</div>
+            <p>The rewritten text is pasted back automatically. Your original is preserved in clipboard history</p>
+        </div>
+    </div>
+</section>
+
+<section class="terminal-box" aria-labelledby="requirements-heading">
+    <div class="menu-bar" role="presentation">
+        <div class="icon close" aria-hidden="true"></div>
+        <div class="icon minimize" aria-hidden="true"></div>
+        <div class="icon maximize" aria-hidden="true"></div>
+    </div>
+    <h2 id="requirements-heading" class="sr-only">System Requirements</h2>
+    <p class="terminal-command"><span class="hostname">potter.ai</span>:~$ <span class="command">cat <span class="command-output">System Requirements</span></span></p>
+
+    <ul class="requirements-list">
+        <li><span class="check-icon">✓</span> macOS 13.0 (Ventura) or later</li>
+        <li><span class="check-icon">✓</span> Universal binary &mdash; Intel and Apple Silicon</li>
+        <li><span class="check-icon">✓</span> An API key from OpenAI, Anthropic, or Google</li>
+        <li><span class="check-icon">✓</span> Accessibility permission (one-time setup for text capture)</li>
+    </ul>
+</section>
+
+<section class="terminal-box" id="signup" aria-labelledby="signup-heading">
+    <div class="menu-bar" role="presentation">
+        <div class="icon close" aria-hidden="true"></div>
+        <div class="icon minimize" aria-hidden="true"></div>
+        <div class="icon maximize" aria-hidden="true"></div>
+    </div>
+    <h2 id="signup-heading" class="sr-only">Join Mailing List</h2>
+    <p class="terminal-command"><span class="hostname">potter.ai</span>:~$ <span class="command">cat <span class="command-output">Join Mailing List</span></span></p>
+
+    <div style="text-align: center; margin: 30px 0;">
+        <h3 style="color: #2d6a4f; margin-bottom: 15px; font-size: 1.8rem;">Stay in the Loop</h3>
+        <p style="margin-bottom: 25px; font-size: 1.1rem;">Get notified about new features and releases. Low-volume, no spam.</p>
+
+        <form action="https://formspree.io/f/mnndyylp" method="POST" style="max-width: 400px; margin: 0 auto;">
+            <div style="margin-bottom: 20px;">
+                <input type="text" name="name" placeholder="Your Name (optional)"
+                    style="width: 100%; padding: 12px 16px; border: 2px solid #2d6a4f; border-radius: 8px; font-size: 16px; background: rgba(45,106,79,0.05); color: inherit; font-family: 'Courier New', monospace;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <input type="email" name="email" placeholder="your@email.com" required
+                    style="width: 100%; padding: 12px 16px; border: 2px solid #2d6a4f; border-radius: 8px; font-size: 16px; background: rgba(45,106,79,0.05); color: inherit; font-family: 'Courier New', monospace;">
+            </div>
+            <input type="hidden" name="_subject" value="New Potter.ai Mailing List Signup">
+            <input type="hidden" name="_next" value="https://potter.graydot.ai?success=true">
+            <input type="hidden" name="_replyto" value="email">
+
+            <button type="submit"
+                style="width: 100%; padding: 12px 24px; background: #28a745; border: 2px solid #28a745; border-radius: 8px; color: white; font-weight: 600; font-size: 16px; cursor: pointer; transition: all 0.3s ease; font-family: 'Courier New', monospace;"
+                onmouseover="this.style.background='#218838'; this.style.borderColor='#218838';"
+                onmouseout="this.style.background='#28a745'; this.style.borderColor='#28a745';">
+                🚀 Join the List
+            </button>
+        </form>
+
+        <p style="margin-top: 20px; font-size: 0.9rem; opacity: 0.8;">
+            We'll only send updates about Potter.ai. No spam, unsubscribe anytime.
+        </p>
+    </div>
+</section>
+
+<footer class="site-footer">
+    <p>by <a href="https://graydot.ai">graydot.ai</a></p>
+</footer>
+
+</div>
+
+<script>
+// Auto-cycling carousel
+document.addEventListener('DOMContentLoaded', function() {
+    const carouselWrapper = document.getElementById('carousel-wrapper');
+    const dots = document.querySelectorAll('.dot');
+    const totalSlides = 4;
+    let currentIndex = 0;
+    let cycleInterval;
+
+    function updateSlide(index) {
+        carouselWrapper.style.transform = 'translateX(' + -(index * 25) + '%)';
+        dots.forEach(function(dot, i) { dot.classList.toggle('active', i === index); });
+    }
+
+    function startCycle() {
+        cycleInterval = setInterval(function() {
+            currentIndex = (currentIndex + 1) % totalSlides;
+            updateSlide(currentIndex);
+        }, 4000);
+    }
+
+    function stopCycle() { clearInterval(cycleInterval); }
+
+    startCycle();
+
+    var examplesSection = document.querySelector('.examples-section');
+    examplesSection.addEventListener('mouseenter', stopCycle);
+    examplesSection.addEventListener('mouseleave', startCycle);
+
+    // Show success message if redirected with success parameter
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('success') === 'true') {
+        var form = document.querySelector('form');
+        var successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.innerHTML = '✅ Thank you! You\'ve been added to the mailing list. We\'ll keep you updated on Potter.ai\'s progress.';
+        form.parentNode.insertBefore(successDiv, form);
+        form.style.display = 'none';
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+});
+
+// Copy to clipboard
+function copyText(button) {
+    var textContent = button.parentElement.querySelector('.text-content').textContent.trim();
+    navigator.clipboard.writeText(textContent).then(function() {
+        button.textContent = '✅ Copied!';
+        button.classList.add('copied');
+        setTimeout(function() { button.textContent = '📋 Copy'; button.classList.remove('copied'); }, 2000);
+    }).catch(function() {
+        var textArea = document.createElement('textarea');
+        textArea.value = textContent;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        button.textContent = '✅ Copied!';
+        button.classList.add('copied');
+        setTimeout(function() { button.textContent = '📋 Copy'; button.classList.remove('copied'); }, 2000);
+    });
+}
+</script>
+</body>
+</html>
