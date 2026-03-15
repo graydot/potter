@@ -147,5 +147,25 @@ This release brings continued improvements to Potter's AI-powered text processin
       <pubDate>Sun, 15 Mar 2026 07:45:24 </pubDate>
       <enclosure url="https://github.com/graydot/potter/releases/download/v2.2.2/Potter.dmg" length="2081027" type="application/octet-stream" ns0:version="2.2.2" ns0:shortVersionString="2.2.2" ns0:edSignature="AqBYiK2F0B0IC5niPGhACZtsE6eXyDDrB1qHMX+SuiznVrHikqfaCI79kf0X/l/ByWc3dfKzGmKfcJ4V+hfgAQ==" />
     </item>
+    <item>
+      <title>Potter 2.2.3</title>
+      <description>&lt;![CDATA[## Potter 2.2.3 - Silicon Dreams
+
+This release brings continued improvements to Potter's AI-powered text processing capabilities.
+
+### What's New
+- Performance improvements and optimizations
+- Enhanced stability and reliability
+- Bug fixes and user experience improvements
+
+### Technical Updates
+- Updated dependencies and security patches
+- Code quality improvements
+- Enhanced error handling
+
+*Thank you for using Potter! Your feedback helps make each release better.*]]&gt;</description>
+      <pubDate>Sun, 15 Mar 2026 07:59:52 </pubDate>
+      <enclosure url="https://github.com/graydot/potter/releases/download/v2.2.3/Potter.dmg" length="2085455" type="application/octet-stream" ns0:version="2.2.3" ns0:shortVersionString="2.2.3" ns0:edSignature="dAJ9qzLZJCmuVyeDwL3LoPr3Lo5Wv+wXjDYxO0sEW/XXJQ8qauYbj1ez31Rhgw/2/odKLFSRjlHEEjViDHqIBA==" />
+    </item>
   </channel>
 </rss>
