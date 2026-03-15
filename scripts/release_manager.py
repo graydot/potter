@@ -62,7 +62,7 @@ class CodenameManager:
             from codename_utils import get_enhanced_dmg_name
             return get_enhanced_dmg_name(version)
         except Exception as e:
-            return f"Potter-{version}.dmg"
+            return "Potter.dmg"
 
 
 class ReleaseNotesManager:
@@ -443,79 +443,6 @@ class GitHubManager:
             return False
 
 
-class WebsiteUpdater:
-    """Handles Potter webpage updates"""
-    
-    def __init__(self, config: ReleaseConfig):
-        self.config = config
-        self.codename_manager = CodenameManager()
-    
-    def update_potter_webpage(self, version: str) -> bool:
-        """Update the Potter webpage download link"""
-        print("\n📱 Updating Potter webpage...")
-        
-        webpage_path = os.path.expanduser("~/Workspace/graydot.github.io/products/potter.html")
-        blog_repo_path = os.path.expanduser("~/Workspace/graydot.github.io")
-        
-        if not os.path.exists(webpage_path):
-            print(f"⚠️  Potter webpage not found at {webpage_path}")
-            return False
-        
-        if not os.path.exists(blog_repo_path):
-            print(f"⚠️  Blog repo not found at {blog_repo_path}")
-            return False
-        
-        try:
-            with open(webpage_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            dmg_name = self.codename_manager.get_enhanced_dmg_name(version)
-            download_url = f"https://github.com/graydot/potter/releases/latest/download/{dmg_name}"
-            
-            # Update download link patterns
-            pattern1 = r'(<a[^>]*href=")[^"]*("[^>]*id="potter-download-link")'
-            pattern2 = r'(<a[^>]*id="potter-download-link"[^>]*href=")[^"]*(")'
-            
-            updated_content = re.sub(pattern1, f'\\1{download_url}\\2', content)
-            if updated_content == content:
-                updated_content = re.sub(pattern2, f'\\1{download_url}\\2', content)
-            
-            if updated_content == content:
-                print("⚠️  No potter-download-link found to update")
-                return False
-            
-            with open(webpage_path, 'w', encoding='utf-8') as f:
-                f.write(updated_content)
-            
-            print(f"✅ Updated Potter webpage download link to {dmg_name}")
-            
-            # Commit and push blog repo
-            return self._commit_blog_changes(blog_repo_path, version)
-            
-        except Exception as e:
-            print(f"❌ Failed to update Potter webpage: {e}")
-            return False
-    
-    def _commit_blog_changes(self, blog_repo_path: str, version: str) -> bool:
-        """Commit and push blog repo changes"""
-        try:
-            original_cwd = os.getcwd()
-            os.chdir(blog_repo_path)
-            
-            subprocess.run(['git', 'add', 'products/potter.html'], check=True)
-            commit_msg = f"Update Potter download link to v{version}"
-            subprocess.run(['git', 'commit', '-m', commit_msg], check=True)
-            subprocess.run(['git', 'push'], check=True)
-            
-            print("✅ Potter webpage changes pushed to blog repo")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to commit/push blog changes: {e}")
-            return False
-        finally:
-            os.chdir(original_cwd)
-
-
 class ReleaseManager:
     """Main release manager orchestrating the entire process"""
     
@@ -526,7 +453,6 @@ class ReleaseManager:
         self.appcast_manager = AppcastManager(self.config)
         self.git_manager = GitManager(self.config)
         self.github_manager = GitHubManager(self.config)
-        self.website_updater = WebsiteUpdater(self.config)
         self.codename_manager = CodenameManager()
     
     def run_release(self, args) -> bool:
@@ -565,9 +491,6 @@ class ReleaseManager:
             if not self.git_manager.prompt_git_push():
                 self._handle_no_push(new_version)
                 return False
-            
-            # Update website
-            self.website_updater.update_potter_webpage(new_version)
             
             self._print_success_summary(new_version, dmg_path, appcast_path)
             return True
@@ -631,9 +554,7 @@ class ReleaseManager:
         print("🚨 Release was not completed because changes were not pushed to remote.")
         print("📋 To complete the release manually:")
         print("1. Push Potter repo: git push && git push --tags")
-        print("2. Push blog repo changes (if any)")
-        print("3. Verify the GitHub release was created")
-        print("4. Update Potter webpage download link manually")
+        print("2. Verify the GitHub release was created")
     
     def _print_success_summary(self, version: str, dmg_path: str, appcast_path: str):
         """Print success summary"""
@@ -647,8 +568,7 @@ class ReleaseManager:
         print("📋 Next steps:")
         print("1. Test the DMG installation")
         print("2. ✅ Repositories pushed to remote")
-        print("3. ✅ Potter webpage updated with new download link")
-        print("4. Verify auto-update works with new appcast")
+        print("3. Verify auto-update works with new appcast")
 
 
 def main():
