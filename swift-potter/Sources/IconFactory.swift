@@ -67,38 +67,68 @@ struct IconFactory {
     // MARK: - Private Drawing Methods
 
     private static func createMenuBarIcon() -> NSImage {
-        guard let templateIcon = Bundle.potterResources.image(forResource: "menubar-icon-template") else {
-            fatalError("menubar-icon-template.png not found in Resources")
-        }
-
-        let icon = templateIcon.copy() as! NSImage
-        icon.size = iconSize
+        let icon = NSImage(size: iconSize)
+        icon.lockFocus()
+        drawWandIcon(color: .black)
+        icon.unlockFocus()
         icon.isTemplate = true
         return icon
     }
 
     private static func createTintedIcon(color: NSColor) -> NSImage {
-        guard let templateIcon = Bundle.potterResources.image(forResource: "menubar-icon-template") else {
-            fatalError("menubar-icon-template.png not found in Resources")
-        }
-
         let tintedIcon = NSImage(size: iconSize)
         tintedIcon.lockFocus()
-
-        // Fill with the color
-        color.set()
-        NSRect(origin: .zero, size: iconSize).fill()
-
-        // Use the original icon as a mask
-        templateIcon.draw(
-            in: NSRect(origin: .zero, size: iconSize),
-            from: NSRect(origin: .zero, size: templateIcon.size),
-            operation: .destinationIn,
-            fraction: 1.0
-        )
-
+        drawWandIcon(color: color)
         tintedIcon.unlockFocus()
         return tintedIcon
+    }
+
+    /// Draws a magic wand with sparkles — clean and readable at 18px.
+    private static func drawWandIcon(color: NSColor) {
+        color.setStroke()
+        color.setFill()
+
+        // Wand: diagonal line from bottom-left to upper-right
+        let wand = NSBezierPath()
+        wand.move(to: NSPoint(x: 3, y: 3))
+        wand.line(to: NSPoint(x: 12, y: 12))
+        wand.lineWidth = 2.0
+        wand.lineCapStyle = .round
+        wand.stroke()
+
+        // Wand tip (small diamond)
+        let tip = NSBezierPath()
+        tip.move(to: NSPoint(x: 12, y: 13.5))
+        tip.line(to: NSPoint(x: 13.5, y: 12))
+        tip.line(to: NSPoint(x: 12, y: 10.5))
+        tip.line(to: NSPoint(x: 10.5, y: 12))
+        tip.close()
+        tip.fill()
+
+        // Sparkle 1 (top-right, larger)
+        drawSparkle(center: NSPoint(x: 15, y: 15), size: 2.5, color: color)
+
+        // Sparkle 2 (right of wand)
+        drawSparkle(center: NSPoint(x: 16, y: 9), size: 1.5, color: color)
+
+        // Sparkle 3 (above wand)
+        drawSparkle(center: NSPoint(x: 8, y: 16), size: 1.5, color: color)
+    }
+
+    /// Draws a 4-point star sparkle.
+    private static func drawSparkle(center: NSPoint, size: CGFloat, color: NSColor) {
+        color.setFill()
+        let sparkle = NSBezierPath()
+        sparkle.move(to: NSPoint(x: center.x, y: center.y + size))
+        sparkle.line(to: NSPoint(x: center.x + size * 0.3, y: center.y + size * 0.3))
+        sparkle.line(to: NSPoint(x: center.x + size, y: center.y))
+        sparkle.line(to: NSPoint(x: center.x + size * 0.3, y: center.y - size * 0.3))
+        sparkle.line(to: NSPoint(x: center.x, y: center.y - size))
+        sparkle.line(to: NSPoint(x: center.x - size * 0.3, y: center.y - size * 0.3))
+        sparkle.line(to: NSPoint(x: center.x - size, y: center.y))
+        sparkle.line(to: NSPoint(x: center.x - size * 0.3, y: center.y + size * 0.3))
+        sparkle.close()
+        sparkle.fill()
     }
 
     private static func drawSpinner() {
