@@ -3,767 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potter - Rewrite text with AI, without leaving your app</title>
-    <meta name="description" content="macOS menu bar app. Select text anywhere, press a hotkey, get it rewritten by AI in-place. Open source. Bring your own API key.">
-
-    <meta property="og:title" content="Potter - Rewrite text with AI, without leaving your app">
-    <meta property="og:description" content="Select text anywhere on macOS, press Cmd+Shift+9, get AI-rewritten text back in-place. Open source, bring your own API key.">
+    <title>Potter</title>
+    <meta name="description" content="macOS menu bar app that rewrites selected text with AI. Open source.">
+    <meta property="og:title" content="Potter">
+    <meta property="og:description" content="macOS menu bar app that rewrites selected text with AI. Open source.">
     <meta property="og:image" content="https://graydot.ai/images/favicon.png">
     <meta property="og:url" content="https://potter.graydot.ai">
     <meta property="og:type" content="website">
-
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Potter - Rewrite text with AI, without leaving your app">
-    <meta name="twitter:description" content="Select text, Cmd+Shift+9, done. macOS menu bar app. Open source, bring your own API key.">
-    <meta name="twitter:image" content="https://graydot.ai/images/favicon.png">
-
+    <meta name="twitter:title" content="Potter">
+    <meta name="twitter:description" content="macOS menu bar app that rewrites selected text with AI. Open source.">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: 'Courier New', Courier, monospace;
-            background-color: #1a1a2e;
-            color: #c5c5c5;
-            font-size: 16px;
+            background: #1c1c1c;
+            color: #b0b0b0;
+            font-size: 15px;
             line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .page { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        .page {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 60px 24px 40px;
+        }
 
-        a { color: #52b788; text-decoration: none; }
+        a { color: #7ec89b; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        a:focus, button:focus { outline: 2px solid #52b788; outline-offset: 2px; }
 
-        .sr-only {
-            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
-        }
+        /* ---- Header ---- */
+        .header { margin-bottom: 48px; }
 
-        /* ---- Hero ---- */
-        .hero {
-            text-align: center;
-            padding: 60px 0 40px;
-        }
-
-        .hero h1 {
-            font-size: 3.5rem;
-            color: #fff;
-            margin-bottom: 12px;
-            letter-spacing: -1px;
-        }
-
-        .hero-tagline {
-            font-size: 1.25rem;
-            color: #95a5a6;
-            max-width: 520px;
-            margin: 0 auto 30px;
-        }
-
-        .hero-cta {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        .btn-download {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 14px 32px;
-            background: #52b788;
-            color: #1a1a2e;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 1.05rem;
-            font-family: inherit;
-            text-decoration: none;
-            transition: all 0.2s ease;
-            border: 2px solid #52b788;
-        }
-
-        .btn-download:hover {
-            background: #40916c;
-            border-color: #40916c;
-            text-decoration: none;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(82, 183, 136, 0.25);
-        }
-
-        .btn-source {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 24px;
-            background: transparent;
-            color: #c5c5c5;
-            border: 2px solid #3d3d5c;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 1rem;
-            font-family: inherit;
-            text-decoration: none;
-            transition: all 0.2s ease;
-        }
-
-        .btn-source:hover {
-            border-color: #52b788;
-            color: #52b788;
-            text-decoration: none;
-        }
-
-        .hero-meta {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            font-size: 0.85rem;
-            color: #666;
-        }
-
-        .hero-meta span { display: inline-flex; align-items: center; gap: 5px; }
-
-        /* ---- Section ---- */
-        .section {
-            margin: 60px 0;
-        }
-
-        .section-label {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #52b788;
-            margin-bottom: 12px;
-        }
-
-        .section h2 {
-            font-size: 1.5rem;
-            color: #fff;
-            margin-bottom: 20px;
-        }
-
-        /* ---- The Problem ---- */
-        .problem {
-            background: #16213e;
-            border-left: 3px solid #52b788;
-            padding: 24px 28px;
-            border-radius: 0 8px 8px 0;
-            margin: 60px 0;
-        }
-
-        .problem p {
-            margin-bottom: 12px;
-            color: #b0b0b0;
-        }
-
-        .problem p:last-child { margin-bottom: 0; }
-        .problem strong { color: #e0e0e0; }
-
-        /* ---- Terminal demo ---- */
-        .terminal {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 40px 0;
-        }
-
-        .terminal-bar {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 10px 14px;
-            background: #161b22;
-            border-bottom: 1px solid #30363d;
-        }
-
-        .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .terminal-dot.r { background: #ff5f56; }
-        .terminal-dot.y { background: #ffbd2e; }
-        .terminal-dot.g { background: #27c93f; }
-
-        .terminal-body {
-            padding: 20px;
-            font-size: 0.9rem;
-            line-height: 1.8;
-        }
-
-        .terminal-body .prompt-line { color: #8b949e; }
-        .terminal-body .prompt-sign { color: #52b788; }
-        .terminal-body .input-text { color: #f0883e; }
-        .terminal-body .output-text { color: #58a6ff; }
-        .terminal-body .status-text { color: #3fb950; }
-        .terminal-body .dim { color: #484f58; }
-        .terminal-body .label { color: #8b949e; }
-
-        .terminal-step {
-            margin-bottom: 16px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #21262d;
-        }
-        .terminal-step:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-
-        /* ---- Carousel ---- */
-        .carousel-section { margin: 60px 0; }
-
-        .carousel-container {
-            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
-            border: 1px solid #2d2d4a;
-            border-radius: 12px;
-            padding: 0;
-            overflow: hidden;
-            position: relative;
-            height: 260px;
-        }
-
-        .carousel-track {
-            display: flex;
-            width: 400%;
-            height: 100%;
-            transition: transform 0.4s ease;
-        }
-
-        .slide {
-            width: 25%;
-            flex-shrink: 0;
-            padding: 30px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .slide-label {
-            text-align: center;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #52b788;
-            margin-bottom: 20px;
-        }
-
-        .slide-content {
-            display: grid;
-            grid-template-columns: 1fr 40px 1fr;
-            gap: 16px;
-            align-items: center;
-            flex: 1;
-        }
-
-        .text-card {
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            padding: 16px;
-            position: relative;
-            min-height: 100px;
-            display: flex;
-            align-items: center;
-        }
-
-        .text-card-label {
-            position: absolute;
-            top: -8px;
-            left: 12px;
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: 700;
-        }
-
-        .text-card.before .text-card-label { background: #3d3d5c; color: #95a5a6; }
-        .text-card.after .text-card-label { background: #2d6a4f; color: #b7e4c7; }
-
-        .text-card p {
-            font-size: 0.85rem;
-            line-height: 1.6;
-            margin-top: 6px;
-        }
-
-        .text-card.before p { color: #95a5a6; }
-        .text-card.after p { color: #d4edda; }
-
-        .slide-arrow {
-            text-align: center;
-            font-size: 1.2rem;
-            color: #52b788;
-            opacity: 0.6;
-        }
-
-        .carousel-nav {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 16px;
-        }
-
-        .nav-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #3d3d5c;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            padding: 0;
-        }
-
-        .nav-dot.active { background: #52b788; transform: scale(1.3); }
-
-        /* ---- Why not ChatGPT ---- */
-        .comparison {
-            display: grid;
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .comparison-item {
-            display: grid;
-            grid-template-columns: 40px 1fr;
-            gap: 16px;
-            align-items: start;
-            padding: 16px 0;
-            border-bottom: 1px solid #2d2d4a;
-        }
-
-        .comparison-item:last-child { border-bottom: none; }
-
-        .comparison-icon {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4rem;
-        }
-
-        .comparison-item h3 {
-            font-size: 1rem;
-            color: #fff;
-            margin-bottom: 4px;
-        }
-
-        .comparison-item p {
-            font-size: 0.9rem;
-            color: #95a5a6;
-        }
-
-        /* ---- Features list ---- */
-        .features-list {
-            list-style: none;
-            padding: 0;
-            margin-top: 20px;
-        }
-
-        .features-list li {
-            padding: 10px 0;
-            border-bottom: 1px solid #2d2d4a;
-            display: flex;
-            align-items: baseline;
-            gap: 12px;
-            color: #b0b0b0;
-        }
-
-        .features-list li:last-child { border-bottom: none; }
-        .features-list .check { color: #52b788; font-weight: bold; flex-shrink: 0; }
-
-        /* ---- Get started ---- */
-        .get-started {
-            background: #16213e;
-            border: 1px solid #2d2d4a;
-            border-radius: 12px;
-            padding: 40px;
-            text-align: center;
-            margin: 60px 0;
-        }
-
-        .get-started h2 {
-            font-size: 1.5rem;
-            color: #fff;
+        .header h1 {
+            font-size: 2rem;
+            color: #e0e0e0;
             margin-bottom: 8px;
+            letter-spacing: -0.5px;
         }
 
-        .get-started p {
-            color: #95a5a6;
+        .header .tagline {
+            color: #808080;
             margin-bottom: 24px;
         }
 
-        .requirements-inline {
+        .actions {
             display: flex;
-            gap: 20px;
-            justify-content: center;
+            gap: 12px;
+            align-items: center;
             flex-wrap: wrap;
-            margin-bottom: 28px;
-            font-size: 0.85rem;
-            color: #666;
         }
 
-        .requirements-inline span {
+        .btn {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-        }
-
-        .requirements-inline .dot-sep { color: #3d3d5c; }
-
-        /* ---- Mailing list ---- */
-        .mailing {
-            text-align: center;
-            margin: 60px 0 20px;
-            padding: 30px 0;
-            border-top: 1px solid #2d2d4a;
-        }
-
-        .mailing p { color: #666; font-size: 0.9rem; margin-bottom: 16px; }
-
-        .mailing-form {
-            display: flex;
-            gap: 10px;
-            max-width: 440px;
-            margin: 0 auto;
-        }
-
-        .mailing-form input[type="email"] {
-            flex: 1;
-            padding: 10px 14px;
-            background: #16213e;
-            border: 1px solid #2d2d4a;
-            border-radius: 6px;
-            color: #c5c5c5;
+            padding: 8px 16px;
+            border-radius: 4px;
             font-family: inherit;
             font-size: 0.9rem;
+            text-decoration: none;
+            transition: opacity 0.15s;
         }
 
-        .mailing-form input[type="email"]:focus {
-            border-color: #52b788;
-            outline: none;
-        }
+        .btn:hover { text-decoration: none; opacity: 0.85; }
 
-        .mailing-form button {
-            padding: 10px 20px;
-            background: #52b788;
-            color: #1a1a2e;
-            border: none;
-            border-radius: 6px;
-            font-family: inherit;
+        .btn-primary {
+            background: #7ec89b;
+            color: #1c1c1c;
             font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: background 0.2s;
         }
 
-        .mailing-form button:hover { background: #40916c; }
+        .btn-ghost {
+            background: none;
+            color: #808080;
+            border: 1px solid #333;
+        }
 
-        .success-message {
-            background: rgba(82, 183, 136, 0.1);
-            border: 1px solid #52b788;
-            border-radius: 8px;
+        .btn-ghost:hover { border-color: #555; color: #b0b0b0; }
+
+        .meta {
+            margin-top: 16px;
+            font-size: 0.8rem;
+            color: #555;
+        }
+
+        .meta span + span::before { content: ' \00b7 '; }
+
+        /* ---- Sections ---- */
+        .section {
+            margin-bottom: 48px;
+        }
+
+        .section h2 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #555;
+            margin-bottom: 16px;
+        }
+
+        .section p {
+            margin-bottom: 12px;
+        }
+
+        .section p:last-child { margin-bottom: 0; }
+
+        /* ---- Examples ---- */
+        .example {
+            margin-bottom: 20px;
             padding: 16px;
-            color: #52b788;
-            font-weight: 600;
-            max-width: 440px;
-            margin: 0 auto;
+            background: #232323;
+            border-radius: 4px;
+        }
+
+        .example-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .example .before {
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .example .arrow {
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .example .after {
+            color: #c5c5c5;
+        }
+
+        /* ---- Feature list ---- */
+        .features {
+            list-style: none;
+            padding: 0;
+        }
+
+        .features li {
+            padding: 6px 0;
+            color: #999;
+        }
+
+        .features li::before {
+            content: '- ';
+            color: #555;
+        }
+
+        /* ---- Menu repr ---- */
+        .menu-repr {
+            background: #232323;
+            border-radius: 4px;
+            padding: 16px;
+            font-size: 0.85rem;
+            line-height: 1.9;
+            color: #888;
+        }
+
+        .menu-repr .active { color: #7ec89b; }
+        .menu-repr .dim { color: #444; }
+        .menu-repr .key { color: #666; }
+
+        /* ---- Divider ---- */
+        hr {
+            border: none;
+            border-top: 1px solid #2a2a2a;
+            margin: 48px 0;
         }
 
         /* ---- Footer ---- */
         .footer {
-            text-align: center;
-            padding: 30px 0;
             font-size: 0.8rem;
-            color: #484f58;
+            color: #444;
+            padding-top: 20px;
         }
 
-        .footer a { color: #484f58; }
-        .footer a:hover { color: #52b788; }
+        .footer a { color: #555; }
+        .footer a:hover { color: #7ec89b; }
 
         /* ---- Responsive ---- */
-        @media (max-width: 640px) {
-            .hero h1 { font-size: 2.5rem; }
-            .hero-tagline { font-size: 1.1rem; }
-            .hero-cta { flex-direction: column; align-items: center; }
-            .hero-meta { flex-direction: column; gap: 8px; }
-            .slide-content { grid-template-columns: 1fr; gap: 12px; }
-            .slide-arrow { transform: rotate(90deg); }
-            .carousel-container { height: auto; min-height: 320px; }
-            .slide { padding: 20px; }
-            .mailing-form { flex-direction: column; }
-            .problem { padding: 20px; }
-            .get-started { padding: 28px 20px; }
-            .requirements-inline { flex-direction: column; align-items: center; gap: 8px; }
-            .requirements-inline .dot-sep { display: none; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        @media (max-width: 480px) {
+            .page { padding: 40px 16px 32px; }
+            .header h1 { font-size: 1.6rem; }
+            .actions { flex-direction: column; align-items: flex-start; }
         }
     </style>
 </head>
 <body>
 <div class="page">
 
-    <!-- Hero: name, one line, download -->
-    <header class="hero">
+    <header class="header">
         <h1>Potter</h1>
-        <p class="hero-tagline">
-            Rewrite any text with AI without leaving the app you're in.
-            One hotkey from your macOS menu bar.
-        </p>
-        <div class="hero-cta">
-            <a href="https://github.com/graydot/potter/releases/latest/download/Potter.dmg" class="btn-download" id="potter-download-link">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 5v6h1.17L12 13.17 9.83 11H11V5h2m2-2H9v6H5l7 7 7-7h-4V3zm4 15H5v2h14v-2z"/></svg>
-                Download for macOS
-            </a>
-            <a href="https://github.com/graydot/potter" class="btn-source">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5 0-.23-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A10.013 10.013 0 0022 12c0-5.52-4.48-10-10-10z"/></svg>
-                Source
-            </a>
+        <p class="tagline">Rewrites selected text with AI. Lives in your macOS menu bar.</p>
+        <div class="actions">
+            <a href="https://github.com/graydot/potter/releases/latest/download/Potter.dmg" class="btn btn-primary">Download</a>
+            <a href="https://github.com/graydot/potter" class="btn btn-ghost">GitHub</a>
         </div>
-        <div class="hero-meta">
+        <div class="meta">
             <span>macOS 13+</span>
-            <span>Intel & Apple Silicon</span>
-            <span>Open Source</span>
+            <span>Intel &amp; Apple Silicon</span>
+            <span>Open source</span>
             <span>Free</span>
         </div>
     </header>
 
-    <!-- The problem -->
-    <div class="problem">
-        <p>
-            You already rewrite text with AI. You select a sentence, open ChatGPT,
-            paste it, type "make this more professional," copy the result, switch back
-            to your app, and paste. <strong>Six steps for a one-step job.</strong>
-        </p>
-        <p>
-            Potter sits in your menu bar and does all of that in a single hotkey.
-        </p>
+    <div class="section">
+        <p>Select text in any app. Press <strong style="color:#c5c5c5;">Cmd+Shift+9</strong>. Potter grabs it, sends it to an LLM, and pastes the rewritten version back. The menu bar icon spins while it's working, turns green when it's done.</p>
+        <p>You bring your own API key (OpenAI, Anthropic, or Google). Your text goes directly to the provider. No account, no middleman, no subscription.</p>
     </div>
 
-    <!-- Terminal demo: show the actual flow -->
-    <div class="terminal">
-        <div class="terminal-bar">
-            <div class="terminal-dot r"></div>
-            <div class="terminal-dot y"></div>
-            <div class="terminal-dot g"></div>
+    <div class="section">
+        <h2>What it looks like</h2>
+        <div class="menu-repr">
+            <div>Process Text <span class="key">&#8984;&#8679;9</span></div>
+            <div class="dim">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</div>
+            <div class="active">&#10003; Polish</div>
+            <div>&nbsp; Summarize</div>
+            <div>&nbsp; Elaborate</div>
+            <div>&nbsp; Considerate</div>
+            <div>&nbsp; Formal</div>
+            <div>&nbsp; Clarity</div>
+            <div class="dim">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</div>
+            <div>Preferences...</div>
+            <div>Quit Potter</div>
         </div>
-        <div class="terminal-body">
-            <div class="terminal-step">
-                <div class="prompt-line"><span class="prompt-sign">$</span> <span class="dim">You select text in Slack and press</span> <span class="status-text">Cmd+Shift+9</span></div>
-            </div>
-            <div class="terminal-step">
-                <div class="prompt-line"><span class="label">captured:</span> <span class="input-text">"hey team can someone help me figure out this bug? its super annoying and breaking everything lol"</span></div>
-            </div>
-            <div class="terminal-step">
-                <div class="prompt-line"><span class="label">prompt:</span> <span class="dim">Professional Slack Message</span></div>
-                <div class="prompt-line"><span class="label">model:</span> <span class="dim">claude-sonnet-4-20250514</span></div>
-            </div>
-            <div class="terminal-step">
-                <div class="prompt-line"><span class="label">result:</span> <span class="output-text">"Hi team! Could someone assist with debugging this issue? It's causing significant problems in the current build. Thanks!"</span></div>
-            </div>
-            <div class="terminal-step">
-                <div class="prompt-line"><span class="status-text">Pasted back in 1.2s. Original preserved in clipboard.</span></div>
-            </div>
+        <p style="margin-top:12px; font-size:0.85rem; color:#555;">The six prompts ship built-in. You can edit them or add your own in Preferences. Switch prompts from the menu without opening settings.</p>
+    </div>
+
+    <div class="section">
+        <h2>Before / after</h2>
+
+        <div class="example">
+            <div class="example-label">Slack message &mdash; using "Polish"</div>
+            <div class="before">"hey team can someone help me figure out this bug? its super annoying and breaking everything lol"</div>
+            <div class="arrow">&darr;</div>
+            <div class="after">"Hi team, could someone help debug this issue? It's causing significant problems in the current build. Thanks!"</div>
+        </div>
+
+        <div class="example">
+            <div class="example-label">Email &mdash; using "Formal"</div>
+            <div class="before">"i think we should maybe consider changing our approach because the current one isnt working great"</div>
+            <div class="arrow">&darr;</div>
+            <div class="after">"I recommend we evaluate our current strategy. Recent outcomes suggest it is underperforming, and I believe a revised approach would better serve our objectives."</div>
+        </div>
+
+        <div class="example">
+            <div class="example-label">Notes &mdash; using "Clarity"</div>
+            <div class="before">"the thing with the deployment is that it sometimes works and sometimes doesnt depending on if the cache is warm or not and also the env vars"</div>
+            <div class="arrow">&darr;</div>
+            <div class="after">"Deployments are inconsistent due to two factors: cache state (warm vs. cold) and environment variable configuration."</div>
         </div>
     </div>
 
-    <!-- Before/after carousel -->
-    <section class="carousel-section">
-        <div class="section-label">See it in action</div>
-
-        <div class="carousel-container">
-            <div class="carousel-track" id="carousel-track">
-                <div class="slide">
-                    <div class="slide-label">Slack Message</div>
-                    <div class="slide-content">
-                        <div class="text-card before">
-                            <div class="text-card-label">Before</div>
-                            <p>hey team can someone help me figure out this bug? its super annoying and breaking everything lol</p>
-                        </div>
-                        <div class="slide-arrow">&#8594;</div>
-                        <div class="text-card after">
-                            <div class="text-card-label">After</div>
-                            <p>Hi team! Could someone assist with debugging this issue? It's causing significant problems in the current build. Thanks!</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="slide">
-                    <div class="slide-label">Email Draft</div>
-                    <div class="slide-content">
-                        <div class="text-card before">
-                            <div class="text-card-label">Before</div>
-                            <p>i think we should maybe consider changing our approach because the current one isnt working great and customers are complaining</p>
-                        </div>
-                        <div class="slide-arrow">&#8594;</div>
-                        <div class="text-card after">
-                            <div class="text-card-label">After</div>
-                            <p>I recommend we revisit our current approach. Customer feedback indicates it's underperforming, and I believe a course correction would be timely.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="slide">
-                    <div class="slide-label">Social Post</div>
-                    <div class="slide-content">
-                        <div class="text-card before">
-                            <div class="text-card-label">Before</div>
-                            <p>omg just had the best coffee ever!!! this place is sooo good you guys have to try it!!</p>
-                        </div>
-                        <div class="slide-arrow">&#8594;</div>
-                        <div class="text-card after">
-                            <div class="text-card-label">After</div>
-                            <p>Just found an incredible coffee spot. The quality is outstanding and I can't recommend it enough. Worth a visit.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="slide">
-                    <div class="slide-label">Creative Writing</div>
-                    <div class="slide-content">
-                        <div class="text-card before">
-                            <div class="text-card-label">Before</div>
-                            <p>the sun was bright and it was a nice day. birds were singing and everything looked pretty good.</p>
-                        </div>
-                        <div class="slide-arrow">&#8594;</div>
-                        <div class="text-card after">
-                            <div class="text-card-label">After</div>
-                            <p>Golden light spilled across the morning, and birdsong threaded through the stillness like something half-remembered.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="carousel-nav" id="carousel-nav">
-            <button class="nav-dot active" data-index="0" aria-label="Slide 1"></button>
-            <button class="nav-dot" data-index="1" aria-label="Slide 2"></button>
-            <button class="nav-dot" data-index="2" aria-label="Slide 3"></button>
-            <button class="nav-dot" data-index="3" aria-label="Slide 4"></button>
-        </div>
-    </section>
-
-    <!-- Why Potter vs. ChatGPT -->
-    <section class="section">
-        <div class="section-label">Why not just use ChatGPT?</div>
-        <h2>You can. Potter just removes the friction.</h2>
-
-        <div class="comparison">
-            <div class="comparison-item">
-                <div class="comparison-icon">&#9889;</div>
-                <div>
-                    <h3>No context switching</h3>
-                    <p>Potter works inside whatever app you're already in. You don't open a browser, paste into a chat, wait for a response, and copy it back. You press one hotkey and keep typing.</p>
-                </div>
-            </div>
-            <div class="comparison-item">
-                <div class="comparison-icon">&#128274;</div>
-                <div>
-                    <h3>Your keys, your data</h3>
-                    <p>Potter connects directly to OpenAI, Anthropic, or Google with your own API key. Your text never touches a third-party server. No account, no subscription, no tracking.</p>
-                </div>
-            </div>
-            <div class="comparison-item">
-                <div class="comparison-icon">&#128736;</div>
-                <div>
-                    <h3>Your prompts, your rules</h3>
-                    <p>Create prompts for exactly how you write. "Rewrite for a skeptical engineering audience." "Make this sound like me, not a robot." "Translate to Spanish but keep the idioms." Whatever you need.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- What you get -->
-    <section class="section">
-        <div class="section-label">What's in the box</div>
-        <h2>A native macOS app. Nothing else to install.</h2>
-
-        <ul class="features-list">
-            <li><span class="check">&#10003;</span> System-wide hotkey (Cmd+Shift+9, customizable) that works in any app</li>
-            <li><span class="check">&#10003;</span> Menu bar icon with prompt switching, status, and settings</li>
-            <li><span class="check">&#10003;</span> OpenAI, Anthropic, and Google Gemini support</li>
-            <li><span class="check">&#10003;</span> Custom prompts with CRUD management</li>
-            <li><span class="check">&#10003;</span> Streaming responses so you see results as they arrive</li>
-            <li><span class="check">&#10003;</span> Processing history to review past rewrites</li>
-            <li><span class="check">&#10003;</span> Auto-updates via Sparkle</li>
-            <li><span class="check">&#10003;</span> Open source (Swift, SwiftUI, no Electron)</li>
+    <div class="section">
+        <h2>Details</h2>
+        <ul class="features">
+            <li>Global hotkey works in any app (customizable in Preferences)</li>
+            <li>Menu bar icon shows status: idle, processing (spinning), success (green), error (red)</li>
+            <li>Streaming responses &mdash; results arrive as the model generates them</li>
+            <li>Output modes: replace clipboard, append, or prepend to original</li>
+            <li>Processing history with input, output, prompt used, model, and duration</li>
+            <li>Settings window with API key management, model selection, prompt editor, and log viewer</li>
+            <li>Auto-updates via Sparkle</li>
+            <li>Written in Swift and SwiftUI. No Electron</li>
         </ul>
-    </section>
+    </div>
 
-    <!-- Get started -->
-    <div class="get-started">
-        <h2>Get started in 30 seconds</h2>
-        <p>Download, drop in Applications, add your API key, press Cmd+Shift+9.</p>
-        <div class="requirements-inline">
-            <span>macOS 13+ (Ventura)</span>
-            <span class="dot-sep">&middot;</span>
-            <span>Intel or Apple Silicon</span>
-            <span class="dot-sep">&middot;</span>
-            <span>Needs an API key (OpenAI / Anthropic / Google)</span>
+    <hr>
+
+    <div class="section">
+        <h2>Requirements</h2>
+        <p>macOS 13.0 (Ventura) or later. Universal binary. You'll need an API key from <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://console.anthropic.com/">Anthropic</a>, or <a href="https://aistudio.google.com/apikey">Google</a>.</p>
+        <div class="actions" style="margin-top:16px;">
+            <a href="https://github.com/graydot/potter/releases/latest/download/Potter.dmg" class="btn btn-primary">Download Potter.dmg</a>
         </div>
-        <a href="https://github.com/graydot/potter/releases/latest/download/Potter.dmg" class="btn-download">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 5v6h1.17L12 13.17 9.83 11H11V5h2m2-2H9v6H5l7 7 7-7h-4V3zm4 15H5v2h14v-2z"/></svg>
-            Download Potter.dmg
-        </a>
     </div>
 
-    <!-- Mailing list -->
-    <div class="mailing">
-        <p>Get notified about new releases. No spam.</p>
-        <form class="mailing-form" action="https://formspree.io/f/mnndyylp" method="POST" id="mailing-form">
-            <input type="email" name="email" placeholder="your@email.com" required>
-            <input type="hidden" name="_subject" value="Potter mailing list signup">
-            <input type="hidden" name="_next" value="https://potter.graydot.ai?success=true">
-            <button type="submit">Subscribe</button>
-        </form>
-    </div>
+    <hr>
 
-    <!-- Footer -->
     <footer class="footer">
-        <p>Built by <a href="https://graydot.ai">graydot.ai</a></p>
+        <p>Built by <a href="https://graydot.ai">Jeba</a> &middot; <a href="https://github.com/graydot/potter">Source on GitHub</a></p>
     </footer>
 
 </div>
-
-<script>
-(function() {
-    var track = document.getElementById('carousel-track');
-    var dots = document.querySelectorAll('.nav-dot');
-    var total = 4;
-    var current = 0;
-    var interval;
-
-    function go(i) {
-        current = i;
-        track.style.transform = 'translateX(' + -(i * 25) + '%)';
-        dots.forEach(function(d, idx) { d.classList.toggle('active', idx === i); });
-    }
-
-    function next() { go((current + 1) % total); }
-    function start() { interval = setInterval(next, 5000); }
-    function stop() { clearInterval(interval); }
-
-    dots.forEach(function(dot) {
-        dot.addEventListener('click', function() {
-            stop();
-            go(parseInt(this.dataset.index));
-            start();
-        });
-    });
-
-    var container = document.querySelector('.carousel-container');
-    container.addEventListener('mouseenter', stop);
-    container.addEventListener('mouseleave', start);
-
-    start();
-
-    // Handle success redirect from mailing list
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('success') === 'true') {
-        var form = document.getElementById('mailing-form');
-        var msg = document.createElement('div');
-        msg.className = 'success-message';
-        msg.textContent = 'You\'re on the list. We\'ll keep you posted.';
-        form.parentNode.insertBefore(msg, form);
-        form.style.display = 'none';
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-})();
-</script>
 </body>
 </html>
