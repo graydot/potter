@@ -171,6 +171,36 @@
         .menu-repr .dim { color: #444; }
         .menu-repr .key { color: #666; }
 
+        /* ---- Screenshot placeholders ---- */
+        .screenshot {
+            margin: 20px 0;
+            border: 1px dashed #333;
+            border-radius: 6px;
+            padding: 40px 20px;
+            text-align: center;
+            color: #444;
+            font-size: 0.8rem;
+            background: #1a1a1a;
+        }
+
+        .screenshot img {
+            max-width: 100%;
+            border-radius: 6px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .screenshot .placeholder-label {
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .screenshot .placeholder-hint {
+            color: #333;
+            font-size: 0.75rem;
+        }
+
         /* ---- Divider ---- */
         hr {
             border: none;
@@ -216,7 +246,16 @@
 
     <div class="section">
         <p>Select text in any app. Press <strong style="color:#c5c5c5;">Cmd+Shift+9</strong>. Potter grabs it, sends it to an LLM, and pastes the rewritten version back. The menu bar icon spins while it's working, turns green when it's done.</p>
-        <p>You bring your own API key (OpenAI, Anthropic, or Google). Your text goes directly to the provider. No account, no middleman, no subscription.</p>
+        <p>You bring your own API key (Anthropic or Google). Your text goes directly to the provider. No account, no middleman, no subscription.</p>
+
+        <!-- SCREENSHOT: Hero demo — screen recording or annotated screenshot showing the full flow:
+             select text → press hotkey → spinner → result replaces text
+             Ideal: GIF or short MP4 showing it in action in a real app (Slack, Notes, etc.)
+             Size: full width, ~600px wide -->
+        <div class="screenshot">
+            <div class="placeholder-label">screenshot: demo flow</div>
+            <div class="placeholder-hint">select text → Cmd+Shift+9 → result appears</div>
+        </div>
     </div>
 
     <div class="section">
@@ -235,6 +274,14 @@
             <div>Quit Potter</div>
         </div>
         <p style="margin-top:12px; font-size:0.85rem; color:#555;">The six prompts ship built-in. You can edit them or add your own in Preferences. Switch prompts from the menu without opening settings.</p>
+
+        <!-- SCREENSHOT: Menu bar dropdown — actual screenshot of the Potter menu in macOS
+             Show the menu open with prompts listed, checkmark on active prompt
+             Size: ~300px wide, natural macOS menu appearance -->
+        <div class="screenshot">
+            <div class="placeholder-label">screenshot: menu bar dropdown</div>
+            <div class="placeholder-hint">the actual menu with prompts, status icon visible</div>
+        </div>
     </div>
 
     <div class="section">
@@ -274,13 +321,21 @@
             <li>Auto-updates via Sparkle</li>
             <li>Written in Swift and SwiftUI. No Electron</li>
         </ul>
+
+        <!-- SCREENSHOT: Settings window — show the Preferences window (General or Prompts tab)
+             Highlights: API key entry, model picker, prompt editor
+             Size: full width, ~600px wide -->
+        <div class="screenshot">
+            <div class="placeholder-label">screenshot: settings window</div>
+            <div class="placeholder-hint">preferences with API key setup, model selection, prompt editor</div>
+        </div>
     </div>
 
     <hr>
 
     <div class="section">
         <h2>Requirements</h2>
-        <p>macOS 13.0 (Ventura) or later. Universal binary. You'll need an API key from <a href="https://platform.openai.com/api-keys">OpenAI</a>, <a href="https://console.anthropic.com/">Anthropic</a>, or <a href="https://aistudio.google.com/apikey">Google</a>.</p>
+        <p>macOS 13.0 (Ventura) or later. Universal binary. You'll need an API key from <a href="https://console.anthropic.com/">Anthropic</a> or <a href="https://aistudio.google.com/apikey">Google</a>.</p>
         <div class="actions" style="margin-top:16px;">
             <a href="https://github.com/graydot/potter/releases/latest/download/Potter.dmg" class="btn btn-primary">Download Potter.dmg</a>
         </div>
